@@ -1,8 +1,7 @@
 # Spec: Penqle `bot-helpers` + TortoiseBots Docker Image
 
-Status: draft, not started
-Repo: this spec lives in the new repo (`tortoise-docker`, empty at spec time,
-branch `main`, no commits yet).
+Status: implemented, build not yet run. Local checkouts exist; see §3.4.
+Repo: this spec lives in the new repo (`tortoise-docker`).
 
 ## 0. Local context (paths on this machine)
 
@@ -13,14 +12,17 @@ An agent working here has these existing checkouts/projects:
 | `/Users/pho/Turtle/New/tortoise-docker` | **This repo.** All deliverables in §1 are built here. |
 | `/Users/pho/Turtle/tortoise-docker` | The **old image this project supersedes**: the working Shyalya-based setup ([Nescabir/tortoise-docker](https://github.com/Nescabir/tortoise-docker)). **Reference implementation AND parity target** — its `Dockerfile`, `docker-compose.yml`, and `docker/*.sh` scripts are the templates to adapt (see §4). Do not modify it. |
 | `/Users/pho/Turtle/TortoiseCompiledNew` | A Windows-native build/play setup of the current Shyalya stack (compile scripts `compile-tortoise-wow.{ps1,bat}`, compiled server binaries, live config files incl. `aiplayerbot.conf`). Useful as a config example and as proof of the user's client-side setup; not part of the Docker pipeline. |
-| `/Users/pho/Turtle/New/tortoise-wow` | **To be cloned**: the Penqle core, branch `bot-helpers`. Clone if absent: `git clone --branch bot-helpers https://github.com/Penqle/tortoise-wow.git` (pin to commit `b74e4ee4` or newer verified tip — see §3.1). |
-| `/Users/pho/Turtle/New/TortoiseBots` | **To be cloned**: the bot module. Clone if absent: `git clone https://github.com/Sagiroth/TortoiseBots.git` (pin to the latest `main` commit at build time). |
+| `/Users/pho/Turtle/New/tortoise-wow` | Local clone of the Penqle core, branch `bot-helpers`, commit `b74e4ee4` (cloned 2026-09-09). |
+| `/Users/pho/Turtle/New/TortoiseBots` | Local clone of the bot module, commit `3003220` (cloned 2026-09-09). |
 
-No local clones of the two upstream projects exist yet at spec time — the
-clones above are step zero for any agent starting work. The Docker build
-itself clones from the pinned URLs (§4.1); the local checkouts exist for
-reading code, running the host-contract verify script, and resolving §6
-open questions without network round-trips.
+Both upstream projects are cloned locally (see §0); the clones above are the
+reference for reading code and re-running the host-contract verify script.
+The Docker build itself clones from the pinned URLs/SHAs (§4.1).
+
+**Implementation status**: all deliverables exist in this repo
+(`Dockerfile.penqle`, `docker/penqle/*`, `docker-compose.penqle.yml`,
+`.env.example.penqle`, `README.md`, workflows). Remaining §6 items are
+docker-build-time confirmations only.
 
 ## 1. Goal
 
@@ -283,12 +285,15 @@ FIFO (works, §3.4.7), module SQL handling (AutoUpdater, §3.4.5).
 Remaining:
 
 1. **Exact runtime shared-library names** on Ubuntu 22.04 for the Penqle
-   build (especially ACE version and MySQL client lib flavor) — confirm via
-   `ldd` on first successful build, then finalize the runtime stage.
-2. **Whether db-init pre-applies `database_updates/`** (world + character
-   subfolders) or leaves everything to AutoUpdater on first mangosd start
-   (simpler; mirrors upstream defaults). Decide during implementation;
-   prefer AutoUpdater-only if first boot is clean.
+   build (especially ACE version and MySQL client lib flavor) — the
+   Dockerfile pins best-guess values (`libace-7.0.6`, `libmysqlclient21`);
+   confirm via `ldd` on first successful build and adjust if needed.
+2. **db-init strategy (decided)**: db-init imports `create_databases.sql`,
+   `sql/base/`, the module SQL, and `character_inventory_copy`; core
+   `database_updates/` are left to the AutoUpdater on first mangosd start,
+   which records proper SHA1 migration hashes (§3.4.5). The old Shyalya
+   repo's hand-rolled update application (and its broken `update_files`
+   hash-recording loop) is intentionally not carried over.
 3. **Pin bump cadence** for `CORE_COMMIT`/`BOTS_COMMIT` (suggest: manual
    `workflow_dispatch` inputs like the reference publish workflow's
    `source_ref`).

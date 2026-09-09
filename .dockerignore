@@ -1,0 +1,10 @@
+.git
+.env
+.env.*
+!.env.example.penqle
+data/
+config/
+logs/
+*.log
+.DS_Store
+docs/

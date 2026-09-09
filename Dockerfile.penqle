@@ -1,0 +1,145 @@
+# syntax=docker/dockerfile:1.7
+# Tortoise WoW — canonical Penqle core (bot-helpers branch) + TortoiseBots module.
+# Packaged as a drop-in replacement for the Shyalya-based image; see docs/SPEC.md.
+#
+# Build-args CORE_COMMIT / BOTS_COMMIT pin both sources. Declaring them right
+# before the clone RUN busts the layer cache only when a pin actually moves.
+
+ARG UBUNTU_VERSION=22.04
+
+# -----------------------------------------------------------------------------
+# Builder
+# -----------------------------------------------------------------------------
+FROM ubuntu:${UBUNTU_VERSION} AS builder
+
+ARG CORE_REPO=https://github.com/Penqle/tortoise-wow.git
+ARG CORE_REF=bot-helpers
+ARG CORE_COMMIT=b74e4ee43b94fc898823409b713436fe872febe8
+ARG BOTS_REPO=https://github.com/Sagiroth/TortoiseBots.git
+ARG BOTS_COMMIT=300322076c41c9f99c9e909693e3c19491d6d9f9
+ARG CMAKE_BUILD_TYPE=Release
+ARG CMAKE_INSTALL_PREFIX=/opt/turtle
+ARG BUILD_JOBS=2
+ARG CPU_TARGET=x86-64-v2
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=UTC
+
+# No Boost needed: the Penqle core links ACE, MySQL client, OpenSSL, ZLIB.
+# libcurl is for optional tooling; kept so the build never fails on it.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        cmake \
+        git \
+        libace-dev \
+        libcurl4-openssl-dev \
+        default-libmysqlclient-dev \
+        libssl-dev \
+        zlib1g-dev \
+        pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+
+# Pinning the commit right before the clone busts the cache only when the pin moves.
+RUN git clone --depth 1 --branch "${CORE_REF}" "${CORE_REPO}" tortoise-wow \
+    && git -C tortoise-wow checkout --detach "${CORE_COMMIT}" \
+    && git clone --depth 1 "${BOTS_REPO}" tortoise-wow/modules/TortoiseBots \
+    && git -C tortoise-wow/modules/TortoiseBots checkout --detach "${BOTS_COMMIT}"
+
+WORKDIR /src/tortoise-wow
+
+# Upstream hardcodes -march=native (CMakeLists.txt). Replace it with the
+# portable CPU target so published images do not depend on the build host's
+# instruction set, and fail the build if it sneaks back in.
+RUN if grep -q -- '-march=native' CMakeLists.txt; then \
+        sed -i "s/-march=native/-march=${CPU_TARGET}/g" CMakeLists.txt; \
+    fi \
+    && if grep -q -- '-march=native' CMakeLists.txt; then \
+         echo "CMakeLists.txt still contains -march=native" >&2; \
+         exit 1; \
+       fi
+
+# The module's own host-contract check must pass before we spend an hour compiling.
+RUN bash modules/TortoiseBots/tools/verify_penqle_host_contract.sh --core .
+
+RUN cmake -B build \
+        -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}" \
+        -DCMAKE_INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}" \
+        -DMODULES=static \
+        -DMODULE_TORTOISEBOTS=static \
+    && cmake --build build -j"${BUILD_JOBS}" \
+    && cmake --install build \
+    && git -C . rev-parse HEAD > "${CMAKE_INSTALL_PREFIX}/CORE_COMMIT" \
+    && git -C modules/TortoiseBots rev-parse HEAD > "${CMAKE_INSTALL_PREFIX}/BOTS_COMMIT" \
+    && rm -rf build
+
+# Keep the SQL needed for first-time DB init. Module migrations are applied by
+# init-db.sh (the runtime AutoUpdater cannot see the build-time module path).
+RUN mkdir -p /opt/turtle/sql \
+    && cp -a sql/create_databases.sql sql/base sql/database_updates /opt/turtle/sql/
+
+# Bake .dist templates away from the runtime config mount, so a CONFIG_PATH
+# bind mount over /opt/turtle/etc can never hide them (etc.dist pattern from
+# the reference image). Module templates come from the module clone; the core
+# installs its own .dist files into etc/.
+RUN mkdir -p /opt/turtle/etc.dist/modules \
+    && cp /opt/turtle/etc/*.conf.dist /opt/turtle/etc.dist/ \
+    && cp modules/TortoiseBots/conf/tortoise_bots.conf.dist /opt/turtle/etc.dist/modules/tortoise_bots.conf \
+    && cp modules/TortoiseBots/ai/playerbot/aiplayerbot.conf.dist.in /opt/turtle/etc.dist/modules/aiplayerbot.conf
+
+# -----------------------------------------------------------------------------
+# Runtime
+# -----------------------------------------------------------------------------
+FROM ubuntu:${UBUNTU_VERSION} AS runtime
+
+ARG CMAKE_INSTALL_PREFIX=/opt/turtle
+ARG CPU_TARGET=x86-64-v2
+
+LABEL org.opencontainers.image.title="tortoise-docker-penqle" \
+      org.opencontainers.image.description="Tortoise WoW server (Penqle bot-helpers core + TortoiseBots) — realmd + mangosd" \
+      org.opencontainers.image.source="https://github.com/Penqle/tortoise-wow" \
+      org.opencontainers.image.licenses="AGPL-3.0" \
+      org.opencontainers.image.cpu.target="${CPU_TARGET}"
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=UTC \
+    TURTLE_HOME=/opt/turtle \
+    PATH=/opt/turtle/bin:$PATH
+
+# Shared libraries matching the builder's link set. No Boost, no readline:
+# the Penqle core uses neither. mariadb-client is for init-db.sh.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        libace-7.0.6 \
+        libcurl4 \
+        libmysqlclient21 \
+        libssl3 \
+        zlib1g \
+        mariadb-client \
+        tini \
+        gosu \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 1000 turtle \
+    && useradd --uid 1000 --gid turtle --home-dir /opt/turtle --shell /usr/sbin/nologin turtle
+
+COPY --from=builder /opt/turtle /opt/turtle
+COPY docker/penqle/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY docker/penqle/init-db.sh /usr/local/bin/init-db.sh
+COPY docker/penqle/render-config.sh /usr/local/bin/render-config.sh
+COPY docker/character-inventory-copy.sql /opt/turtle/sql/character-inventory-copy.sql
+COPY docker/mariadb.cnf /etc/mysql/conf.d/turtle.cnf
+
+RUN chmod +x /usr/local/bin/entrypoint.sh \
+              /usr/local/bin/init-db.sh \
+              /usr/local/bin/render-config.sh \
+    && mkdir -p /opt/turtle/data /opt/turtle/logs /opt/turtle/run /var/lib/turtle-init \
+    && chown -R turtle:turtle /opt/turtle /var/lib/turtle-init
+
+WORKDIR /opt/turtle/bin
+
+EXPOSE 3724/tcp 8090/tcp
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
+CMD ["mangosd"]
