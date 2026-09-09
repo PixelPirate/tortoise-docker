@@ -121,9 +121,36 @@ you created.
 | `AI_ENABLE_RANDOM_TELEPORTS` | `0` | Bots roam/teleport the world on their own |
 | `AI_RANDOM_BOT_LFT_ENABLED` | `0` | Bots fill empty LFG/dungeon queues |
 | `AI_AH_MARKET_ENABLED` | `0` | Bots run a native auction-house market |
+| `AI_DISABLE_RANDOM_LEVELS` | `0` | `1` = all bots start at `AI_RANDOM_BOT_STARTING_LEVEL` |
+| `AI_RANDOM_BOT_STARTING_LEVEL` | `1` | Starting level when `AI_DISABLE_RANDOM_LEVELS=1` |
+| `AI_RANDOM_BOT_MAX_LEVEL` | `60` | Upper level bound for random-bot gear/tuning |
 
 All bot services ship **off** upstream; the `.env` values opt them in.
 Raise bot counts cautiously — TortoiseBots is young and unsoaked at scale.
+
+## Bot levels
+
+A bot's level comes from its character — TortoiseBots does not roll a random
+level on creation, so you control the range in one of two ways:
+
+1. **Set the level when creating the character** (per-bot control). With a GM
+   account, after creating the RNDBOT character: `.character level <name> <n>`
+   — or in-game via the TortoiseBotsManager addon.
+2. **Fixed starting level for everyone** (server-wide). Set
+   `AI_DISABLE_RANDOM_LEVELS=1`; every bot is raised to
+   `AI_RANDOM_BOT_STARTING_LEVEL` on first login and levels up through normal
+   gameplay while the realm runs. Keep the starting level at 5+ (bots below
+   level 5 are gated out of some travel behaviors).
+
+Related knobs:
+
+- `AI_RANDOM_BOT_MAX_LEVEL` (default `60`) — caps the level random bots are
+  geared/tuned for. It does **not** de-level existing characters.
+- `AiPlayerbot.SyncLevelWithPlayers = 1` (edit
+  `config/modules/aiplayerbot.conf` directly; not env-mapped) — instead of a
+  fixed start, bots sync their level to online players (±
+  `AiPlayerbot.SyncLevelMaxAbove`). Good for making the world feel alive
+  around your own level.
 
 ## Editing server configs
 
