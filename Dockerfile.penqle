@@ -48,6 +48,16 @@ RUN git clone --depth 1 --branch "${CORE_REF}" "${CORE_REPO}" tortoise-wow \
     && git clone --depth 1 "${BOTS_REPO}" tortoise-wow/modules/TortoiseBots \
     && git -C tortoise-wow/modules/TortoiseBots checkout --detach "${BOTS_COMMIT}"
 
+# Local feature patches on top of the pinned module. Keep them numbered and
+# rebase-able; each must apply cleanly or the build fails (see patches/README).
+COPY docker/penqle/patches /tmp/tortoisebots-patches
+RUN cd tortoise-wow/modules/TortoiseBots \
+    && for p in /tmp/tortoisebots-patches/*.patch; do \
+         echo "Applying $(basename "$p")"; \
+         git apply --check "$p" || exit 1; \
+         git apply "$p" || exit 1; \
+       done
+
 WORKDIR /src/tortoise-wow
 
 # Upstream hardcodes -march=native (CMakeLists.txt). Replace it with the

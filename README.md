@@ -121,12 +121,25 @@ you created.
 | `AI_ENABLE_RANDOM_TELEPORTS` | `0` | Bots roam/teleport the world on their own |
 | `AI_RANDOM_BOT_LFT_ENABLED` | `0` | Bots fill empty LFG/dungeon queues |
 | `AI_AH_MARKET_ENABLED` | `0` | Bots run a native auction-house market |
+| `AI_SUMMON_WHEN_GROUP` | `1` | Bot teleports to you when it accepts a group invite |
 | `AI_DISABLE_RANDOM_LEVELS` | `0` | `1` = all bots start at `AI_RANDOM_BOT_STARTING_LEVEL` |
 | `AI_RANDOM_BOT_STARTING_LEVEL` | `1` | Starting level when `AI_DISABLE_RANDOM_LEVELS=1` |
 | `AI_RANDOM_BOT_MAX_LEVEL` | `60` | Upper level bound for random-bot gear/tuning |
 
 All bot services ship **off** upstream; the `.env` values opt them in.
 Raise bot counts cautiously — TortoiseBots is young and unsoaked at scale.
+
+## Grouping with bots
+
+When you invite a bot to your party and it accepts, it is **teleported to
+you** (enabled by default via `AI_SUMMON_WHEN_GROUP=1` — the same behavior
+AzerothCore's bots have, ported to TortoiseBots in this image). The teleport
+only happens when the bot is beyond sight range or on another map; a failed
+teleport (e.g. no safe spot) falls back to the bot travelling normally.
+
+To restrict group-summoning to GMs only, set `AI_SUMMON_WHEN_GROUP=0`; the
+upstream config key is `AiPlayerbot.SummonWhenGroup` in
+`config/modules/aiplayerbot.conf`.
 
 ## Bot levels
 

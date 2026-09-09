@@ -1,0 +1,104 @@
+diff --git a/ai/playerbot/PlayerbotAIConfig.cpp b/ai/playerbot/PlayerbotAIConfig.cpp
+index d4313a1..79d7b9d 100644
+--- a/ai/playerbot/PlayerbotAIConfig.cpp
++++ b/ai/playerbot/PlayerbotAIConfig.cpp
+@@ -681,6 +681,7 @@ bool PlayerbotAIConfig::Initialize()
+     shareTargets = config.GetBoolDefault("AiPlayerbot.ShareTargets", true);
+     globalSoundEffects = config.GetBoolDefault("AiPlayerbot.GlobalSoundEffects", false);
+     nonGmFreeSummon = config.GetBoolDefault("AiPlayerbot.NonGmFreeSummon", false);
++    summonWhenGroup = config.GetBoolDefault("AiPlayerbot.SummonWhenGroup", false);
+ 
+     //SPP automation
+     autoPickReward = config.GetStringDefault("AiPlayerbot.AutoPickReward", "no");
+diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
+index 5f6c5ed..bceb78e 100644
+--- a/ai/playerbot/PlayerbotAIConfig.h
++++ b/ai/playerbot/PlayerbotAIConfig.h
+@@ -359,6 +359,7 @@ public:
+ 
+     bool talentsInPublicNote;
+     bool nonGmFreeSummon;
++    bool summonWhenGroup;
+ 
+     BotSelfBotLevel selfBotLevel;
+     uint32 iterationsPerTick;
+diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
+index ba82b94..53a901e 100644
+--- a/ai/playerbot/aiplayerbot.conf.dist.in
++++ b/ai/playerbot/aiplayerbot.conf.dist.in
+@@ -365,6 +365,11 @@ AiPlayerbot.BotLogFile =
+ # The summon command can be used without restriction by non-gms.
+ # AiPlayerbot.NonGmFreeSummon = 0
+ 
++# Bots will be automatically summoned to the player when they accept a group
++# invitation (if they are beyond sight range or on another map). Ported from
++# mod-playerbots.
++# AiPlayerbot.SummonWhenGroup = 0
++
+ # Bots will put their talentspec in guild notes when they change/tell their talents if they have the rights.
+ # AiPlayerbot.TalentsInPublicNote = 0
+ 
+diff --git a/ai/playerbot/strategy/actions/AcceptInvitationAction.h b/ai/playerbot/strategy/actions/AcceptInvitationAction.h
+index 47c8e47..64446ff 100644
+--- a/ai/playerbot/strategy/actions/AcceptInvitationAction.h
++++ b/ai/playerbot/strategy/actions/AcceptInvitationAction.h
+@@ -1,9 +1,11 @@
+ #pragma once
+ #include "playerbot/PlayerbotAI.h"
++#include "playerbot/PlayerbotAIConfig.h"
+ #include "playerbot/ServerFacade.h"
+ #include "playerbot/strategy/values/Formations.h"
+ 
+ #include "playerbot/strategy/Action.h"
++#include "UseMeetingStoneAction.h"
+ 
+ namespace ai
+ {
+@@ -52,6 +54,30 @@ namespace ai
+             if (!bot->GetGroup() || !bot->GetGroup()->IsMember(inviter->getObjectGuid()))
+                 return false;
+ 
++            // Summon-on-group-join, ported from AzerothCore mod-playerbots
++            // (AiPlayerbot.SummonWhenGroup): a bot that accepted an invite but
++            // is far away (or on another map) teleports to the inviter instead
++            // of walking/flying the whole route. SummonAction::Teleport picks a
++            // safe LOS ground spot at follow range and handles corpse revival.
++            bool farFromInviter = bot->GetMapId() != inviter->GetMapId() ||
++                                  bot->GetDistance(inviter) > sPlayerbotAIConfig.sightDistance;
++            if (sPlayerbotAIConfig.summonWhenGroup && farFromInviter)
++            {
++                SummonAction summon(ai);
++                if (summon.Teleport(inviter, inviter, bot))
++                {
++                    sLog.outDetail("TortoiseBots: bot %s summoned to %s on group join",
++                        bot->GetName(), inviter->GetName());
++                }
++                else
++                {
++                    // Non-fatal: the bot keeps its group and travels the
++                    // classic way via the follow strategy set up below.
++                    sLog.outDebug("TortoiseBots: bot %s could not be summoned to %s on group join; travelling normally",
++                        bot->GetName(), inviter->GetName());
++                }
++            }
++
+             bool adoptedHumanMaster = false;
+             if (TortoiseBots::BotManager::Instance().IsBot(bot->GetObjectGuid()))
+             {
+diff --git a/ai/playerbot/strategy/actions/UseMeetingStoneAction.h b/ai/playerbot/strategy/actions/UseMeetingStoneAction.h
+index 9e45181..585db15 100644
+--- a/ai/playerbot/strategy/actions/UseMeetingStoneAction.h
++++ b/ai/playerbot/strategy/actions/UseMeetingStoneAction.h
+@@ -13,8 +13,11 @@ namespace ai
+         bool isUsefulWhenStunned() override { return true; }
+         virtual bool Execute(Event& event) override;
+ 
+-    protected:
++        // Summon-on-group-join (see AcceptInvitationAction) reuses the safe
++        // ground-spot teleport, so expose it to sibling actions.
+         bool Teleport(Player* requester, Player *summoner, Player *player);
++
++    protected:
+         bool SummonUsingGos(Player* requester, Player *summoner, Player *player);
+         bool SummonUsingNpcs(Player* requester, Player *summoner, Player *player);
+     };
