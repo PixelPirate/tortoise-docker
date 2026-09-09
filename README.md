@@ -122,6 +122,7 @@ you created.
 | `AI_RANDOM_BOT_LFT_ENABLED` | `0` | Bots fill empty LFG/dungeon queues |
 | `AI_AH_MARKET_ENABLED` | `0` | Bots run a native auction-house market |
 | `AI_SUMMON_WHEN_GROUP` | `1` | Bot teleports to you when it accepts a group invite |
+| `AI_RANDOM_BOT_LOGIN_WITH_PLAYER` | `1` | Random bots only online while humans are (login on first human, logout when last leaves) |
 | `AI_DISABLE_RANDOM_LEVELS` | `0` | `1` = all bots start at `AI_RANDOM_BOT_STARTING_LEVEL` |
 | `AI_RANDOM_BOT_STARTING_LEVEL` | `1` | Starting level when `AI_DISABLE_RANDOM_LEVELS=1` |
 | `AI_RANDOM_BOT_MAX_LEVEL` | `60` | Upper level bound for random-bot gear/tuning |
