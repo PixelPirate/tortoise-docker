@@ -1,0 +1,213 @@
+diff --git a/ai/playerbot/PlayerbotAI.cpp b/ai/playerbot/PlayerbotAI.cpp
+index 303a50b..6fa454c 100644
+--- a/ai/playerbot/PlayerbotAI.cpp
++++ b/ai/playerbot/PlayerbotAI.cpp
+@@ -784,6 +784,12 @@ bool PlayerbotAI::IsInPve()
+     return !IsInPvp() && !IsInRaid();
+ }
+ 
++bool PlayerbotAI::IsInNonRaidDungeon() const
++{
++    const Map* map = bot->GetMap();
++    return map && map->IsNonRaidDungeon();
++}
++
+ bool PlayerbotAI::IsInPvp()
+ {
+     if (IsSafe(bot))
+diff --git a/ai/playerbot/PlayerbotAI.h b/ai/playerbot/PlayerbotAI.h
+index 6ab4892..da02226 100644
+--- a/ai/playerbot/PlayerbotAI.h
++++ b/ai/playerbot/PlayerbotAI.h
+@@ -700,6 +700,7 @@ public:
+     bool IsInPve();
+     bool IsInPvp();
+     bool IsInRaid();
++    bool IsInNonRaidDungeon() const;
+ 
+     void SetMoveToTransport(bool flag = true) { isMovingToTransport = flag; }
+     bool GetMoveToTransport() { return isMovingToTransport; }
+diff --git a/ai/playerbot/strategy/Engine.cpp b/ai/playerbot/strategy/Engine.cpp
+index 16711ca..660ec75 100644
+--- a/ai/playerbot/strategy/Engine.cpp
++++ b/ai/playerbot/strategy/Engine.cpp
+@@ -202,6 +202,8 @@ void Engine::Init()
+     for (std::map<std::string, Strategy*>::iterator i = strategies.begin(); i != strategies.end(); i++)
+     {
+         Strategy* strategy = i->second;
++        if (strategy->IsSuppressed())
++            continue;
+         strategy->InitMultipliers(multipliers, state);
+         strategy->InitTriggers(triggers, state);
+         std::vector<Multiplier*> modernMultipliers;
+diff --git a/ai/playerbot/strategy/Strategy.h b/ai/playerbot/strategy/Strategy.h
+index 0c46daa..23bad6a 100644
+--- a/ai/playerbot/strategy/Strategy.h
++++ b/ai/playerbot/strategy/Strategy.h
+@@ -59,6 +59,11 @@ namespace ai
+ 		virtual void InitMultipliers(std::vector<Multiplier*>&) {}
+ 		virtual int GetType() { return STRATEGY_TYPE_GENERIC; }
+ 		virtual uint32 GetType() const { return STRATEGY_TYPE_GENERIC; }
++		// Port of mod-playerbots PR #2648: an engine skips a suppressed
++		// strategy entirely in Init(), so none of its triggers, multipliers
++		// or default actions enter the decision graph for the current
++		// context. Suppression is re-evaluated on every engine rebuild.
++		virtual bool IsSuppressed() { return false; }
+         virtual ActionNode* GetAction(std::string name);
+ 		virtual std::string getName() = 0;
+ 		std::string GetName() { return getName(); }
+diff --git a/ai/playerbot/strategy/druid/GenericDruidStrategy.h b/ai/playerbot/strategy/druid/GenericDruidStrategy.h
+index 16673c2..506a360 100644
+--- a/ai/playerbot/strategy/druid/GenericDruidStrategy.h
++++ b/ai/playerbot/strategy/druid/GenericDruidStrategy.h
+@@ -44,6 +44,8 @@ class DruidCcStrategy : public Strategy
+ public:
+     DruidCcStrategy(PlayerbotAI* botAI) : Strategy(botAI) {}
+ 
++    bool IsSuppressed() override { return ai::IsGenericCcSuppressedInDungeon(botAI); }
++
+     void InitTriggers(std::vector<TriggerNode*>& triggers) override;
+     std::string getName() override { return "cc"; }
+ };
+diff --git a/ai/playerbot/strategy/generic/ClassStrategy.cpp b/ai/playerbot/strategy/generic/ClassStrategy.cpp
+index cfeb6be..4cce4b5 100644
+--- a/ai/playerbot/strategy/generic/ClassStrategy.cpp
++++ b/ai/playerbot/strategy/generic/ClassStrategy.cpp
+@@ -4,6 +4,13 @@
+ 
+ using namespace ai;
+ 
++// Non-raid dungeons only: open world, raids and battlegrounds keep generic CC.
++// Per-dungeon instance strategies register their own named CC and are not
++// derived from CcStrategy, so they are never suppressed here.
++bool ai::IsGenericCcSuppressedInDungeon(PlayerbotAI* ai)
++{
++    return ai->IsInNonRaidDungeon();
++}
+ 
+ void ClassStrategy::InitCombatTriggers(std::list<TriggerNode*>& triggers)
+ {
+diff --git a/ai/playerbot/strategy/generic/ClassStrategy.h b/ai/playerbot/strategy/generic/ClassStrategy.h
+index c1a1ee2..de0b2eb 100644
+--- a/ai/playerbot/strategy/generic/ClassStrategy.h
++++ b/ai/playerbot/strategy/generic/ClassStrategy.h
+@@ -107,12 +107,20 @@ namespace ai
+         static void InitNonCombatTriggers(std::list<TriggerNode*>& triggers);
+     };
+ 
++    // Generic CC strategies are suppressed in non-raid dungeons (port of
++    // mod-playerbots PR #2648): their crowd-control spells break dungeon
++    // pulls when they break out. Defined in ClassStrategy.cpp; takes a bare
++    // pointer so strategy headers can call it inline.
++    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
++
+     // Generic strategy to be used for all class cc rotations
+     class CcStrategy : public Strategy
+     {
+     public:
+         CcStrategy(PlayerbotAI* ai) : Strategy(ai) {}
+ 
++        bool IsSuppressed() override { return IsGenericCcSuppressedInDungeon(ai); }
++
+     protected:
+         virtual void InitCombatTriggers(std::list<TriggerNode*>& triggers) override;
+         virtual void InitNonCombatTriggers(std::list<TriggerNode*>& triggers) override;
+diff --git a/ai/playerbot/strategy/hunter/GenericHunterStrategy.h b/ai/playerbot/strategy/hunter/GenericHunterStrategy.h
+index 273b5e2..901a05f 100644
+--- a/ai/playerbot/strategy/hunter/GenericHunterStrategy.h
++++ b/ai/playerbot/strategy/hunter/GenericHunterStrategy.h
+@@ -37,6 +37,8 @@ class HunterCcStrategy : public Strategy
+ public:
+     HunterCcStrategy(PlayerbotAI* botAI) : Strategy(botAI) {}
+ 
++    bool IsSuppressed() override { return ai::IsGenericCcSuppressedInDungeon(botAI); }
++
+     void InitTriggers(std::vector<TriggerNode*>& triggers) override;
+     std::string getName() override { return "cc"; }
+ };
+diff --git a/ai/playerbot/strategy/mage/GenericMageStrategy.h b/ai/playerbot/strategy/mage/GenericMageStrategy.h
+index 0b66caf..7b10897 100644
+--- a/ai/playerbot/strategy/mage/GenericMageStrategy.h
++++ b/ai/playerbot/strategy/mage/GenericMageStrategy.h
+@@ -49,6 +49,8 @@ class MageCcStrategy : public Strategy
+ public:
+     MageCcStrategy(PlayerbotAI* botAI) : Strategy(botAI) {}
+ 
++    bool IsSuppressed() override { return ai::IsGenericCcSuppressedInDungeon(botAI); }
++
+     void InitTriggers(std::vector<TriggerNode*>& triggers) override;
+     std::string getName() override { return "cc"; }
+ };
+diff --git a/ai/playerbot/strategy/paladin/GenericPaladinStrategy.h b/ai/playerbot/strategy/paladin/GenericPaladinStrategy.h
+index fe69eeb..59cbca9 100644
+--- a/ai/playerbot/strategy/paladin/GenericPaladinStrategy.h
++++ b/ai/playerbot/strategy/paladin/GenericPaladinStrategy.h
+@@ -44,6 +44,8 @@ class PaladinCcStrategy : public Strategy
+ public:
+     PaladinCcStrategy(PlayerbotAI* botAI) : Strategy(botAI) {}
+ 
++    bool IsSuppressed() override { return ai::IsGenericCcSuppressedInDungeon(botAI); }
++
+     void InitTriggers(std::vector<TriggerNode*>& triggers) override;
+     std::string getName() override { return "cc"; }
+ };
+diff --git a/ai/playerbot/strategy/priest/GenericPriestStrategy.h b/ai/playerbot/strategy/priest/GenericPriestStrategy.h
+index 406de1f..6e7b160 100644
+--- a/ai/playerbot/strategy/priest/GenericPriestStrategy.h
++++ b/ai/playerbot/strategy/priest/GenericPriestStrategy.h
+@@ -44,6 +44,8 @@ class PriestCcStrategy : public Strategy
+ public:
+     PriestCcStrategy(PlayerbotAI* botAI) : Strategy(botAI) {}
+ 
++    bool IsSuppressed() override { return ai::IsGenericCcSuppressedInDungeon(botAI); }
++
+     void InitTriggers(std::vector<TriggerNode*>& triggers) override;
+     std::string getName() override { return "cc"; }
+ };
+diff --git a/ai/playerbot/strategy/rogue/DpsRogueStrategy.h b/ai/playerbot/strategy/rogue/DpsRogueStrategy.h
+index a2bf5f1..26fd5bc 100644
+--- a/ai/playerbot/strategy/rogue/DpsRogueStrategy.h
++++ b/ai/playerbot/strategy/rogue/DpsRogueStrategy.h
+@@ -67,6 +67,8 @@ class RogueCcStrategy : public Strategy
+ public:
+     RogueCcStrategy(PlayerbotAI* botAI) : Strategy(botAI) {}
+ 
++    bool IsSuppressed() override { return ai::IsGenericCcSuppressedInDungeon(botAI); }
++
+     void InitTriggers(std::vector<TriggerNode*>& triggers) override;
+     std::string getName() override { return "cc"; }
+ };
+diff --git a/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h b/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h
+index 86eaaf0..0fe1803 100644
+--- a/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h
++++ b/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h
+@@ -55,6 +55,8 @@ class WarlockCcStrategy : public Strategy
+ public:
+     WarlockCcStrategy(PlayerbotAI* botAI) : Strategy(botAI){};
+ 
++    bool IsSuppressed() override { return ai::IsGenericCcSuppressedInDungeon(botAI); }
++
+     std::string getName() override { return "cc"; }
+     void InitTriggers(std::vector<TriggerNode*>& triggers) override;
+ };
+diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
+index 53a901e..f929510 100644
+--- a/ai/playerbot/aiplayerbot.conf.dist.in
++++ b/ai/playerbot/aiplayerbot.conf.dist.in
+@@ -196,6 +196,16 @@ AiPlayerbot.DisableActivityPriorities = 1
+ # Limit combat activity for slight performance boost.
+ #AiPlayerbot.LimitCombatActivity = 0
+ 
++# Crowd control inside non-raid dungeons: there is no config key for this, the
++# behavior is always on. The generic per-class "cc" strategies do not fire
++# while the bot is in a non-raid dungeon, so bots will not cast their generic
++# CC spells (Polymorph, Shackle Undead, Turn Undead, Scare Beast, Hibernate,
++# Freezing Trap, Sap, Entangling Roots, Banish, Fear) on dungeon trash - a
++# CC'd mob that breaks out early aggros nearby packs and can wipe the group.
++# Dungeon instance strategies keep their own named CC, and open world, raids
++# and battlegrounds keep generic CC. Ported from mod-playerbots PR #2648.
++# Implementation-verified, gameplay-untested.
++
+ # Percentage of fully active bots. Default is 10, higher numbers may affect performance
+ # AiPlayerbot.botActiveAlone = 10
+ 

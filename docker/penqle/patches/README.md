@@ -12,6 +12,27 @@ Touches: `PlayerbotAIConfig.{h,cpp}` (new `summonWhenGroup` option),
 `AcceptInvitationAction.h` (the summon-on-join logic),
 `aiplayerbot.conf.dist.in` (documented config key).
 
+## 002-dungeon-cc-suppression.patch
+
+Ports AzerothCore mod-playerbots PR #2648 ("stop the generic cc strategy
+from firing in 5-man dungeons"): a new `Strategy::IsSuppressed()` virtual
+that `Engine::Init()` honors by skipping the strategy entirely, and the
+generic per-class "cc" strategies return suppressed while the bot is in a
+non-raid dungeon. Open world, raids, battlegrounds, and per-dungeon instance
+strategies (Onyxia/MC/BWL/Naxx, their own named CC) are unaffected. Covers
+Polymorph, Shackle Undead, Turn Undead, Scare Beast, Hibernate, Freezing
+Trap, Sap, Entangling Roots, Banish, Fear (all verified present in Vanilla
+spell data). Dragon's Breath / Blast Wave relocation in the donor PR was
+skipped (not Vanilla spells). No new config key; behavior documented as a
+comment in `aiplayerbot.conf.dist.in`. Implementation-verified,
+gameplay-untested.
+
+Touches: `Strategy.h` (the virtual), `Engine.cpp` (skip in `Init()`),
+`PlayerbotAI.{h,cpp}` (`IsInNonRaidDungeon()` helper),
+`ClassStrategy.{h,cpp}` (suppression helper + legacy `CcStrategy` family),
+the seven forward-ported `Generic*Strategy.h` cc classes,
+`aiplayerbot.conf.dist.in` (comment only).
+
 ## Rules
 
 - One feature per patch, numbered, named `NNN-description.patch`.
