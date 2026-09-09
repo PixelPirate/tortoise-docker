@@ -77,11 +77,15 @@ Deliverables in **this repo**:
 - Penqle PRs **#411** ("generic Headless WorldSession support") and **#416**
   ("generic participant lifecycle primitives") were **closed unmerged** into
   `main` on 2026-09-02. Their content lives on the `bot-helpers` branch instead.
-- **Gap**: `IWorldUpdateListener` (from #416) was NOT found in the
-  `bot-helpers` tree. Either TortoiseBots no longer requires it, or the core
-  needs a small patch. Resolution path: TortoiseBots ships
-  `tools/verify_penqle_host_contract.sh --core ../tortoise-wow` — run it as a
-  Dockerfile build step; it fails fast if the contract is unmet.
+- **Gap resolved (pre-flight 2026-09-09)**: `IWorldUpdateListener` is **not**
+  referenced anywhere in TortoiseBots' source — it is not required. The
+  module's `tools/verify_penqle_host_contract.sh --core <checkout>` was run
+  locally against core `b74e4ee4` and **PASSES** (checks
+  `SessionTransport::Headless`, `HeadlessSessionMgr`,
+  `WorldSession::InitHeadlessSession/IsHeadless`, `World::Start/Stop/
+  GetHeadlessSessionState`, `CharacterCreation::CreateCharacter`, LFT/BG
+  queue primitives, and asserts no legacy `PlayerBotMgr` coupling). No core
+  patch is needed.
 
 ### 3.2 TortoiseBots build contract (from its README / EVIDENCE.md)
 
@@ -108,6 +112,47 @@ Deliverables in **this repo**:
   characters with the `RNDBOT` prefix (see module README/RUNBOOK).
 - No dungeon-clearing autonomous guide (`.dc`), no DK/glyphs/vehicles (not in
   vanilla anyway), raid boss tactics largely empty.
+
+### 3.4 Pre-flight findings (resolved from local checkouts, 2026-09-09)
+
+Local clones exist at `/Users/pho/Turtle/New/tortoise-wow` (core,
+`b74e4ee4`) and `/Users/pho/Turtle/New/TortoiseBots` (module, `3003220`).
+Facts established by reading them:
+
+1. **`-march=native` IS present** in Penqle's `CMakeLists.txt:457` → keep
+   the sed + grep guard from the reference Dockerfile unchanged.
+2. **No Boost dependency** — unlike Shyalya's build. Core find_package list:
+   ACE, MySQL, OpenSSL, ZLIB (required); CURL and TBB (optional). Builder
+   needs `libace-dev default-libmysqlclient-dev libssl-dev zlib1g-dev
+   pkg-config cmake git` (+ curl lib if enabled); runtime needs the matching
+   shared libs (`libace-7.0.6`, `libmysqlclient21`/mariadb equivalent,
+   `libssl3`, `zlib1g` on Ubuntu 22.04) — confirm exact names at first build.
+3. **Module discovery is automatic**: the core's module system (AC-derived
+   `cmake/ConfigureModules.cmake`) globs `modules/*/src`; the
+   `MODULE_TORTOISEBOTS` flag is auto-derived from the directory name.
+   Cloning the module into `modules/TortoiseBots` and passing
+   `-DMODULES=static` is sufficient; `-DMODULE_TORTOISEBOTS=<off/static>`
+   toggles it.
+4. **Config install paths**: module conf templates install into
+   `${CMAKE_INSTALL_PREFIX}/etc` alongside `mangosd.conf.dist` (as
+   `aiplayerbot.conf` and `tortoise_bots.conf`, via `CopyModuleConfig`).
+   The etc.dist hard-copy mechanism from the reference image applies as-is.
+5. **Module SQL needs NO manual db-init import**: TortoiseBots' migrations
+   (`data/sql/world/`, `data/sql/char/`) are installed to
+   `${prefix}/modules/TortoiseBots/data/sql/{world,character}` and applied
+   by the **core AutoUpdater on mangosd startup**
+   (`Database.AutoUpdate.Enabled=1`, `Database.AutoUpdate.AllowedModules=
+   "all"`). db-init only imports the core's base SQL
+   (`sql/create_databases.sql`, `sql/base/`). Note: Penqle's
+   `database_updates/` has `world/` AND `character/` subfolders (Shyalya's
+   had world-only) — if pre-applying updates in db-init, handle both;
+   otherwise let AutoUpdater do it.
+6. **`character_inventory_copy` is still needed**: Penqle's core has
+   `ObjectMgr::BackupCharacterInventory()` which TRUNCATEs/INSERTs into
+   `character_inventory_copy` (`BackupCharacterInventory = 1` in
+   mangosd.conf.dist). Keep the copy-SQL step from the reference init-db.
+7. **Console FIFO works**: `src/mangosd/CliRunnable.cpp` reads commands via
+   `fgets(stdin)` — the reference FIFO pattern carries over unchanged.
 
 ## 4. Implementation plan
 
@@ -216,8 +261,10 @@ Start from the reference `docker/render-config.sh`. Changes:
    start, log shows the world-server-ready line.
 3. `tortoise_bots.conf` + `aiplayerbot.conf` appear in `./config`; editing a
    non-env-mapped key and restarting preserves it (the etc.dist mechanism).
-4. Random bots appear in world only after RNDBOT characters are created
-   (document this); bot toggles in `.env` take effect after restart.
+4. Module migrations apply automatically on first mangosd start (AutoUpdater
+   logs in `docker compose logs mangosd`); random bots appear in world only
+   after RNDBOT characters are created (document this); bot toggles in
+   `.env` take effect after restart.
 5. An existing Shyalya deployment on the same host is unaffected
    (separate compose project / volumes).
 6. Client (Turtle WoW 1.18.1 build 7272) can log in and see bots.
@@ -227,19 +274,24 @@ Start from the reference `docker/render-config.sh`. Changes:
    editing behavior, DB reset procedure, account creation via the mangosd
    console, logs workflow.
 
-## 6. Open questions (resolve during implementation)
+## 6. Open questions
 
-1. Does TortoiseBots require `IWorldUpdateListener`, and if so, from where?
-   (Host contract script will tell us; worst case, patch the core in the
-   Dockerfile with the #416 diff.)
-2. Exact install paths of the module's conf templates and SQL after
-   `cmake --install`.
-3. Whether Penqle's CMakeLists still hardcodes `-march=native`.
-4. Runtime library set for the Penqle core on Ubuntu 22.04 (may differ from
-   Shyalya's build).
-5. Whether mangosd on the Penqle core accepts the FIFO-console pattern.
-6. Best pin for `BOTS_COMMIT` and cadence for bumping it (manual via
-   workflow_dispatch input, like the existing `source_ref` input).
+Resolved by pre-flight (§3.4): IWorldUpdateListener (no), -march=native
+(yes, keep guard), install paths (§3.4.4), runtime deps (§3.4.2), console
+FIFO (works, §3.4.7), module SQL handling (AutoUpdater, §3.4.5).
+
+Remaining:
+
+1. **Exact runtime shared-library names** on Ubuntu 22.04 for the Penqle
+   build (especially ACE version and MySQL client lib flavor) — confirm via
+   `ldd` on first successful build, then finalize the runtime stage.
+2. **Whether db-init pre-applies `database_updates/`** (world + character
+   subfolders) or leaves everything to AutoUpdater on first mangosd start
+   (simpler; mirrors upstream defaults). Decide during implementation;
+   prefer AutoUpdater-only if first boot is clean.
+3. **Pin bump cadence** for `CORE_COMMIT`/`BOTS_COMMIT` (suggest: manual
+   `workflow_dispatch` inputs like the reference publish workflow's
+   `source_ref`).
 
 ## 7. Non-goals
 
