@@ -122,6 +122,36 @@ Touches: `PlayerbotAI.cpp`, `strategy/actions/MovementActions.cpp`,
 `strategy/actions/UseItemAction.h`, `strategy/generic/FleeStrategy.cpp`
 (comment only).
 
+## 007-grind-rpg-corrections.patch
+
+Ports the Shyalya donor's four grind/RPG corrections (ledger `F04-RPG`,
+donor branch `playerbots-integration-gh` post-`1f9497e`): (1) **crowd
+tally** — `ChooseRpgTargetAction::HasSameTarget` becomes a precomputed
+`GetTargetCounts` tally so the "too many bots on one rpg target" limit
+applies at every population instead of being disabled at 200+ nearby
+players; (2) **RNG source** — the per-call `time(0)`-seeded
+`std::mt19937` in `ChooseRpgTargetAction::Execute` and
+`RpgAction::SetNextRpgAction` is replaced with the shared thread-local
+`*GetRandomGenerator()` (already in the compat shim); (3) **patrol
+pause** — `MoveToRpgTargetAction` drops vanished/unpathable rpg targets
+into the ignore list and stops the move leg (`isUseful` returns false)
+instead of chaining legs against a stale target; (4) **taxi-cheat
+exclusion** — flight masters are rejected as ambient rpg targets
+(`PossibleRpgTargetsValue::AcceptUnit`) and as rpg destinations
+(`RpgTravelDestination::IsActive`) for taxi-cheat bots, and
+`MovementAction::UseTaxi` fails closed on flight paths the bot has not
+learned (unless the taxi cheat is enabled), gains an optional
+established flight-master argument, and `RpgTaxiAction` routes ambient
+free flights through it funding the exact fare only. No new config key.
+The level-5 RPG travel gate (`runtime/BotManager.cpp`) and the persisted
+`ai_playerbot_zone_level` destination cache are untouched.
+Implementation-verified (wiring checker live-missing=0), gameplay-untested.
+
+Touches: `TravelMgr.cpp` (`RpgTravelDestination::IsActive`),
+`strategy/actions/{ChooseRpgTargetAction.{h,cpp},RpgAction.cpp,`
+`MoveToRpgTargetAction.cpp,MovementActions.{h,cpp},RpgSubActions.cpp}`,
+`strategy/values/PossibleRpgTargetsValue.cpp`.
+
 ## Rules
 
 - One feature per patch, numbered, named `NNN-description.patch`.

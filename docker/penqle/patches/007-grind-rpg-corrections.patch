@@ -1,0 +1,360 @@
+Port of the Shyalya donor's grind/RPG corrections (ledger F04-RPG),
+four behavior-only changes from the playerbots-integration-gh branch
+tip (post-1f9497e), applied on top of TortoiseBots' own adaptations:
+
+1. Crowd tally: ChooseRpgTargetAction::HasSameTarget becomes a
+   precomputed GetTargetCounts tally; the "too many bots rpg-ing with
+   one target" limit now applies at every population instead of being
+   disabled at 200+ nearby players.
+2. RNG source: the per-call time(0)-seeded mt19937 in
+   ChooseRpgTargetAction::Execute and RpgAction::SetNextRpgAction is
+   replaced with the shared thread-local *GetRandomGenerator(), so
+   consecutive picks no longer correlate and stay reproducible.
+3. Patrol pause: MoveToRpgTargetAction drops vanished/unpathable rpg
+   targets into the ignore list and stops the move leg (isUseful
+   returns false) instead of chaining legs against a stale target.
+4. Taxi-cheat exclusion: flight masters are rejected as ambient rpg
+   targets (PossibleRpgTargetsValue::AcceptUnit) and as rpg
+   destinations (RpgTravelDestination::IsActive) for taxi-cheat bots;
+   MovementAction::UseTaxi fails closed on flight paths the bot has
+   not learned (unless the taxi cheat is enabled), accepts an
+   established flight master, and RpgTaxiAction routes ambient free
+   flights through it funding the exact fare only.
+
+No new config keys. The level-5 RPG travel gate (runtime/BotManager.cpp)
+and the persisted ai_playerbot_zone_level destination cache are
+untouched.
+diff --git a/ai/playerbot/TravelMgr.cpp b/ai/playerbot/TravelMgr.cpp
+index d158d4d..215f170 100644
+--- a/ai/playerbot/TravelMgr.cpp
++++ b/ai/playerbot/TravelMgr.cpp
+@@ -428,6 +428,12 @@ bool RpgTravelDestination::IsActive(Player* bot, const PlayerTravelInfo& info) c
+     if (!IsPossible(info))
+         return false;
+ 
++    // Taxi-cheat bots already use flight masters as route graph transitions.
++    // Sending them to one as an ambient roleplay destination adds a second,
++    // purposeless source of flight-master crowds and random taxi rides.
++    if (HasNpcFlag(UNIT_NPC_FLAG_FLIGHTMASTER) && bot->IsTaxiCheater())
++        return false;
++
+     //Once the target rpged with it is added to the ignore list. We can now move on.
+     std::set<ObjectGuid>& ignoreList = AI_VALUE(std::set<ObjectGuid>&,"ignore rpg target");
+ 
+diff --git a/ai/playerbot/strategy/actions/ChooseRpgTargetAction.cpp b/ai/playerbot/strategy/actions/ChooseRpgTargetAction.cpp
+index 50aa7f4..a4bdf40 100644
+--- a/ai/playerbot/strategy/actions/ChooseRpgTargetAction.cpp
++++ b/ai/playerbot/strategy/actions/ChooseRpgTargetAction.cpp
+@@ -15,12 +15,12 @@
+ 
+ using namespace ai;
+ 
+-bool ChooseRpgTargetAction::HasSameTarget(ObjectGuid guid, uint32 max, std::list<ObjectGuid>& nearGuids)
++std::unordered_map<ObjectGuid, uint32> ChooseRpgTargetAction::GetTargetCounts(std::list<ObjectGuid> const& nearGuids)
+ {
+-    if (ai->HasRealPlayerMaster())
+-        return false;
++    std::unordered_map<ObjectGuid, uint32> counts;
+ 
+-    uint32 num = 0;
++    if (ai->HasRealPlayerMaster())
++        return counts;
+ 
+     for (auto& i : nearGuids)
+     {
+@@ -32,24 +32,20 @@ bool ChooseRpgTargetAction::HasSameTarget(ObjectGuid guid, uint32 max, std::list
+         if (!ai->IsSafe(player))
+             continue;
+ 
+-        PlayerbotAI* ai = PlayerbotAIStorage::Instance().GetAI(player);
++        PlayerbotAI* otherAI = PlayerbotAIStorage::Instance().GetAI(player);
+ 
+-        if (!ai)
++        if (!otherAI)
+             continue;
+ 
+-        if (!ai->AllowActivity(GRIND_ACTIVITY))
++        if (!otherAI->AllowActivity(GRIND_ACTIVITY))
+             continue;
+ 
+-        if (PAI_VALUE(GuidPosition,"rpg target") != guid)
+-            continue;
+-
+-        num++;
+-
+-        if (num >= max)
+-            return true;
++        GuidPosition target = PAI_VALUE(GuidPosition, "rpg target");
++        if (target)
++            ++counts[target];
+     }
+ 
+-    return false;
++    return counts;
+ }
+ 
+ #define SkipRpgTarget(reason){ if(debug) debugTargets[guidP] = reason; continue;}
+@@ -74,6 +70,12 @@ std::unordered_map<ObjectGuid, float> ChooseRpgTargetAction::GetTargets(Player*
+     std::list<ObjectGuid> possibleObjects = bot->GetMap()->IsDungeon() ? AI_VALUE(std::list<ObjectGuid>, "nearest game objects") : AI_VALUE(std::list<ObjectGuid>, "nearest game objects no los");
+     std::list<ObjectGuid> possiblePlayers = AI_VALUE(std::list<ObjectGuid>, "nearest friendly players");
+ 
++    // Count the bots per rpg target once before sampling players. The old
++    // per-candidate rescan gave up entirely at 200 neighbors, which is exactly
++    // where crowd avoidance is needed most; the tally keeps the crowd limit
++    // active at every population and costs one pass instead of one per target.
++    auto targetCounts = GetTargetCounts(possiblePlayers);
++
+     //List of targets that we rpg'ed with before and should be ignored.
+     std::set<ObjectGuid>& ignoreList = AI_VALUE(std::set<ObjectGuid>&, "ignore rpg target");
+ 
+@@ -223,8 +225,9 @@ std::unordered_map<ObjectGuid, float> ChooseRpgTargetAction::GetTargets(Player*
+             }
+         }
+ 
+-        //Limit the amount of bots that can rpg with 1 target. Only if the calculation doesn't involve checking 200+ players.
+-        if (possiblePlayers.size() < 200 && HasSameTarget(guidP, urand(5, 15), possiblePlayers))
++        //Keep the native crowd limit without rescanning neighbors per candidate.
++        auto occupancy = targetCounts.find(guidP);
++        if (occupancy != targetCounts.end() && occupancy->second >= urand(5, 15))
+         {
+             sametarget++;
+             SkipRpgTarget("Too many bots are rpging with this npc.");
+@@ -507,8 +510,10 @@ bool ChooseRpgTargetAction::Execute(Event& event)
+     }
+ 
+     //We pick a random target from the list with targets having a higher relevance of being picked.
+-    std::mt19937 gen(time(0));
+-    WeightedShuffle(guidps.begin(), guidps.end(), relevances.begin(), relevances.end(), gen);
++    //Use the shared thread-local generator instead of a per-call time(0)-seeded
++    //engine: re-seeding every call made consecutive choices correlate and the
++    //pick hard to reproduce in tests.
++    WeightedShuffle(guidps.begin(), guidps.end(), relevances.begin(), relevances.end(), *GetRandomGenerator());
+     GuidPosition guidP(guidps.front(),bot->GetMapId(), bot->GetInstanceId());
+ 
+     //If we can't find a target clear ignore list and try again later.
+diff --git a/ai/playerbot/strategy/actions/ChooseRpgTargetAction.h b/ai/playerbot/strategy/actions/ChooseRpgTargetAction.h
+index e67f3de..4ee073c 100644
+--- a/ai/playerbot/strategy/actions/ChooseRpgTargetAction.h
++++ b/ai/playerbot/strategy/actions/ChooseRpgTargetAction.h
+@@ -19,7 +19,7 @@ namespace ai
+         std::string GetRpgActionReason(ObjectGuid target) { auto reason = rgpActionReason.find(target); if (reason != rgpActionReason.end())  return reason->second; return ""; }
+     private:
+         float getMaxRelevance(GuidPosition guidP);
+-        bool HasSameTarget(ObjectGuid guid, uint32 max, std::list<ObjectGuid>& nearGuids);
++        std::unordered_map<ObjectGuid, uint32> GetTargetCounts(std::list<ObjectGuid> const& nearGuids);
+ 
+         std::unordered_map <ObjectGuid, std::string> rgpActionReason;
+     };
+diff --git a/ai/playerbot/strategy/actions/MoveToRpgTargetAction.cpp b/ai/playerbot/strategy/actions/MoveToRpgTargetAction.cpp
+index a0efbb1..cb816e8 100644
+--- a/ai/playerbot/strategy/actions/MoveToRpgTargetAction.cpp
++++ b/ai/playerbot/strategy/actions/MoveToRpgTargetAction.cpp
+@@ -26,7 +26,12 @@ bool MoveToRpgTargetAction::Execute(Event& event)
+     else if(go)
+         wo = go;
+     else
++    {
++        // Drop the vanished target so the next choice can make progress
++        // instead of re-issuing a move leg against nothing.
++        RESET_AI_VALUE(GuidPosition, "rpg target");
+         return false;
++    }
+ 
+     if (guidP.IsPlayer())
+     {
+@@ -165,6 +170,12 @@ bool MoveToRpgTargetAction::Execute(Event& event)
+         {
+             ai->TellDebug(GetMaster(), "Can not path to desired location around " + chat->formatWorldobject(guidP.GetWorldObject(bot->GetInstanceId())) + " trying again later.", "debug move");
+ 
++            // Reuse the native target rejection so the next choice can make
++            // progress instead of re-rolling the same unreachable approach
++            // point every tick.
++            AI_VALUE(std::set<ObjectGuid>&, "ignore rpg target").insert(guidP);
++            RESET_AI_VALUE(GuidPosition, "rpg target");
++
+             return false;
+         }
+     }
+@@ -232,6 +243,10 @@ bool MoveToRpgTargetAction::isUseful()
+         {
+             ai->TellPlayerNoFacing(GetMaster(), "Target could not be found. Drop rpg target");
+         }
++
++        // Stop the move leg here. Falling through made the action still count
++        // as useful and chain into the next patrol leg with a stale target.
++        return false;
+     }
+ 
+     if(MEM_AI_VALUE(WorldPosition, "current position")->LastChangeDelay() < 60)
+diff --git a/ai/playerbot/strategy/actions/MovementActions.cpp b/ai/playerbot/strategy/actions/MovementActions.cpp
+index 1cdaa8f..aa61e96 100644
+--- a/ai/playerbot/strategy/actions/MovementActions.cpp
++++ b/ai/playerbot/strategy/actions/MovementActions.cpp
+@@ -90,7 +90,7 @@ bool MovementAction::FlyDirect(const WorldPosition &startPosition, const WorldPo
+     return false;
+ }
+ 
+-bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
++bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc, Creature* sourceNpc)
+ {
+     AiObjectContext* context = ai->GetAiObjectContext();
+     Player* bot = ai->GetBot();
+@@ -100,24 +100,44 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
+     if (!tEntry)
+         return false;
+ 
+-    Creature* unit = nullptr;
++    Creature* unit = sourceNpc;
+ 
+-    if (needNpc)
++    // Fail closed on flight eligibility: a bot without the taxi cheat may only
++    // board flight paths it has actually learned. The core re-validates this in
++    // ActivateTaxiPathTo, but deciding here keeps the surrounding travel logic
++    // from planning legs a real player at this level/discovery state could not
++    // fly.
++    if (!bot->IsTaxiCheater() && !bot->GetTaxi().IsTaximaskNodeKnown(tEntry->to))
++        return false;
++
++    if (needNpc || (!bot->IsTaxiCheater() && !bot->GetTaxi().IsTaximaskNodeKnown(tEntry->from)))
+     {
+-        std::list<ObjectGuid> npcs = AI_VALUE(std::list<ObjectGuid>, "nearest npcs");
+-        for (std::list<ObjectGuid>::iterator i = npcs.begin(); i != npcs.end(); i++)
++        // An established interaction result (e.g. the RPG flight master) wins;
++        // only fall back to resolving a nearby interactable flight master when
++        // the caller did not provide one.
++        if (unit && sObjectMgr.GetNearestTaxiNode(unit->GetPositionX(), unit->GetPositionY(),
++            unit->GetPositionZ(), unit->GetMapId(), bot->GetTeam()) != tEntry->from)
++            unit = nullptr;
++
++        if (!unit)
+         {
+-            unit = bot->GetNPCIfCanInteractWith(*i, UNIT_NPC_FLAG_FLIGHTMASTER);
+-            if (unit)
+-                break;
++            std::list<ObjectGuid> npcs = AI_VALUE(std::list<ObjectGuid>, "nearest npcs");
++            for (std::list<ObjectGuid>::iterator i = npcs.begin(); i != npcs.end(); i++)
++            {
++                unit = bot->GetNPCIfCanInteractWith(*i, UNIT_NPC_FLAG_FLIGHTMASTER);
++                if (unit)
++                    break;
++            }
++
++            if (unit && sObjectMgr.GetNearestTaxiNode(unit->GetPositionX(), unit->GetPositionY(),
++                unit->GetPositionZ(), unit->GetMapId(), bot->GetTeam()) != tEntry->from)
++                unit = nullptr;
+         }
+ 
+         if (!unit)
+-        {
+             return false;
+-        }
+ 
+-        if (unit && !bot->GetTaxi().IsTaximaskNodeKnown(tEntry->from))
++        if (!bot->GetTaxi().IsTaximaskNodeKnown(tEntry->from))
+         {
+             bot->GetSession()->SendLearnNewTaxiNode(unit);
+ 
+@@ -125,6 +145,9 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
+         }
+     }
+ 
++    if (!bot->IsTaxiCheater() && !bot->GetTaxi().IsTaximaskNodeKnown(tEntry->from))
++        return false;
++
+     uint32 botMoney = bot->GetMoney();
+     if (ai->HasCheat(BotCheatMask::gold) || ai->HasCheat(BotCheatMask::taxi))
+     {
+diff --git a/ai/playerbot/strategy/actions/MovementActions.h b/ai/playerbot/strategy/actions/MovementActions.h
+index b6a79be..a8ccdaa 100644
+--- a/ai/playerbot/strategy/actions/MovementActions.h
++++ b/ai/playerbot/strategy/actions/MovementActions.h
+@@ -31,7 +31,7 @@ namespace ai
+            return MoveTo(location.mapId, location.x, location.y, location.z, idle, react, noPath, ignoreEnemyTargets);
+         }
+ 
+-        static bool UseTaxi(PlayerbotAI* ai, uint32 entry = 0, bool needNpc = true);
++        static bool UseTaxi(PlayerbotAI* ai, uint32 entry = 0, bool needNpc = true, Creature* sourceNpc = nullptr);
+ 
+ 
+         bool WaitForTransport();
+diff --git a/ai/playerbot/strategy/actions/RpgAction.cpp b/ai/playerbot/strategy/actions/RpgAction.cpp
+index fac0da4..091f0d7 100644
+--- a/ai/playerbot/strategy/actions/RpgAction.cpp
++++ b/ai/playerbot/strategy/actions/RpgAction.cpp
+@@ -127,9 +127,10 @@ bool RpgAction::SetNextRpgAction()
+         }
+     }
+ 
+-    std::mt19937 gen(time(0));
+-
+-    WeightedShuffle(actions.begin(), actions.end(), relevances.begin(), relevances.end(), gen);
++    //Use the shared thread-local generator instead of a per-call time(0)-seeded
++    //engine: re-seeding every call made consecutive choices correlate and the
++    //pick hard to reproduce in tests.
++    WeightedShuffle(actions.begin(), actions.end(), relevances.begin(), relevances.end(), *GetRandomGenerator());
+ 
+     Action* action = actions.front();
+ 
+diff --git a/ai/playerbot/strategy/actions/RpgSubActions.cpp b/ai/playerbot/strategy/actions/RpgSubActions.cpp
+index 45ef8f0..7cd70c6 100644
+--- a/ai/playerbot/strategy/actions/RpgSubActions.cpp
++++ b/ai/playerbot/strategy/actions/RpgSubActions.cpp
+@@ -11,6 +11,7 @@
+ #include "GuildCreateActions.h"
+ #include "SocialMgr.h"
+ #include "playerbot/TravelMgr.h"
++#include "MovementActions.h"
+ #include "SayAction.h"
+ #include "playerbot/PlayerbotLLMInterface.h"
+ 
+@@ -195,7 +196,6 @@ bool RpgTaxiAction::Execute(Event& event)
+ 
+     uint32 path = nodes[urand(0, nodes.size() - 1)];
+     uint32 money = bot->GetMoney();
+-    bot->SetMoney(money + 100000);
+ 
+     TaxiPathEntry const* entry = sTaxiPathStore.LookupEntry(path);
+     if (!entry)
+@@ -219,16 +219,22 @@ bool RpgTaxiAction::Execute(Event& event)
+         bot->SetMoney(money);
+         return false;
+     }
+-    if (!bot->ActivateTaxiPathTo({ entry->from, entry->to }, flightMaster, 0))
++
++    // Keep the existing ambient free-flight policy, but use the SAME native
++    // eligibility/discovery adapter as purposeful travel. Fund only the exact
++    // fare and restore funds on rejection too; a temporary credit larger than
++    // the fare both overdraws the bot ledger and, on the old early-return
++    // paths, used to leak.
++    bot->SetMoney(uint32(std::min<uint64>(uint64(money) + entry->price, uint64(uint32(-1)))));
++    bool const activated = MovementAction::UseTaxi(ai, path, true, flightMaster);
++    bot->SetMoney(money);
++    if (!activated)
+     {
+         sLog.outError("Bot %s cannot fly %u (%zu location available)", bot->GetName(), path, nodes.size());
+-        bot->SetMoney(money);
+         return false;
+     }
+ 
+-
+     sLog.outDetail("Bot #%d <%s> is flying from %s to %s (%zu location available)", bot->GetGUIDLow(), bot->GetName(), nodeFrom->name[LOCALE_enUS], nodeTo->name[LOCALE_enUS], nodes.size());
+-    bot->SetMoney(money);
+ 
+     rpg->AfterExecute();
+ 
+diff --git a/ai/playerbot/strategy/values/PossibleRpgTargetsValue.cpp b/ai/playerbot/strategy/values/PossibleRpgTargetsValue.cpp
+index cf82a5a..3af0d78 100644
+--- a/ai/playerbot/strategy/values/PossibleRpgTargetsValue.cpp
++++ b/ai/playerbot/strategy/values/PossibleRpgTargetsValue.cpp
+@@ -47,6 +47,11 @@ bool PossibleRpgTargetsValue::AcceptUnit(Unit* unit)
+ {
+     TravelTarget* travelTarget = context->GetValue<TravelTarget*>("travel target")->Get();
+ 
++    // Flight masters remain available to purposeful travel/discovery, but a
++    // taxi-cheat bot must not pick one as generic nearby roleplay work.
++    if (unit->HasFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_FLIGHTMASTER) && bot->IsTaxiCheater())
++        return false;
++
+     if (travelTarget->GetDestination() && travelTarget->GetDestination()->GetEntry() == unit->GetEntry())
+         return true;
+ 
