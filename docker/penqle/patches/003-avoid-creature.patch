@@ -1,0 +1,727 @@
+diff --git a/ai/playerbot/AiFactory.cpp b/ai/playerbot/AiFactory.cpp
+index e8f47aa..95725e6 100644
+--- a/ai/playerbot/AiFactory.cpp
++++ b/ai/playerbot/AiFactory.cpp
+@@ -274,9 +274,12 @@ void AiFactory::AddDefaultCombatStrategies(Player* player, PlayerbotAI* const fa
+     int tab = GetPlayerSpecTab(player);
+ 
+     combatEngine->addStrategies("mount", NULL);
+-    // The pinned Tortoise PathInfo exposes no area-cost/avoidance filter. Do
+-    // not install the mature AvoidMobs strategy whose setArea() calls would
+-    // otherwise report success while changing no path state.
++    combatEngine->addStrategies("avoid specific creatures", NULL);
++    // Creature-level avoidance is handled by "avoid specific creatures" (the
++    // chat-managed avoid creature list). The pinned Tortoise PathInfo exposes
++    // no area-cost/avoidance filter, so the mature AvoidMobs strategy whose
++    // setArea() calls would otherwise report success while changing no path
++    // state stays uninstalled; see ledger row T-AVOID-ABSENT.
+ 
+     // A battleground is precisely where "pvp" is needed: it is the strategy
+     // whose "enemy player near" trigger lets the bot take an enemy player as a
+@@ -862,8 +865,11 @@ void AiFactory::AddDefaultNonCombatStrategies(Player* player, PlayerbotAI* const
+     }
+ 
+     nonCombatEngine->addStrategies("wbuff", NULL);
+-    // Mob avoidance remains disabled until the core supplies a real path
+-    // filter; see SetAvoidAreaAction and the audit's core follow-up.
++    // Area-based mob avoidance ("avoid mobs"/"set avoid area") remains
++    // deliberately disabled: the core supplies no path area filter and the
++    // fail-closed SetAvoidAreaAction declines every request. Creature-level
++    // avoidance is live via "avoid specific creatures". See ledger row
++    // T-AVOID-ABSENT.
+ 
+     if(sPlayerbotAIConfig.llmEnabled == 2)
+         nonCombatEngine->addStrategy("ai chat");
+@@ -1222,7 +1228,7 @@ Engine* AiFactory::createDeadEngine(Player* player, PlayerbotAI* const facade, A
+ 
+ void AiFactory::AddDefaultReactionStrategies(Player* player, PlayerbotAI* const facade, ReactionEngine* reactionEngine)
+ {
+-    reactionEngine->addStrategies("react", "chat", "avoid aoe", "potions", NULL);
++    reactionEngine->addStrategies("react", "chat", "avoid aoe", "potions", "avoid specific creatures", NULL);
+ 
+     const int tab = GetPlayerSpecTab(player);
+     switch (player->GetClass())
+diff --git a/ai/playerbot/strategy/StrategyContext.h b/ai/playerbot/strategy/StrategyContext.h
+index f2de268..fc29b82 100644
+--- a/ai/playerbot/strategy/StrategyContext.h
++++ b/ai/playerbot/strategy/StrategyContext.h
+@@ -73,6 +73,11 @@ namespace ai
+             creators["dead"] = [](PlayerbotAI* ai) { return new DeadStrategy(ai); };
+             creators["flee"] = [](PlayerbotAI* ai) { return new FleeStrategy(ai); };
+             creators["avoid mobs"] = [](PlayerbotAI* ai) { return new AvoidMobsStrategy(ai); };
++            // Player-managed creature avoidance (chat command "avoid creature");
++            // the list lives in AvoidCreatureListValue, behavior in
++            // AvoidSpecificCreaturesStrategy. Distinct from the unsupported
++            // navmesh area filter ("avoid mobs"), see ledger row T-AVOID-ABSENT.
++            creators["avoid specific creatures"] = [](PlayerbotAI* ai) { return new AvoidSpecificCreaturesStrategy(ai); };
+             creators["duel"] = [](PlayerbotAI* ai) { return new DuelStrategy(ai); };
+             creators["start duel"] = [](PlayerbotAI* ai) { return new StartDuelStrategy(ai); };
+             creators["kite"] = [](PlayerbotAI* ai) { return new KiteStrategy(ai); };
+diff --git a/ai/playerbot/strategy/actions/ActionContext.h b/ai/playerbot/strategy/actions/ActionContext.h
+index 140e205..6fb3109 100644
+--- a/ai/playerbot/strategy/actions/ActionContext.h
++++ b/ai/playerbot/strategy/actions/ActionContext.h
+@@ -335,6 +335,7 @@ namespace ai
+             creators["move away from magmadar"] = [](PlayerbotAI* ai) { return new MagmadarMoveAwayAction(ai); };
+ 
+             creators["move away from hazard"] = [](PlayerbotAI* ai) { return new MoveAwayFromHazard(ai); };
++            creators["move away from specific creatures"] = [](PlayerbotAI* ai) { return new MoveAwayFromSpecificCreatures(ai, 10.0f); };
+             creators["move to mc rune"] = [](PlayerbotAI* ai) { return new MoveToMCRuneAction(ai); };
+             creators["douse mc rune aqual"] = [](PlayerbotAI* ai) { return new DouseMCRuneActionAqual(ai); };
+             creators["douse mc rune eternal"] = [](PlayerbotAI* ai) { return new DouseMCRuneActionEternal(ai); };
+diff --git a/ai/playerbot/strategy/actions/AvoidCreatureListAction.cpp b/ai/playerbot/strategy/actions/AvoidCreatureListAction.cpp
+new file mode 100644
+index 0000000..108084a
+--- /dev/null
++++ b/ai/playerbot/strategy/actions/AvoidCreatureListAction.cpp
+@@ -0,0 +1,146 @@
++
++#include "playerbot/playerbot.h"
++#include "AvoidCreatureListAction.h"
++#include "playerbot/strategy/values/AvoidCreatureListValue.h"
++#include "LootAction.h"
++#include "playerbot/ServerFacade.h"
++
++using namespace ai;
++
++bool AvoidCreatureListAction::Execute(Event& event)
++{
++    Player* requester = event.GetOwner() ? event.GetOwner() : GetMaster();
++    std::string cmd = event.GetParam();
++    std::set<uint32>& avoidCreatures = AI_VALUE(std::set<uint32>&, "avoid creature list");
++
++    if (cmd == "reset")
++    {
++        avoidCreatures.clear();
++        ai->TellPlayer(requester, "The avoid creature list has been cleared");
++        return true;
++    }
++    else if (cmd.empty() || cmd == "?")
++    {
++        if (avoidCreatures.empty())
++        {
++            ai->TellPlayer(requester, "Avoid creature list is empty");
++        }
++        else
++        {
++            bool first = true;
++            std::ostringstream out;
++            out << "Avoid creature list: ";
++            for (std::set<uint32>::iterator i = avoidCreatures.begin(); i != avoidCreatures.end(); i++)
++            {
++                const CreatureInfo* creatureEntry = sObjectMgr.GetCreatureTemplate(*i);
++                if (!creatureEntry)
++                {
++                    continue;
++                }
++
++                if (first) first = false; else out << ", ";
++                out << *i << " (" << creatureEntry->name << ")";
++            }
++
++            ai->TellPlayer(requester, out);
++        }
++
++        return true;
++    }
++    else
++    {
++        std::vector<std::string> creatures = ParseCreatures(cmd);
++        if (!creatures.empty())
++        {
++            for (std::string& creature : creatures)
++            {
++                const bool remove = creature.substr(0, 1) == "-";
++                if (remove)
++                {
++                    // Remove the -
++                    creature = creature.substr(1);
++                }
++
++                uint32 creatureId = 0;
++                if (!creature.empty() && creature.find_first_not_of("0123456789") == std::string::npos)
++                {
++                    creatureId = atoi(creature.c_str());
++                    if (creatureId && !sObjectMgr.GetCreatureTemplate(creatureId))
++                        creatureId = 0;
++                }
++                else
++                {
++                    creatureId = AI_VALUE2(uint32, "creature id", creature);
++                }
++
++                if (!creatureId)
++                {
++                    ai->TellError(requester, "Unknown creature " + creature);
++                    continue;
++                }
++
++                const CreatureInfo* creatureEntry = sObjectMgr.GetCreatureTemplate(creatureId);
++                if (!creatureEntry)
++                {
++                    ai->TellError(requester, "Unknown creature " + creature);
++                    continue;
++                }
++
++                if (remove)
++                {
++                    std::set<uint32>::iterator j = avoidCreatures.find(creatureId);
++                    if (j != avoidCreatures.end())
++                    {
++                        avoidCreatures.erase(j);
++                        std::ostringstream out;
++                        out << creatureId << " (" << creatureEntry->name << ") removed from avoid creature list";
++                        ai->TellPlayer(requester, out);
++                    }
++                }
++                else
++                {
++                    std::set<uint32>::iterator j = avoidCreatures.find(creatureId);
++                    if (j == avoidCreatures.end())
++                    {
++                        avoidCreatures.insert(creatureId);
++                        std::ostringstream out;
++                        out << creatureId << " (" << creatureEntry->name << ") added to avoid creature list";
++                        ai->TellPlayer(requester, out);
++                    }
++                }
++            }
++
++            return true;
++        }
++        else
++        {
++            ai->TellPlayer(requester, "Please specify one or more creatures to avoid");
++        }
++    }
++
++    return false;
++}
++
++std::vector<std::string> AvoidCreatureListAction::ParseCreatures(const std::string& text)
++{
++    std::vector<std::string> creatures;
++
++    size_t pos = 0;
++    while (pos != std::string::npos)
++    {
++        size_t nextPos = text.find(',', pos);
++        std::string token = text.substr(pos, nextPos - pos);
++        creatures.push_back(token);
++
++        if (nextPos != std::string::npos)
++        {
++            pos = nextPos + 1;
++        }
++        else
++        {
++            break;
++        }
++    }
++
++    return creatures;
++}
+diff --git a/ai/playerbot/strategy/actions/AvoidCreatureListAction.h b/ai/playerbot/strategy/actions/AvoidCreatureListAction.h
+new file mode 100644
+index 0000000..9d22fbd
+--- /dev/null
++++ b/ai/playerbot/strategy/actions/AvoidCreatureListAction.h
+@@ -0,0 +1,32 @@
++#pragma once
++#include "playerbot/PlayerbotAI.h"
++#include "playerbot/LootObjectStack.h"
++#include "GenericActions.h"
++
++namespace ai
++{
++    class AvoidCreatureListAction : public ChatCommandAction
++    {
++    public:
++        AvoidCreatureListAction(PlayerbotAI* ai) : ChatCommandAction(ai, "avoid creature list") {}
++        virtual bool Execute(Event& event) override;
++        virtual bool isUsefulWhenStunned() override { return true; }
++
++#ifdef GenerateBotHelp
++        virtual std::string GetHelpName() { return "avoid creature list"; } //Must equal iternal name
++        virtual std::string GetHelpDescription()
++        {
++            return "This chat command gives control over the list of creatures a bot should stay away from.\n"
++                "Examples:\n"
++                "avoid creature ? : List the creatures to avoid.\n"
++                "avoid creature [creature id or name] : Stay away from this creature.\n"
++                "avoid creature -[creature id or name] : Remove this creature from the list.\n";
++        }
++        virtual std::vector<std::string> GetUsedActions() { return {}; }
++        virtual std::vector<std::string> GetUsedValues() { return { "avoid creature list" }; }
++#endif
++
++    private:
++        std::vector<std::string> ParseCreatures(const std::string& text);
++    };
++}
+diff --git a/ai/playerbot/strategy/actions/ChatActionContext.h b/ai/playerbot/strategy/actions/ChatActionContext.h
+index 29a4882..0450b4d 100644
+--- a/ai/playerbot/strategy/actions/ChatActionContext.h
++++ b/ai/playerbot/strategy/actions/ChatActionContext.h
+@@ -34,6 +34,7 @@
+ #include "SetHomeAction.h"
+ #include "ResetAiAction.h"
+ #include "DestroyItemAction.h"
++#include "AvoidCreatureListAction.h"
+ #include "BuffAction.h"
+ #include "AttackAction.h"
+ #include "HelpAction.h"
+@@ -106,6 +107,7 @@ namespace ai
+             creators["query item usage"] = [](PlayerbotAI* ai) { return new QueryItemUsageAction(ai); };
+             creators["ll"] = [](PlayerbotAI* ai) { return new LootStrategyAction(ai); };
+             creators["ss"] = [](PlayerbotAI* ai) { return new SkipSpellsListAction(ai); };
++            creators["avoid creature"] = [](PlayerbotAI* ai) { return new AvoidCreatureListAction(ai); };
+             creators["loot"] = [](PlayerbotAI* ai) { return new AddAllLootAction(ai); };
+             creators["add all loot"] = [](PlayerbotAI* ai) { return new AddAllLootAction(ai); };
+             creators["roll"] = [](PlayerbotAI* ai) { return new RollAction(ai); };
+diff --git a/ai/playerbot/strategy/actions/DungeonActions.cpp b/ai/playerbot/strategy/actions/DungeonActions.cpp
+index 48af0fe..66b7bea 100644
+--- a/ai/playerbot/strategy/actions/DungeonActions.cpp
++++ b/ai/playerbot/strategy/actions/DungeonActions.cpp
+@@ -223,6 +223,19 @@ bool MoveAwayFromCreature::Execute(Event& event)
+     return false;
+ }
+ 
++bool MoveAwayFromSpecificCreatures::Execute(Event& event)
++{
++    std::set<uint32>& creatureIDList = AI_VALUE(std::set<uint32>&, "avoid creature list");
++    for (const uint32 creatureToCheck : creatureIDList)
++    {
++        creatureID = creatureToCheck;
++        bool result = MoveAwayFromCreature::Execute(event);
++        if (result)
++            return result;
++    }
++    return false;
++}
++
+ bool MoveAwayFromCreature::isPossible()
+ {
+     if (MovementAction::isPossible())
+diff --git a/ai/playerbot/strategy/actions/DungeonActions.h b/ai/playerbot/strategy/actions/DungeonActions.h
+index 5f5045c..33eb129 100644
+--- a/ai/playerbot/strategy/actions/DungeonActions.h
++++ b/ai/playerbot/strategy/actions/DungeonActions.h
+@@ -50,8 +50,26 @@ namespace ai
+         bool HasCreaturesNearby(const WorldPosition& point, const std::list<Creature*>& creatures) const;
+         bool IsHazardNearby(const WorldPosition& point, const std::list<HazardPosition>& hazards) const;
+ 
+-    private:
++    protected:
+         uint32 creatureID;
+         float range;
+     };
++
++    class MoveAwayFromSpecificCreatures : public MoveAwayFromCreature
++    {
++    public:
++        MoveAwayFromSpecificCreatures(PlayerbotAI* ai, float range, bool ignoreVictim = true, std::string name = "move away from specific creatures") : MoveAwayFromCreature(ai, name, 0, range) {}
++        bool Execute(Event& event) override;
++
++#ifdef GenerateBotHelp
++        virtual std::string GetHelpName() { return "move away from specific creatures"; }
++        virtual std::string GetHelpDescription()
++        {
++            return "This action makes the bot move away from specific creatures defined by the avoid creature list.\n"
++                   "It maintains a safe distance from the specified creature IDs within a defined range.";
++        }
++        virtual std::vector<std::string> GetUsedActions() { return {}; }
++        virtual std::vector<std::string> GetUsedValues() { return {"hazards"}; }
++#endif
++    };
+ }
+diff --git a/ai/playerbot/strategy/actions/SetAvoidAreaAction.cpp b/ai/playerbot/strategy/actions/SetAvoidAreaAction.cpp
+index 1c670fe..d6c0346 100644
+--- a/ai/playerbot/strategy/actions/SetAvoidAreaAction.cpp
++++ b/ai/playerbot/strategy/actions/SetAvoidAreaAction.cpp
+@@ -9,6 +9,11 @@ using namespace ai;
+ 
+ bool SetAvoidAreaAction::Execute(Event& event)
+ {
++    // Deliberately fail-closed: the pinned Tortoise core (PathFinder.h) has no
++    // area-cost/avoidance filter, so a real implementation is impossible
++    // without a core change. Creature-level avoidance exists separately via
++    // the "avoid specific creatures" strategy and the avoid creature list.
++    // See ledger row T-AVOID-ABSENT.
+     Player* requester = event.GetOwner() ? event.GetOwner() : ai->GetMaster();
+     ai->TellError(requester, "Mob avoidance is unavailable: the pinned Tortoise core does not expose a path area filter.",
+         PlayerbotSecurityLevel::PLAYERBOT_SECURITY_ALLOW_ALL, true);
+diff --git a/ai/playerbot/strategy/generic/AvoidMobsStrategy.cpp b/ai/playerbot/strategy/generic/AvoidMobsStrategy.cpp
+index 12e01f8..7650b46 100644
+--- a/ai/playerbot/strategy/generic/AvoidMobsStrategy.cpp
++++ b/ai/playerbot/strategy/generic/AvoidMobsStrategy.cpp
+@@ -2,6 +2,11 @@
+ #include "playerbot/playerbot.h"
+ #include "AvoidMobsStrategy.h"
+ 
++// Registered in StrategyContext ("avoid mobs") but intentionally never
++// installed by AiFactory: this strategy only drives "set avoid area", which
++// is fail-closed on the pinned core (no path area filter). Kept out of every
++// engine until the core supplies one; see ledger row T-AVOID-ABSENT.
++
+ using namespace ai;
+ 
+ void AvoidMobsStrategy::InitNonCombatTriggers(std::list<TriggerNode*>& triggers)
+diff --git a/ai/playerbot/strategy/generic/ChatCommandHandlerStrategy.cpp b/ai/playerbot/strategy/generic/ChatCommandHandlerStrategy.cpp
+index f6ab561..1fcdd61 100644
+--- a/ai/playerbot/strategy/generic/ChatCommandHandlerStrategy.cpp
++++ b/ai/playerbot/strategy/generic/ChatCommandHandlerStrategy.cpp
+@@ -38,6 +38,7 @@ ChatCommandHandlerStrategy::ChatCommandHandlerStrategy(PlayerbotAI* ai) : PassTr
+     supported.push_back("share");
+     supported.push_back("ll");
+     supported.push_back("ss");
++    supported.push_back("avoid creature");
+     supported.push_back("release");
+     supported.push_back("corpse run");
+     supported.push_back("teleport");
+diff --git a/ai/playerbot/strategy/generic/CombatStrategy.cpp b/ai/playerbot/strategy/generic/CombatStrategy.cpp
+index 818a495..1c898c3 100644
+--- a/ai/playerbot/strategy/generic/CombatStrategy.cpp
++++ b/ai/playerbot/strategy/generic/CombatStrategy.cpp
+@@ -82,6 +82,18 @@ void AvoidAoeStrategy::InitReactionMultipliers(std::list<Multiplier*>& multiplie
+     InitCombatMultipliers(multipliers);
+ }
+ 
++void AvoidSpecificCreaturesStrategy::InitCombatTriggers(std::list<TriggerNode*>& triggers)
++{
++    triggers.push_back(new TriggerNode(
++        "specific creature too close",
++        NextAction::array(0, new NextAction("move away from specific creatures", ACTION_EMERGENCY + 5), NULL)));
++}
++
++void AvoidSpecificCreaturesStrategy::InitReactionTriggers(std::list<TriggerNode*>& triggers)
++{
++    InitCombatTriggers(triggers);
++}
++
+ void WaitForAttackStrategy::InitCombatTriggers(std::list<TriggerNode*>& triggers)
+ {
+     triggers.push_back(new TriggerNode(
+diff --git a/ai/playerbot/strategy/generic/CombatStrategy.h b/ai/playerbot/strategy/generic/CombatStrategy.h
+index c556747..8a311a1 100644
+--- a/ai/playerbot/strategy/generic/CombatStrategy.h
++++ b/ai/playerbot/strategy/generic/CombatStrategy.h
+@@ -43,6 +43,26 @@ namespace ai
+         void InitReactionTriggers(std::list<TriggerNode*>& triggers) override;
+     };
+ 
++    class AvoidSpecificCreaturesStrategy : public Strategy
++    {
++    public:
++        AvoidSpecificCreaturesStrategy(PlayerbotAI* ai) : Strategy(ai) {}
++        std::string getName() override { return "avoid specific creatures"; }
++
++#ifdef GenerateBotHelp
++        virtual std::string GetHelpName() { return "avoid specific creatures"; } //Must equal iternal name
++        virtual std::string GetHelpDescription()
++        {
++            return "This strategy will make bots move away from specific creatures.";
++        }
++        virtual std::vector<std::string> GetRelatedStrategies() { return { }; }
++#endif
++
++    private:
++        void InitCombatTriggers(std::list<TriggerNode*>& triggers) override;
++        void InitReactionTriggers(std::list<TriggerNode*>& triggers) override;
++    };
++
+     class AvoidAoeStrategyMultiplier : public Multiplier
+     {
+     public:
+diff --git a/ai/playerbot/strategy/triggers/ChatTriggerContext.h b/ai/playerbot/strategy/triggers/ChatTriggerContext.h
+index 698b6ec..5a03c5e 100644
+--- a/ai/playerbot/strategy/triggers/ChatTriggerContext.h
++++ b/ai/playerbot/strategy/triggers/ChatTriggerContext.h
+@@ -23,6 +23,7 @@ namespace ai
+             creators["q"] = [](PlayerbotAI* ai) { return new ChatCommandTrigger(ai, "q"); };
+             creators["ll"] = [](PlayerbotAI* ai) { return new ChatCommandTrigger(ai, "ll"); };
+             creators["ss"] = [](PlayerbotAI* ai) { return new ChatCommandTrigger(ai, "ss"); };
++            creators["avoid creature"] = [](PlayerbotAI* ai) { return new ChatCommandTrigger(ai, "avoid creature"); };
+             creators["loot"] = [](PlayerbotAI* ai) { return new ChatCommandTrigger(ai, "add all loot"); };
+             creators["add all loot"] = [](PlayerbotAI* ai) { return new ChatCommandTrigger(ai, "add all loot"); };
+             creators["release"] = [](PlayerbotAI* ai) { return new ChatCommandTrigger(ai, "release"); };
+diff --git a/ai/playerbot/strategy/triggers/DungeonTriggers.cpp b/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
+index 16739b3..d745722 100644
+--- a/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
++++ b/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
+@@ -302,6 +302,43 @@ bool CloseToCreatureTrigger::IsActive()
+     return false;
+ }
+ 
++bool CloseToSpecificCreaturesTrigger::IsActive()
++{
++    // If the bot is ready
++    if (bot->IsInWorld() && !bot->IsBeingTeleported())
++    {
++        AiObjectContext* context = ai->GetAiObjectContext();
++        std::set<uint32>& creatureIDList = AI_VALUE(std::set<uint32>&, "avoid creature list");
++        // Check if any of the creatures listed is nearby
++        for (const uint32 creatureToCheck : creatureIDList)
++        {
++            // Iterate through the near creatures
++            std::list<Unit*> creatures;
++            MaNGOS::AllCreaturesOfEntryInRange u_check(bot, creatureToCheck, range);
++            MaNGOS::UnitListSearcher<MaNGOS::AllCreaturesOfEntryInRange> searcher(creatures, u_check);
++            Cell::VisitAllObjects(bot, searcher, range);
++            for (Unit* unit : creatures)
++            {
++                Creature* creature = (Creature*)unit;
++                if (creature && creature->IsAlive())
++                {
++                    // Check if the bot is not being targeted by the creature, unless we don't care
++                    if ((!creature->GetVictim() || (creature->GetVictim()->getObjectGuid() != bot->getObjectGuid())) || ignoreVictim)
++                    {
++                        // See if the creature is within the specified distance
++                        if (bot->IsWithinDist(creature, range))
++                        {
++                            return true;
++                        }
++                    }
++                }
++            }
++        }
++    }
++
++    return false;
++}
++
+ bool ItemReadyTrigger::IsActive()
+ {
+     // Check if the bot has the item or if it has cheats enabled
+diff --git a/ai/playerbot/strategy/triggers/DungeonTriggers.h b/ai/playerbot/strategy/triggers/DungeonTriggers.h
+index 8760caf..d26cfc3 100644
+--- a/ai/playerbot/strategy/triggers/DungeonTriggers.h
++++ b/ai/playerbot/strategy/triggers/DungeonTriggers.h
+@@ -171,6 +171,23 @@ namespace ai
+         float range;
+     };
+ 
++    // Not dungeon-specific despite living in this file - reacts to any creature
++    // on the bot's "avoid creature list" chat-managed list coming within range.
++    class CloseToSpecificCreaturesTrigger : public Trigger
++    {
++    public:
++        CloseToSpecificCreaturesTrigger(PlayerbotAI* ai, std::string name = "specific creature too close", float range = 10.0f, bool ignoreVictim = true)
++        : Trigger(ai, name, 1)
++        , range(range)
++        , ignoreVictim(ignoreVictim) {}
++
++        bool IsActive() override;
++
++    private:
++        float range;
++        bool ignoreVictim;
++    };
++
+     class ItemReadyTrigger : public Trigger
+     {
+     public:
+diff --git a/ai/playerbot/strategy/triggers/TriggerContext.h b/ai/playerbot/strategy/triggers/TriggerContext.h
+index 96daf39..88ace95 100644
+--- a/ai/playerbot/strategy/triggers/TriggerContext.h
++++ b/ai/playerbot/strategy/triggers/TriggerContext.h
+@@ -287,6 +287,8 @@ namespace ai
+ 
+             creators["environmental hazard nearby"] = [](PlayerbotAI* ai) { return new EnvironmentalHazardTrigger(ai); };
+ 
++            creators["specific creature too close"] = [](PlayerbotAI* ai) { return new CloseToSpecificCreaturesTrigger(ai); };
++
+             // Dungeon Boss Triggers
+             creators["start onyxia fight"] = [](PlayerbotAI* ai) { return new OnyxiaStartFightTrigger(ai); };
+             creators["end onyxia fight"] = [](PlayerbotAI* ai) { return new OnyxiaEndFightTrigger(ai); };
+diff --git a/ai/playerbot/strategy/values/AvoidCreatureListValue.cpp b/ai/playerbot/strategy/values/AvoidCreatureListValue.cpp
+new file mode 100644
+index 0000000..c462772
+--- /dev/null
++++ b/ai/playerbot/strategy/values/AvoidCreatureListValue.cpp
+@@ -0,0 +1,30 @@
++
++#include "playerbot/playerbot.h"
++#include "AvoidCreatureListValue.h"
++
++using namespace ai;
++
++std::string AvoidCreatureListValue::Save()
++{
++    std::ostringstream out;
++    bool first = true;
++    for (std::set<uint32>::iterator i = value.begin(); i != value.end(); ++i)
++    {
++        if (!first) out << ",";
++        else first = false;
++        out << *i;
++    }
++    return out.str();
++}
++
++bool AvoidCreatureListValue::Load(std::string text)
++{
++    value.clear();
++
++    std::vector<std::string> ss = split(text, ',');
++    for (std::vector<std::string>::iterator i = ss.begin(); i != ss.end(); ++i)
++    {
++        value.insert(atoi(i->c_str()));
++    }
++    return true;
++}
+diff --git a/ai/playerbot/strategy/values/AvoidCreatureListValue.h b/ai/playerbot/strategy/values/AvoidCreatureListValue.h
+new file mode 100644
+index 0000000..a480e53
+--- /dev/null
++++ b/ai/playerbot/strategy/values/AvoidCreatureListValue.h
+@@ -0,0 +1,19 @@
++#pragma once
++#include "playerbot/PlayerbotAI.h"
++#include "playerbot/strategy/AiObjectContext.h"
++#include "playerbot/strategy/Value.h"
++
++namespace ai
++{
++    class AvoidCreatureListValue : public ManualSetValue<std::set<uint32>&>
++	{
++	public:
++        AvoidCreatureListValue(PlayerbotAI* ai, std::string name = "avoid creature list") : ManualSetValue<std::set<uint32>&>(ai, list, name) {}
++
++        virtual std::string Save() override;
++        virtual bool Load(std::string value) override;
++
++    private:
++        std::set<uint32> list;
++    };
++}
+diff --git a/ai/playerbot/strategy/values/CreatureIdValue.cpp b/ai/playerbot/strategy/values/CreatureIdValue.cpp
+new file mode 100644
+index 0000000..8dffffb
+--- /dev/null
++++ b/ai/playerbot/strategy/values/CreatureIdValue.cpp
+@@ -0,0 +1,81 @@
++
++#include "playerbot/playerbot.h"
++#include "CreatureIdValue.h"
++#include "playerbot/PlayerbotAIConfig.h"
++
++using namespace ai;
++
++static uint32 FindCreatureIdByName(const std::string& namepart)
++{
++    const CreatureInfoMap& creatures = sObjectMgr.GetCreatureInfoMap();
++
++    std::string wanted;
++    wanted.reserve(namepart.size());
++    for (char c : namepart)
++    {
++        wanted.push_back((char)tolower(c));
++    }
++
++    uint32 exactMatch = 0;
++    uint32 partialMatch = 0;
++    bool partialAmbiguous = false;
++    for (const auto& itr : creatures)
++    {
++        const std::string& name = itr.second->name;
++        std::string lowered;
++        lowered.reserve(name.size());
++        for (char c : name)
++        {
++            lowered.push_back((char)tolower(c));
++        }
++
++        if (lowered == wanted)
++        {
++            if (!exactMatch || exactMatch == itr.first)
++                exactMatch = itr.first;
++            else
++                return 0; // ambiguous: two entries share the name
++        }
++        else if (lowered.find(wanted) != std::string::npos)
++        {
++            if (partialMatch && partialMatch != itr.first)
++                partialAmbiguous = true;
++            else
++                partialMatch = itr.first;
++        }
++    }
++
++    if (exactMatch)
++        return exactMatch;
++
++    return partialAmbiguous ? 0 : partialMatch;
++}
++
++CreatureIdValue::CreatureIdValue(PlayerbotAI* ai) : CalculatedValue<uint32>(ai, "creature id", 10), Qualified()
++{
++}
++
++uint32 CreatureIdValue::Calculate()
++{
++    std::string namepart = qualifier;
++
++    // Plain entry id first; the core has no creature-link extractor, so links
++    // resolve only through their visible name text.
++    if (!namepart.empty() && namepart.find_first_not_of("0123456789") == std::string::npos)
++    {
++        const uint32 entryId = atoi(namepart.c_str());
++        if (entryId && sObjectMgr.GetCreatureTemplate(entryId))
++            return entryId;
++
++        return 0;
++    }
++
++    if (namepart.empty())
++        return 0;
++
++    const uint32 namedId = FindCreatureIdByName(namepart);
++    if (namedId && sObjectMgr.GetCreatureTemplate(namedId))
++        return namedId;
++
++    return 0;
++}
+diff --git a/ai/playerbot/strategy/values/CreatureIdValue.h b/ai/playerbot/strategy/values/CreatureIdValue.h
+new file mode 100644
+index 0000000..cef675b
+--- /dev/null
++++ b/ai/playerbot/strategy/values/CreatureIdValue.h
+@@ -0,0 +1,15 @@
++#pragma once
++#include "playerbot/PlayerbotAI.h"
++#include "playerbot/strategy/AiObjectContext.h"
++#include "playerbot/strategy/Value.h"
++#include "TargetValue.h"
++
++namespace ai
++{
++    class CreatureIdValue : public CalculatedValue<uint32>, public Qualified
++	{
++	public:
++        CreatureIdValue(PlayerbotAI* ai);
++        virtual uint32 Calculate() override;
++    };
++}
+diff --git a/ai/playerbot/strategy/values/ValueContext.h b/ai/playerbot/strategy/values/ValueContext.h
+index eed823b..dacd185 100644
+--- a/ai/playerbot/strategy/values/ValueContext.h
++++ b/ai/playerbot/strategy/values/ValueContext.h
+@@ -75,6 +75,8 @@
+ #include "RandomBotUpdateValue.h"
+ #include "RangeValues.h"
+ #include "SkipSpellsListValue.h"
++#include "AvoidCreatureListValue.h"
++#include "CreatureIdValue.h"
+ #include "SnareTargetValue.h"
+ #include "Stances.h"
+ #include "QuestValues.h"
+@@ -116,6 +118,8 @@ namespace ai
+             creators["craft"] = [](PlayerbotAI* ai) { return new CraftValue(ai); };
+             creators["collision"] = [](PlayerbotAI* ai) { return new CollisionValue(ai); };
+             creators["skip spells list"] = [](PlayerbotAI* ai) { return new SkipSpellsListValue(ai); };
++            creators["avoid creature list"] = [](PlayerbotAI* ai) { return new AvoidCreatureListValue(ai); };
++            creators["creature id"] = [](PlayerbotAI* ai) { return new CreatureIdValue(ai); };
+             creators["nearest game objects"] = [](PlayerbotAI* ai) { return new NearestGameObjects(ai); };
+             creators["nearest game objects no los"] = [](PlayerbotAI* ai) { return new NearestGameObjects(ai, sPlayerbotAIConfig.sightDistance, LOS_IGNORE); };
+             creators["nearest dynamic objects"] = [](PlayerbotAI* ai) { return new NearestDynamicObjects(ai); };

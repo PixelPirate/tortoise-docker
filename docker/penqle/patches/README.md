@@ -33,6 +33,32 @@ Touches: `Strategy.h` (the virtual), `Engine.cpp` (skip in `Init()`),
 the seven forward-ported `Generic*Strategy.h` cc classes,
 `aiplayerbot.conf.dist.in` (comment only).
 
+## 003-avoid-creature.patch
+
+Ports the Shyalya donor's avoid-creature system: a chat-managed list of
+creature entries a bot must not target or approach. `avoid creature <id|name>`
+adds, `-` removes, `?` lists, `reset` clears (`AvoidCreatureListAction` +
+`AvoidCreatureListValue`, persisted via the generic `save ai` store;
+`CreatureIdValue` resolves ids/names against core creature templates). When a
+listed creature comes within 10y, the `avoid specific creatures` strategy
+(installed on both combat and reaction engines) fires
+`CloseToSpecificCreaturesTrigger` → `MoveAwayFromSpecificCreatures`, reusing
+the existing dungeon move-away pathing. The navmesh area filter ("avoid
+mobs"/"set avoid area") remains fail-closed — the core has no path area
+API — with ledger-pointing comments instead of silent no-ops. No new config
+key; the list starts empty and is player-managed. Implementation-verified
+(wiring checker live-missing=0), gameplay-untested.
+
+Touches: `strategy/actions/AvoidCreatureListAction.{h,cpp}`,
+`strategy/values/{AvoidCreatureListValue.{h,cpp},CreatureIdValue.{h,cpp}}`,
+`generic/CombatStrategy.{h,cpp}` (the strategy),
+`generic/ChatCommandHandlerStrategy.cpp` (supported command),
+`actions/ChatActionContext.h`, `actions/ActionContext.h`,
+`actions/DungeonActions.{h,cpp}`, `actions/SetAvoidAreaAction.cpp`,
+`triggers/ChatTriggerContext.h`, `triggers/TriggerContext.h`,
+`triggers/DungeonTriggers.{h,cpp}`, `values/ValueContext.h`,
+`StrategyContext.h`, `AiFactory.cpp` (strategy installs + posture comments).
+
 ## Rules
 
 - One feature per patch, numbered, named `NNN-description.patch`.
