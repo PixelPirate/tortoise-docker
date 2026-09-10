@@ -1,0 +1,54 @@
+diff --git a/ai/playerbot/strategy/actions/TradeStatusAction.cpp b/ai/playerbot/strategy/actions/TradeStatusAction.cpp
+index cde2f57..4ca28c2 100644
+--- a/ai/playerbot/strategy/actions/TradeStatusAction.cpp
++++ b/ai/playerbot/strategy/actions/TradeStatusAction.cpp
+@@ -15,6 +15,12 @@ using namespace ai;
+ 
+ bool TradeStatusAction::Execute(Event& event)
+ {
++    // Packet hygiene (mod-playerbots PR #2651): never touch trade packets
++    // without a session, and always send the cancel packet on a refused
++    // outcome so the bot does not sit in a phantom open-trade state.
++    if (!bot->GetSession())
++        return false;
++
+     Player* trader = bot->GetTrader();
+     Player* master = GetMaster();
+     if (!trader)
+@@ -32,10 +38,7 @@ bool TradeStatusAction::Execute(Event& event)
+ 
+     if (!shouldTrade)
+     {
+-        WorldPacket p;
+-        uint32 status = 0;
+-        p << status;
+-        bot->GetSession()->HandleCancelTradeOpcode(p);
++        CancelTrade();
+         return false;
+     }
+ 
+@@ -141,6 +144,12 @@ void TradeStatusAction::BeginTrade()
+     }
+ }
+ 
++void TradeStatusAction::CancelTrade()
++{
++    WorldPacket p;
++    bot->GetSession()->HandleCancelTradeOpcode(p);
++}
++
+ bool TradeStatusAction::CheckTrade()
+ {
+     Player* trader = bot->GetTrader();
+diff --git a/ai/playerbot/strategy/actions/TradeStatusAction.h b/ai/playerbot/strategy/actions/TradeStatusAction.h
+index 452782c..7025b47 100644
+--- a/ai/playerbot/strategy/actions/TradeStatusAction.h
++++ b/ai/playerbot/strategy/actions/TradeStatusAction.h
+@@ -12,6 +12,7 @@ namespace ai
+ 
+     private:
+         void BeginTrade();
++        void CancelTrade();
+         bool CheckTrade();
+         int32 CalculateCost(Player *player, bool sell);
+     };

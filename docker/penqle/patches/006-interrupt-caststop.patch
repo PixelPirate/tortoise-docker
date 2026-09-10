@@ -1,0 +1,119 @@
+diff --git a/ai/playerbot/PlayerbotAI.cpp b/ai/playerbot/PlayerbotAI.cpp
+index b6e2da0..597df93 100644
+--- a/ai/playerbot/PlayerbotAI.cpp
++++ b/ai/playerbot/PlayerbotAI.cpp
+@@ -673,7 +673,10 @@ bool PlayerbotAI::UpdateAIReaction(uint32 elapsed, bool minimal, bool isStunned)
+         {
+             if(reaction->ShouldInterruptCast())
+             {
+-                InterruptSpell();
++                // Interrupt rework (mod-playerbots PR #2680): CastStop only
++                // ends casts a player could stop (no queued melee swings, no
++                // synthetic spell-failure packets).
++                bot->CastStop();
+             }
+ 
+             if (reaction->ShouldInterruptMovement())
+@@ -1370,7 +1373,7 @@ void PlayerbotAI::Reset(bool full)
+         RESET_AI_VALUE2(std::string, "manual string", "future travel purpose");
+         RESET_AI_VALUE2(int, "manual int", "future travel relevance");
+ 
+-        InterruptSpell();
++        bot->CastStop();
+ 
+         StopMoving();
+ 
+@@ -1876,7 +1879,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
+         verticalSpeed = -verticalSpeed;
+ 
+         // stop casting
+-        InterruptSpell(false);
++        bot->CastStop();
+ 
+         // stop movement
+         StopMoving();
+@@ -2235,7 +2238,6 @@ void PlayerbotAI::DoNextAction(bool min, bool forceActivity)
+ 
+ void PlayerbotAI::ReInitCurrentEngine()
+ {
+-    InterruptSpell();
+     currentEngine->Init();
+ }
+ 
+diff --git a/ai/playerbot/strategy/actions/MovementActions.cpp b/ai/playerbot/strategy/actions/MovementActions.cpp
+index 8a9087a..1cdaa8f 100644
+--- a/ai/playerbot/strategy/actions/MovementActions.cpp
++++ b/ai/playerbot/strategy/actions/MovementActions.cpp
+@@ -912,8 +912,9 @@ bool MovementAction::MoveTo2(const WorldPosition& endPos, bool idle, bool react,
+         if (bot->GetStandState() != UNIT_STAND_STATE_STAND)
+             bot->SetStandState(UNIT_STAND_STATE_STAND);
+ 
+-        if (bot->IsNonMeleeSpellCasted(true, false, true))
+-            ai->InterruptSpell(false);
++        // Interrupt rework (mod-playerbots PR #2680): moving no longer force-
++        // interrupts an in-flight cast; the core's natural move-interrupt
++        // flags break the cast like they do for a player.
+     }
+ 
+     if (totalDistance > sPlayerbotAIConfig.reactDistance && !detailedMove)
+@@ -1276,11 +1277,10 @@ bool MovementAction::Follow(Unit* target, float distance, float angle)
+     if (bot->GetStandState() != UNIT_STAND_STATE_STAND)
+         bot->SetStandState(UNIT_STAND_STATE_STAND);
+ 
+-    if (bot->IsNonMeleeSpellCasted(true))
+-    {
+-        bot->CastStop();
+-        ai->InterruptSpell();
+-    }
++    // Interrupt rework (mod-playerbots PR #2680): a plain CastStop instead of
++    // the guarded CastStop + InterruptSpell pair; only preparing casts are
++    // stopped, no synthetic spell-failure packets.
++    bot->CastStop();
+ 
+     AI_VALUE(LastMovement&, "last movement").Set(target);
+     ClearIdleState();
+@@ -2898,7 +2898,7 @@ bool JumpAction::DoJump(const WorldPosition &dest, const WorldPosition& highestP
+     if (!goodLanding)
+         ai->SetFallAfterJump();
+ 
+-    ai->InterruptSpell(false);
++    bot->CastStop();
+     ai->StopMoving();
+     ai->SetJumpDestination(landing);
+     bot->SetFallInformation(maxHeight);
+diff --git a/ai/playerbot/strategy/actions/UseItemAction.h b/ai/playerbot/strategy/actions/UseItemAction.h
+index fc86397..bd8c84d 100644
+--- a/ai/playerbot/strategy/actions/UseItemAction.h
++++ b/ai/playerbot/strategy/actions/UseItemAction.h
+@@ -625,7 +625,7 @@ namespace ai
+                 }
+ 
+                 bot->AddUnitState(UNIT_STAND_STATE_SIT);
+-                ai->InterruptSpell();
++                bot->CastStop();
+ 
+                 float drinkDuration = AI_VALUE(float, "drink duration");
+ 
+@@ -702,7 +702,7 @@ namespace ai
+                 }
+ 
+                 bot->AddUnitState(UNIT_STAND_STATE_SIT);
+-                ai->InterruptSpell();
++                bot->CastStop();
+ 
+                 float eatDuration = AI_VALUE(float, "eat duration");
+ 
+diff --git a/ai/playerbot/strategy/generic/FleeStrategy.cpp b/ai/playerbot/strategy/generic/FleeStrategy.cpp
+index fcebe9a..7b01b35 100644
+--- a/ai/playerbot/strategy/generic/FleeStrategy.cpp
++++ b/ai/playerbot/strategy/generic/FleeStrategy.cpp
+@@ -15,7 +15,8 @@ float FleeMultiplier::GetValue(Action* action)
+         return 1.0f;
+ 
+     // Never let a flee interrupt a cast that is already underway: finishing the spell takes
+-    // priority. (Same predicate MoveTo() uses before it calls InterruptSpell().)
++    // priority. (Movement itself no longer force-interrupts casts, see the
++    // interrupt rework in MovementAction::MoveTo2.)
+     if (bot->IsNonMeleeSpellCasted(true))
+         return 0.0f;
+ 

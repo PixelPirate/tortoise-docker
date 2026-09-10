@@ -1,0 +1,747 @@
+diff --git a/ai/playerbot/AiFactory.cpp b/ai/playerbot/AiFactory.cpp
+index 95725e6..ec6481c 100644
+--- a/ai/playerbot/AiFactory.cpp
++++ b/ai/playerbot/AiFactory.cpp
+@@ -882,12 +882,12 @@ void AiFactory::AddDefaultNonCombatStrategies(Player* player, PlayerbotAI* const
+         if (master && master->GetSession() && master->GetSession()->HasNetworkTransport())
+         {
+             const char* wanderFollow = sPlayerbotAIConfig.useWanderAsDefaultFollowStrategy ? "wander" : "follow";
+-            nonCombatEngine->addStrategies("racials", "nc", "food", wanderFollow, "default", "quest", "loot", "gather", "duel", "emote", "buff", "mount", NULL);
++            nonCombatEngine->addStrategies("racials", "nc", "food", wanderFollow, "default", "force rebuff", "quest", "loot", "gather", "duel", "emote", "buff", "mount", NULL);
+         }
+         else
+         {
+             const char* wanderFollow = sPlayerbotAIConfig.useWanderAsDefaultFollowStrategy ? "wander" : "follow";
+-            nonCombatEngine->addStrategies("racials", "nc", "food", wanderFollow, "default", "quest", "loot", "gather", "duel", "emote", "buff", "mount", NULL);
++            nonCombatEngine->addStrategies("racials", "nc", "food", wanderFollow, "default", "force rebuff", "quest", "loot", "gather", "duel", "emote", "buff", "mount", NULL);
+         }
+     }
+ 
+@@ -986,7 +986,7 @@ void AiFactory::AddDefaultNonCombatStrategies(Player* player, PlayerbotAI* const
+     // Battleground switch
+     if (player->InBattleGround())
+     {
+-        nonCombatEngine->addStrategies("racials", "nc", "default", "buff", "food", "mount", "collision", "dps assist", "attack tagged", "emote", NULL);
++        nonCombatEngine->addStrategies("racials", "nc", "default", "force rebuff", "buff", "food", "mount", "collision", "dps assist", "attack tagged", "emote", NULL);
+         nonCombatEngine->removeStrategy("custom::say");
+         nonCombatEngine->removeStrategy("travel");
+         nonCombatEngine->removeStrategy("tfish");
+diff --git a/ai/playerbot/PlayerbotAI.cpp b/ai/playerbot/PlayerbotAI.cpp
+index 6fa454c..b6e2da0 100644
+--- a/ai/playerbot/PlayerbotAI.cpp
++++ b/ai/playerbot/PlayerbotAI.cpp
+@@ -156,7 +156,7 @@ PlayerbotAI::PlayerbotAI() : PlayerbotAIBase(), bot(NULL), aiObjectContext(NULL)
+ }
+ 
+ PlayerbotAI::PlayerbotAI(Player* bot) :
+-    PlayerbotAIBase(), chatHelper(this), chatFilter(this), security(bot), master(NULL), faceTargetUpdateDelay(0), jumpTime(0), fallAfterJump(false)
++    PlayerbotAIBase(), chatHelper(this), chatFilter(this), security(bot), master(NULL), faceTargetUpdateDelay(0), jumpTime(0), fallAfterJump(false), forceRebuff(bot)
+ {
+     this->bot = bot;
+     if (!bot->IsTaxiCheater() && HasCheat(BotCheatMask::taxi))
+@@ -4528,6 +4528,8 @@ bool PlayerbotAI::CastSpell(uint32 spellId, Unit* target, Item* itemTarget, bool
+ 
+     PlayAttackEmote(6);
+ 
++    forceRebuff.NoteCast(pSpellInfo);
++
+     if(waitForSpell)
+     {
+         WaitForSpellCast(spell);
+diff --git a/ai/playerbot/PlayerbotAI.h b/ai/playerbot/PlayerbotAI.h
+index da02226..ea4f2ea 100644
+--- a/ai/playerbot/PlayerbotAI.h
++++ b/ai/playerbot/PlayerbotAI.h
+@@ -10,6 +10,7 @@
+ #include "PlayerTalentSpec.h"
+ #include <stack>
+ #include "strategy/IterateItemsMask.h"
++#include "strategy/generic/ForceRebuff.h"
+ #include "../../runtime/BotManager.h"
+ 
+ class Player;
+@@ -786,6 +787,10 @@ protected:
+     ai::Event lastEvent;
+ 
+ public:
++    // Force-rebuff window state (mod-playerbots PR #2571): ready-check defer,
++    // manual "rebuff" command, buff-first heal suppression.
++    ForceRebuffState forceRebuff;
++
+     void RecordMessages(bool record, bool incomming = false) { m_recordMessages = record; m_recordIncommingMessages = incomming; if (!record) m_recordedMessages.clear(); }
+     bool IsRecordingMessages() const { return m_recordMessages; }
+     bool IsRecordingIncommingMessages() const { return m_recordIncommingMessages; }
+diff --git a/ai/playerbot/PlayerbotAIConfig.cpp b/ai/playerbot/PlayerbotAIConfig.cpp
+index 79d7b9d..801976a 100644
+--- a/ai/playerbot/PlayerbotAIConfig.cpp
++++ b/ai/playerbot/PlayerbotAIConfig.cpp
+@@ -364,6 +364,8 @@ bool PlayerbotAIConfig::Initialize()
+     logInGroupOnly = config.GetBoolDefault("AiPlayerbot.LogInGroupOnly", true);
+     logValuesPerTick = config.GetBoolDefault("AiPlayerbot.LogValuesPerTick", false);
+     fleeingEnabled = config.GetBoolDefault("AiPlayerbot.FleeingEnabled", true);
++    forceRebuffOnReadyCheck = config.GetBoolDefault("AiPlayerbot.ForceRebuffOnReadyCheck", false);
++    forceRebuffMarginSecs = std::min(config.GetIntDefault("AiPlayerbot.ForceRebuffMarginSecs", 60), 3600);
+     summonAtInnkeepersEnabled = config.GetBoolDefault("AiPlayerbot.SummonAtInnkeepersEnabled", true);
+     randomBotMaxLevel = config.GetIntDefault("AiPlayerbot.RandomBotMaxLevel", DEFAULT_MAX_LEVEL);
+     randomBotLoginAtStartup = config.GetBoolDefault("AiPlayerbot.RandomBotLoginAtStartup", false);
+diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
+index bceb78e..bc709d2 100644
+--- a/ai/playerbot/PlayerbotAIConfig.h
++++ b/ai/playerbot/PlayerbotAIConfig.h
+@@ -221,6 +221,9 @@ public:
+     uint32 randomBotLftMaxFillsPerInterval = 1;
+     bool logInGroupOnly, logValuesPerTick;
+     bool fleeingEnabled;
++    // mod-playerbots PR #2571: ready-check force rebuff
++    bool forceRebuffOnReadyCheck;
++    uint32 forceRebuffMarginSecs;
+     bool summonAtInnkeepersEnabled;
+     std::string combatStrategies, nonCombatStrategies, reactStrategies, deadStrategies;
+     std::string randomBotCombatStrategies, randomBotNonCombatStrategies, randomBotReactStrategies, randomBotDeadStrategies;
+diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
+index f929510..abbf52a 100644
+--- a/ai/playerbot/aiplayerbot.conf.dist.in
++++ b/ai/playerbot/aiplayerbot.conf.dist.in
+@@ -1210,6 +1210,24 @@ AiPlayerbot.RpgDistance = 200
+ # Bot can flee for enemy
+ AiPlayerbot.FleeingEnabled = 1
+ 
++# When a ready check is issued out of combat, bots refresh missing/short buffs
++# before reporting ready. A bot that still has buff work it can perform stays
++# not-ready until the ready check ends; this includes missing reagents (the
++# cast is attempted and fails). Bots with strategy sets saved before this
++# feature keep their saved set - reset their strategies or use "nc +force
++# rebuff" to opt them in. The "rebuff" chat command starts the same buff pass
++# without a ready check and works regardless of this setting.
++# Default: 0 (disabled)
++AiPlayerbot.ForceRebuffOnReadyCheck = 0
++
++# During a force-rebuff pass (ready check or the "rebuff" command), a buff is
++# topped off (recast) once it drops more than this many seconds below its full
++# duration, so buffs are refreshed toward maximum remaining time to last the
++# fight. The effective margin never drops below the time the pass has already
++# run, so small values are safe.
++# Default: 60
++AiPlayerbot.ForceRebuffMarginSecs = 60
++
+ # Health/Mana levels
+ #AiPlayerbot.CriticalHealth = 25
+ #AiPlayerbot.LowHealth = 45
+diff --git a/ai/playerbot/strategy/Engine.cpp b/ai/playerbot/strategy/Engine.cpp
+index 660ec75..455e48d 100644
+--- a/ai/playerbot/strategy/Engine.cpp
++++ b/ai/playerbot/strategy/Engine.cpp
+@@ -267,6 +267,12 @@ bool Engine::DoNextAction(Unit* unit, int depth, bool minimal, bool isStunned)
+     bool const wasInDoNextAction = inDoNextAction;
+     inDoNextAction = true;
+ 
++    // Force-rebuff pass (mod-playerbots PR #2571): a new engine cycle starts
++    // with no buff work observed yet; the reply action waits for a cycle
++    // where no buff cast ran.
++    if (!minimal)
++        ai->forceRebuff.RollBuffPendingCycle();
++
+     time_t currentTime = time(0);
+     aiObjectContext->Update();
+     ProcessTriggers(minimal);
+@@ -852,6 +858,12 @@ void Engine::ProcessTriggers(bool minimal)
+             if (!event)
+                 continue;
+ 
++            // Force-rebuff pass (mod-playerbots PR #2571): a fired self-buff
++            // trigger marks the cycle as having proposed buff work, which
++            // defers the ready reply and suppresses interleaved heals.
++            if (trigger->IsBuffTrigger() && !trigger->IsDebuffTrigger())
++                ai->forceRebuff.NoteBuffProposed();
++
+             MultiplyAndPush(node->getHandlers(), 0.0f, false, event, "trigger");
+             LogAction("T:%s src=%s", trigger->getName().c_str(), event.getSource().c_str());
+         }
+diff --git a/ai/playerbot/strategy/StrategyContext.h b/ai/playerbot/strategy/StrategyContext.h
+index fc29b82..10a3302 100644
+--- a/ai/playerbot/strategy/StrategyContext.h
++++ b/ai/playerbot/strategy/StrategyContext.h
+@@ -11,6 +11,7 @@
+ #include "generic/DuelStrategy.h"
+ #include "generic/KiteStrategy.h"
+ #include "generic/FleeStrategy.h"
++#include "generic/ForceRebuff.h"
+ #include "generic/FollowMasterStrategy.h"
+ #include "generic/RunawayStrategy.h"
+ #include "generic/StayStrategy.h"
+@@ -70,6 +71,7 @@ namespace ai
+             creators["chat"] = [](PlayerbotAI* ai) { return new ChatCommandHandlerStrategy(ai); };
+             creators["default"] = [](PlayerbotAI* ai) { return new WorldPacketHandlerStrategy(ai); };
+             creators["ready check"] = [](PlayerbotAI* ai) { return new ReadyCheckStrategy(ai); };
++            creators["force rebuff"] = [](PlayerbotAI* ai) { return new ForceRebuffStrategy(ai); };
+             creators["dead"] = [](PlayerbotAI* ai) { return new DeadStrategy(ai); };
+             creators["flee"] = [](PlayerbotAI* ai) { return new FleeStrategy(ai); };
+             creators["avoid mobs"] = [](PlayerbotAI* ai) { return new AvoidMobsStrategy(ai); };
+diff --git a/ai/playerbot/strategy/Trigger.cpp b/ai/playerbot/strategy/Trigger.cpp
+index 996b8c8..d80d39f 100644
+--- a/ai/playerbot/strategy/Trigger.cpp
++++ b/ai/playerbot/strategy/Trigger.cpp
+@@ -32,6 +32,25 @@ Event Trigger::Check()
+ 	return event;
+ }
+ 
++bool Trigger::needCheck()
++{
++	// During an out-of-combat force-rebuff (mod-playerbots PR #2571), evaluate
++	// every buff trigger each tick so the pass tops up all buffs immediately.
++	if (IsBuffTrigger() && !IsDebuffTrigger() && ai->forceRebuff.IsPending() && !bot->IsInCombat())
++		return true;
++
++	if (checkInterval < 2)
++		return true;
++
++	time_t now = time(0);
++	if (!lastCheckTime || now - lastCheckTime >= checkInterval)
++	{
++		lastCheckTime = now;
++		return true;
++	}
++	return false;
++}
++
+ Value<Unit*>* Trigger::GetTargetValue()
+ {
+     return context->GetValue<Unit*>(GetTargetName());
+diff --git a/ai/playerbot/strategy/Trigger.h b/ai/playerbot/strategy/Trigger.h
+index d6b0d3a..e103286 100644
+--- a/ai/playerbot/strategy/Trigger.h
++++ b/ai/playerbot/strategy/Trigger.h
+@@ -36,6 +36,10 @@ namespace ai
+         }
+         virtual bool IsActive() { return false; }
+         virtual bool IsAlreadyTriggered() { return triggered; }
++        // Force-rebuff plumbing (mod-playerbots PR #2571): buff triggers get
++        // re-evaluated every tick while a rebuff window is open.
++        virtual bool IsBuffTrigger() { return false; }
++        virtual bool IsDebuffTrigger() { return false; }
+         virtual NextAction** getHandlers() { return NULL; }
+         void Update() {}  //Nonfunctional see AiObjectContext::Update() to enable.
+         virtual void Reset() { triggered = false; }
+@@ -43,16 +47,7 @@ namespace ai
+         virtual Value<Unit*>* GetTargetValue();
+         virtual std::string GetTargetName() { return "self target"; }
+ 
+-		bool needCheck() {
+-		    if (checkInterval < 2) return true;
+-
+-		    time_t now = time(0);
+-			if (!lastCheckTime || now - lastCheckTime >= checkInterval) {
+-			    lastCheckTime = now;
+-				return true;
+-			}
+-			return false;
+-		}
++		bool needCheck();
+ 
+ #ifdef GenerateBotHelp
+         virtual std::string GetHelpName() { return "dummy"; } //Must equal iternal name
+diff --git a/ai/playerbot/strategy/actions/GenericSpellActions.cpp b/ai/playerbot/strategy/actions/GenericSpellActions.cpp
+index 7d89198..85804f0 100644
+--- a/ai/playerbot/strategy/actions/GenericSpellActions.cpp
++++ b/ai/playerbot/strategy/actions/GenericSpellActions.cpp
+@@ -280,6 +280,16 @@ bool CastAuraSpellAction::isUseful()
+     return CastSpellAction::isUseful() && !ai->HasAura(GetSpellName(), GetTarget(), false, isOwner);
+ }
+ 
++// Force-rebuff pass (mod-playerbots PR #2571): every executed buff cast marks
++// the current engine cycle as buff work, so the ready reply waits for the
++// pass to drain instead of answering mid-refresh.
++bool CastBuffSpellAction::Execute(Event& event)
++{
++    ai->forceRebuff.NoteBuffWork();
++
++    return CastAuraSpellAction::Execute(event);
++}
++
+ bool CastMeleeAoeSpellAction::isUseful()
+ {
+     return CastSpellAction::isUseful() && sServerFacade.IsDistanceLessOrEqualThan(AI_VALUE2(float, "distance", GetTargetName()), radius);
+diff --git a/ai/playerbot/strategy/actions/GenericSpellActions.h b/ai/playerbot/strategy/actions/GenericSpellActions.h
+index 799f38f..571b9de 100644
+--- a/ai/playerbot/strategy/actions/GenericSpellActions.h
++++ b/ai/playerbot/strategy/actions/GenericSpellActions.h
+@@ -153,6 +153,7 @@ namespace ai
+ 	public:
+ 		CastBuffSpellAction(PlayerbotAI* ai, std::string spell) : CastAuraSpellAction(ai, spell) { }
+         virtual std::string GetTargetName() override { return "self target"; }
++        bool Execute(Event& event) override;
+ 	};
+ 
+     class CastSpellTargetAction : public CastSpellAction
+diff --git a/ai/playerbot/strategy/actions/ReadyCheckAction.cpp b/ai/playerbot/strategy/actions/ReadyCheckAction.cpp
+index 26f8be2..75db58a 100644
+--- a/ai/playerbot/strategy/actions/ReadyCheckAction.cpp
++++ b/ai/playerbot/strategy/actions/ReadyCheckAction.cpp
+@@ -151,11 +151,28 @@ bool ReadyCheckAction::Execute(Event& event)
+         if (player == bot->getObjectGuid())
+             return false;
+     }
++    else
++    {
++        // The group-wide ready check broadcast is an empty packet; answer
++        // echoes carry the answering player's guid (handled above).
++
++        // Port of mod-playerbots PR #2571: defer the ready reply until the
++        // force-rebuff pass has topped up missing/expiring buffs. A bot with
++        // outstanding buff work (including casts that fail for missing
++        // reagents) stays not-ready until the ready check ends.
++        if (sPlayerbotAIConfig.forceRebuffOnReadyCheck && !bot->IsInCombat() &&
++            ai->HasStrategy("force rebuff", BotState::BOT_STATE_NON_COMBAT))
++        {
++            ReportReadiness(requester);
++            ai->forceRebuff.Begin(true);
++            return true;
++        }
++    }
+ 
+ 	return ReadyCheck(requester);
+ }
+ 
+-bool ReadyCheckAction::ReadyCheck(Player* requester)
++void ReadyCheckAction::ReportReadiness(Player* requester)
+ {
+     if (ReadyChecker::checkers.empty())
+     {
+@@ -199,16 +216,54 @@ bool ReadyCheckAction::ReadyCheck(Player* requester)
+     }
+ 
+     ai->TellPlayer(requester, out, PlayerbotSecurityLevel::PLAYERBOT_SECURITY_ALLOW_ALL, false);
++}
++
++bool ReadyCheckAction::ReadyCheck(Player* requester)
++{
++    ReportReadiness(requester);
+ 
+     WorldPacket packet(MSG_RAID_READY_CHECK);
+     packet << uint8(1);
+     bot->GetSession()->HandleRaidReadyCheckOpcode(packet);
+ 
++    ai->forceRebuff.End();
++
+     ai->ChangeStrategy("-ready check", BotState::BOT_STATE_NON_COMBAT);
+ 
+     return true;
+ }
+ 
++// Manual "rebuff" command: opens a rebuff window with no ready check to answer.
++bool ForceRebuffAction::Execute(Event&)
++{
++    if (bot->IsInCombat() || !ai->HasStrategy("force rebuff", BotState::BOT_STATE_NON_COMBAT))
++        return false;
++
++    ai->forceRebuff.Begin(false);
++    return true;
++}
++
++bool ReadyReplyAction::isUseful()
++{
++    ForceRebuffState const& rebuff = ai->forceRebuff;
++    return rebuff.IsPending() && !rebuff.IsOnGlobalCooldown() &&
++           !bot->GetCurrentSpell(CURRENT_GENERIC_SPELL) && !bot->GetCurrentSpell(CURRENT_CHANNELED_SPELL) &&
++           !rebuff.IsBuffPendingThisCycle();
++}
++
++bool ReadyReplyAction::Execute(Event&)
++{
++    if (ai->forceRebuff.ShouldReplyToReadyCheck())
++    {
++        WorldPacket packet(MSG_RAID_READY_CHECK);
++        packet << uint8(1);
++        bot->GetSession()->HandleRaidReadyCheckOpcode(packet);
++    }
++
++    ai->forceRebuff.End();
++    return true;
++}
++
+ bool FinishReadyCheckAction::Execute(Event& event)
+ {
+     Player* requester = event.GetOwner() ? event.GetOwner() : GetMaster();
+diff --git a/ai/playerbot/strategy/actions/ReadyCheckAction.h b/ai/playerbot/strategy/actions/ReadyCheckAction.h
+index 5c85c02..379e217 100644
+--- a/ai/playerbot/strategy/actions/ReadyCheckAction.h
++++ b/ai/playerbot/strategy/actions/ReadyCheckAction.h
+@@ -12,6 +12,8 @@ namespace ai
+ 
+     protected:
+         bool ReadyCheck(Player* requester);
++        // Whisper the readiness report without confirming ready yet.
++        void ReportReadiness(Player* requester);
+     };
+ 
+     class FinishReadyCheckAction : public ReadyCheckAction
+@@ -20,4 +22,25 @@ namespace ai
+         FinishReadyCheckAction(PlayerbotAI* ai) : ReadyCheckAction(ai, "finish ready check") {}
+         virtual bool Execute(Event& event) override;
+     };
++
++    // Manual "rebuff" command (mod-playerbots PR #2571): opens the same
++    // rebuff window as a ready check, with nothing to answer.
++    class ForceRebuffAction : public Action
++    {
++    public:
++        ForceRebuffAction(PlayerbotAI* ai) : Action(ai, "force rebuff") {}
++
++        virtual bool Execute(Event& event) override;
++    };
++
++    // Fires while a rebuff window is open: replies to the ready check (if one
++    // is pending) once no more buff work runs this cycle, then closes the window.
++    class ReadyReplyAction : public Action
++    {
++    public:
++        ReadyReplyAction(PlayerbotAI* ai) : Action(ai, "ready reply") {}
++
++        virtual bool isUseful() override;
++        virtual bool Execute(Event& event) override;
++    };
+ }
+diff --git a/ai/playerbot/strategy/actions/WorldPacketActionContext.h b/ai/playerbot/strategy/actions/WorldPacketActionContext.h
+index 1308cf7..56d51e9 100644
+--- a/ai/playerbot/strategy/actions/WorldPacketActionContext.h
++++ b/ai/playerbot/strategy/actions/WorldPacketActionContext.h
+@@ -14,13 +14,13 @@
+ #include "CheckMountStateAction.h"
+ #include "RememberTaxiAction.h"
+ #include "TradeStatusAction.h"
++#include "ReadyCheckAction.h"
+ #include "InventoryChangeFailureAction.h"
+ #include "LootAction.h"
+ #include "QuestAction.h"
+ #include "LeaveGroupAction.h"
+ #include "TellCastFailedAction.h"
+ #include "AcceptDuelAction.h"
+-#include "ReadyCheckAction.h"
+ #include "SecurityCheckAction.h"
+ #include "GuildAcceptAction.h"
+ #include "PetitionSignAction.h"
+@@ -73,6 +73,8 @@ namespace ai
+             creators["accept duel"] = [](PlayerbotAI* ai) { return new AcceptDuelAction(ai); };
+             creators["ready check"] = [](PlayerbotAI* ai) { return new ReadyCheckAction(ai); };
+             creators["finish ready check"] = [](PlayerbotAI* ai) { return new FinishReadyCheckAction(ai); };
++            creators["force rebuff"] = [](PlayerbotAI* ai) { return new ForceRebuffAction(ai); };
++            creators["ready reply"] = [](PlayerbotAI* ai) { return new ReadyReplyAction(ai); };
+             creators["uninvite"] = [](PlayerbotAI* ai) { return new UninviteAction(ai); };
+             creators["security check"] = [](PlayerbotAI* ai) { return new SecurityCheckAction(ai); };
+             creators["guild accept"] = [](PlayerbotAI* ai) { return new GuildAcceptAction(ai); };
+diff --git a/ai/playerbot/strategy/generic/ChatCommandHandlerStrategy.cpp b/ai/playerbot/strategy/generic/ChatCommandHandlerStrategy.cpp
+index 1fcdd61..5f5ec6e 100644
+--- a/ai/playerbot/strategy/generic/ChatCommandHandlerStrategy.cpp
++++ b/ai/playerbot/strategy/generic/ChatCommandHandlerStrategy.cpp
+@@ -82,6 +82,7 @@ ChatCommandHandlerStrategy::ChatCommandHandlerStrategy(PlayerbotAI* ai) : PassTr
+     supported.push_back("mail");
+     supported.push_back("outfit");
+     supported.push_back("go");
++    supported.push_back("rebuff");
+     supported.push_back("debug");
+     supported.push_back("cdebug");
+     supported.push_back("cs");
+@@ -316,4 +317,8 @@ void ChatCommandHandlerStrategy::InitReactionTriggers(std::list<TriggerNode*> &t
+     triggers.push_back(new TriggerNode(
+         "ready",
+         NextAction::array(0, new NextAction("ready check", relevance), NULL)));
++
++    triggers.push_back(new TriggerNode(
++        "rebuff",
++        NextAction::array(0, new NextAction("force rebuff", relevance), NULL)));
+ }
+diff --git a/ai/playerbot/strategy/generic/ForceRebuff.cpp b/ai/playerbot/strategy/generic/ForceRebuff.cpp
+new file mode 100644
+index 0000000..dfa4a2d
+--- /dev/null
++++ b/ai/playerbot/strategy/generic/ForceRebuff.cpp
+@@ -0,0 +1,110 @@
++/*
++ * Port of mod-playerbots PR #2571 (Force rebuff on ready check), adapted to
++ * TortoiseBots: donor behavior kept (2-minute staleness ceiling, buff-first
++ * heal suppression, not-ready until buff work drains), donor plumbing that
++ * has no Tortoise equivalent (GroupVariant upgrade path, ai::buff namespace)
++ * reduced to the aura-duration checks Tortoise's buff actions and values use.
++ */
++#include "ForceRebuff.h"
++
++#include "playerbot/PlayerbotAI.h"
++#include "playerbot/PlayerbotAIConfig.h"
++#include "playerbot/strategy/actions/GenericSpellActions.h"
++
++#include "SpellAuras.h"
++#include "Timer.h"
++
++#include <algorithm>
++
++using namespace ai;
++
++static constexpr uint32 REBUFF_WINDOW_TIMEOUT_MS = 2 * MINUTE * IN_MILLISECONDS;
++
++void ForceRebuffState::Begin(bool reply)
++{
++    replyToReadyCheck = reply || (IsPending() && replyToReadyCheck);
++    pending = true;
++    buffPendingThisCycle = true;
++    beginMs = WorldTimer::getMSTime();
++}
++
++bool ForceRebuffState::IsPending() const
++{
++    return pending && WorldTimer::getMSTimeDiff(beginMs, WorldTimer::getMSTime()) < REBUFF_WINDOW_TIMEOUT_MS;
++}
++
++bool ForceRebuffState::IsOnGlobalCooldown() const
++{
++    return bot && lastGcdSpell && bot->HasGlobalCooldown(lastGcdSpell);
++}
++
++void ForceRebuffState::NoteBuffWork()
++{
++    if (!bot || !IsPending() || bot->IsInCombat())
++        return;
++
++    buffPendingThisCycle = true;
++}
++
++void ForceRebuffState::NoteBuffProposed()
++{
++    if (!bot || !IsPending() || bot->IsInCombat())
++        return;
++
++    buffProposedThisCycle = true;
++}
++
++bool ForceRebuffState::BuffBelowRefreshTarget(int32 remaining, int32 maxDuration, uint32 baseBeforeDuration) const
++{
++    if (bot && IsPending() && !bot->IsInCombat())
++    {
++        if (remaining <= 0 || maxDuration <= 0)
++            return false;
++
++        // Anything refreshed after the rebuff began counts as topped off.
++        uint32 const marginMs = std::max(sPlayerbotAIConfig.forceRebuffMarginSecs * IN_MILLISECONDS,
++                                         WorldTimer::getMSTimeDiff(beginMs, WorldTimer::getMSTime()) + 5000u);
++        return uint32(remaining) + marginMs < uint32(maxDuration);
++    }
++
++    return baseBeforeDuration && uint32(remaining) < baseBeforeDuration;
++}
++
++bool ai::BuffBelowRefreshTarget(PlayerbotAI* ai, Aura* aura, uint32 baseBeforeDuration)
++{
++    if (!aura)
++        return true;
++
++    return ai->forceRebuff.BuffBelowRefreshTarget(aura->GetAuraDuration(), aura->GetAuraMaxDuration(), baseBeforeDuration);
++}
++
++// During a force-rebuff, healing yields to buffing: heals are suppressed while
++// buff work is proposed or the last cast's GCD runs, so the pass is not
++// stretched by interleaved heals.
++class ForceRebuffBuffFirstMultiplier : public Multiplier
++{
++public:
++    ForceRebuffBuffFirstMultiplier(PlayerbotAI* ai) : Multiplier(ai, "force rebuff buff first") {}
++
++    float GetValue(Action* action) override
++    {
++        ForceRebuffState const& rebuff = ai->forceRebuff;
++        if (!action || !rebuff.IsPending() || ai->GetBot()->IsInCombat())
++            return 1.0f;
++
++        if (!dynamic_cast<CastHealingSpellAction*>(action))
++            return 1.0f;
++
++        return rebuff.IsBuffProposedThisCycle() || rebuff.IsOnGlobalCooldown() ? 0.0f : 1.0f;
++    }
++};
++
++void ForceRebuffStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
++{
++    triggers.push_back(new TriggerNode("force rebuff pending", { new NextAction("ready reply", 6.0f) }));
++}
++
++void ForceRebuffStrategy::InitMultipliers(std::vector<Multiplier*>& multipliers)
++{
++    multipliers.push_back(new ForceRebuffBuffFirstMultiplier(ai));
++}
+diff --git a/ai/playerbot/strategy/generic/ForceRebuff.h b/ai/playerbot/strategy/generic/ForceRebuff.h
+new file mode 100644
+index 0000000..f219705
+--- /dev/null
++++ b/ai/playerbot/strategy/generic/ForceRebuff.h
+@@ -0,0 +1,70 @@
++#pragma once
++
++#include "playerbot/strategy/Strategy.h"
++#include "playerbot/strategy/Multiplier.h"
++
++#include <string>
++#include <vector>
++
++class Player;
++class SpellEntry;
++
++namespace ai
++{
++    // Port of mod-playerbots PR #2571 (Force rebuff on ready check), adapted to
++    // TortoiseBots. A ready check (or the manual "rebuff" chat command) opens a
++    // bounded rebuff window: buff triggers are evaluated every tick and buffs
++    // are topped off toward full duration before the bot answers the check.
++    // A bot that still has buff work it can perform (including casts that fail
++    // for missing reagents) stays not-ready until the window closes.
++    class ForceRebuffState
++    {
++    public:
++        explicit ForceRebuffState(Player* owner = nullptr) : bot(owner) {}
++
++        ForceRebuffState(ForceRebuffState const&) = delete;
++        ForceRebuffState& operator=(ForceRebuffState const&) = delete;
++
++        void Begin(bool reply);
++        void End() { pending = false; }
++        bool IsPending() const;
++        bool ShouldReplyToReadyCheck() const { return replyToReadyCheck; }
++
++        void NoteBuffWork();
++        void NoteBuffProposed();
++        void RollBuffPendingCycle() { buffPendingThisCycle = false; buffProposedThisCycle = false; }
++        bool IsBuffPendingThisCycle() const { return buffPendingThisCycle; }
++        bool IsBuffProposedThisCycle() const { return buffProposedThisCycle; }
++
++        void NoteCast(SpellEntry const* spellEntry) { lastGcdSpell = spellEntry; }
++        bool IsOnGlobalCooldown() const;
++
++        // True when the buff should be (re)cast: topped off toward full
++        // duration during an out-of-combat force-rebuff window, below
++        // baseBeforeDuration ms remaining otherwise. Permanent auras (no
++        // duration) are never refreshed.
++        bool BuffBelowRefreshTarget(int32 remaining, int32 maxDuration, uint32 baseBeforeDuration) const;
++
++    private:
++        Player* bot;
++        bool pending = false;
++        bool replyToReadyCheck = false;
++        bool buffPendingThisCycle = false;
++        bool buffProposedThisCycle = false;
++        SpellEntry const* lastGcdSpell = nullptr;
++        uint32 beginMs = 0;
++    };
++
++    // Aura-aware convenience wrapper; defined in ForceRebuff.cpp.
++    bool BuffBelowRefreshTarget(class PlayerbotAI* ai, class Aura* aura, uint32 baseBeforeDuration);
++
++    class ForceRebuffStrategy : public Strategy
++    {
++    public:
++        ForceRebuffStrategy(PlayerbotAI* ai) : Strategy(ai) {}
++
++        std::string getName() override { return "force rebuff"; }
++        void InitTriggers(std::vector<TriggerNode*>& triggers) override;
++        void InitMultipliers(std::vector<Multiplier*>& multipliers) override;
++    };
++}
+diff --git a/ai/playerbot/strategy/triggers/ChatTriggerContext.h b/ai/playerbot/strategy/triggers/ChatTriggerContext.h
+index 5a03c5e..50cf2c6 100644
+--- a/ai/playerbot/strategy/triggers/ChatTriggerContext.h
++++ b/ai/playerbot/strategy/triggers/ChatTriggerContext.h
+@@ -117,6 +117,7 @@ namespace ai
+             creators["outfit"] = [](PlayerbotAI* ai) { return new ChatCommandTrigger(ai, "outfit"); };
+             creators["go"] = [](PlayerbotAI* ai) { return new ChatCommandTrigger(ai, "go"); };
+             creators["ready"] = [](PlayerbotAI* ai) { return new ChatCommandTrigger(ai, "ready check"); };
++            creators["rebuff"] = [](PlayerbotAI* ai) { return new ChatCommandTrigger(ai, "rebuff"); };
+             creators["debug"] = [](PlayerbotAI* ai) { return new ChatCommandTrigger(ai, "debug"); };
+             creators["cdebug"] = [](PlayerbotAI* ai) { return new ChatCommandTrigger(ai, "cdebug"); };
+             creators["cs"] = [](PlayerbotAI* ai) { return new ChatCommandTrigger(ai, "cs"); };
+diff --git a/ai/playerbot/strategy/triggers/GenericTriggers.cpp b/ai/playerbot/strategy/triggers/GenericTriggers.cpp
+index 1e7ca6a..c48795a 100644
+--- a/ai/playerbot/strategy/triggers/GenericTriggers.cpp
++++ b/ai/playerbot/strategy/triggers/GenericTriggers.cpp
+@@ -4,6 +4,7 @@
+ #include "playerbot/LootObjectStack.h"
+ #include "playerbot/PlayerbotAIConfig.h"
+ #include "playerbot/strategy/generic/PullStrategy.h"
++#include "playerbot/strategy/generic/ForceRebuff.h"
+ #include "playerbot/strategy/values/PositionValue.h"
+ #include "playerbot/strategy/values/AoeValues.h"
+ #include "playerbot/strategy/actions/AttackAction.h"
+@@ -190,7 +191,20 @@ bool OutNumberedTrigger::IsActive()
+ bool BuffTrigger::IsActive()
+ {
+     Unit* target = GetTarget();
+-	return target && !ai->HasAura(spell, target, false, checkIsOwner) && target->IsAlive();
++	if (!target || !target->IsAlive())
++		return false;
++
++	Aura* aura = ai->GetAura(spell, target, false, checkIsOwner);
++	if (!aura)
++		return true;
++
++	// Force-rebuff pass (mod-playerbots PR #2571): top buffs off toward full
++	// duration instead of only casting when missing. Permanent auras (no
++	// duration) are never refreshed.
++	if (ai->forceRebuff.IsPending() && !bot->IsInCombat())
++		return BuffBelowRefreshTarget(ai, aura, 0);
++
++	return false;
+ }
+ 
+ bool MyBuffTrigger::IsActive()
+@@ -1123,3 +1137,8 @@ bool PetAttackTrigger::IsActive()
+ 
+     return true;
+ }
++
++bool ForceRebuffPendingTrigger::IsActive()
++{
++    return ai->forceRebuff.IsPending();
++}
+diff --git a/ai/playerbot/strategy/triggers/GenericTriggers.h b/ai/playerbot/strategy/triggers/GenericTriggers.h
+index 47225a5..c625947 100644
+--- a/ai/playerbot/strategy/triggers/GenericTriggers.h
++++ b/ai/playerbot/strategy/triggers/GenericTriggers.h
+@@ -324,6 +324,7 @@ namespace ai
+ 
+     public:
+ 		virtual std::string GetTargetName() override { return "self target"; }
++        bool IsBuffTrigger() override { return true; }
+         virtual bool IsActive() override;
+ 
+     protected:
+@@ -484,6 +485,7 @@ namespace ai
+ 
+     public:
+ 		virtual std::string GetTargetName() override { return "current target"; }
++        bool IsDebuffTrigger() override { return true; }
+         virtual bool IsActive() override;
+ 
+     protected:
+@@ -1327,6 +1329,14 @@ private:
+     uint32 localBuffID;
+ };
+ 
++class ForceRebuffPendingTrigger : public ai::Trigger
++{
++public:
++    ForceRebuffPendingTrigger(PlayerbotAI* ai) : ai::Trigger(ai, "force rebuff pending") {}
++
++    bool IsActive() override;
++};
++
+ #include "RangeTriggers.h"
+ #include "HealthTriggers.h"
+ #include "CureTriggers.h"
+diff --git a/ai/playerbot/strategy/triggers/TriggerContext.h b/ai/playerbot/strategy/triggers/TriggerContext.h
+index 88ace95..e496c43 100644
+--- a/ai/playerbot/strategy/triggers/TriggerContext.h
++++ b/ai/playerbot/strategy/triggers/TriggerContext.h
+@@ -39,6 +39,8 @@ namespace ai
+             creators["often"] = [](PlayerbotAI* ai) { return new RandomTrigger(ai, "often", 5); };
+             creators["very often"] = [](PlayerbotAI* ai) { return new TimeTrigger(ai, "very often", 5); };
+ 
++            creators["force rebuff pending"] = [](PlayerbotAI* ai) { return new ForceRebuffPendingTrigger(ai); };
++
+             creators["target critical health"] = [](PlayerbotAI* ai) { return new TargetCriticalHealthTrigger(ai); };
+ 
+             creators["critical health"] = [](PlayerbotAI* ai) { return new CriticalHealthTrigger(ai); };

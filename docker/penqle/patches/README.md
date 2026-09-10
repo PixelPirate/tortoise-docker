@@ -59,6 +59,69 @@ Touches: `strategy/actions/AvoidCreatureListAction.{h,cpp}`,
 `triggers/DungeonTriggers.{h,cpp}`, `values/ValueContext.h`,
 `StrategyContext.h`, `AiFactory.cpp` (strategy installs + posture comments).
 
+## 004-force-rebuff-ready-check.patch
+
+Ports AzerothCore mod-playerbots PR #2571 ("force rebuff on ready check"):
+when a ready check is issued out of combat, bots whisper their readiness
+report and top up missing/short buffs before confirming ready — a bot with
+outstanding buff work (including casts that fail for missing reagents) stays
+not-ready until the ready check ends. A `rebuff` chat command runs the same
+buff pass manually (works regardless of the config key), and heals yield to
+buffing while the pass runs. Kept from the donor: the 2-minute rebuff-window
+ceiling, buff triggers re-evaluated every tick during the pass, and the
+buffs-topped-toward-full-duration refresh margin
+(`AiPlayerbot.ForceRebuffMarginSecs`, default 60).
+`AiPlayerbot.ForceRebuffOnReadyCheck` ships default **off** (donor default)
+and is exposed as `AI_FORCE_REBUFF_ON_READY_CHECK` in the image (rendered
+config, `.env.example.penqle`, compose, README table).
+
+Touches: `strategy/generic/ForceRebuff.{h,cpp}` (new: rebuff window state,
+strategy, buff-first multiplier), `Trigger.{h,cpp}` (buff-trigger virtuals +
+per-tick eval), `GenericTriggers.{h,cpp}` (duration-aware `BuffTrigger`,
+`ForceRebuffPendingTrigger`), `TriggerContext.h`, `Engine.cpp` (cycle roll +
+buff-proposed note), `GenericSpellActions.{h,cpp}` (`CastBuffSpellAction`
+buff-work note), `ReadyCheckAction.{h,cpp}` (defer/report split, `force
+rebuff` + `ready reply` actions), `WorldPacketActionContext.h`,
+`ChatTriggerContext.h`, `ChatCommandHandlerStrategy.cpp`,
+`StrategyContext.h`, `AiFactory.cpp`, `PlayerbotAI.{h,cpp}` (window state,
+cast note), `PlayerbotAIConfig.{h,cpp}`, `aiplayerbot.conf.dist.in`.
+
+## 005-trade-cancel-hygiene.patch
+
+Ports the portable half of AzerothCore mod-playerbots PR #2651 ("fix selfbot
+trading and trade cancellations"): a session null guard before touching trade
+packets, and the refusal path factored into a `TradeStatusAction::CancelTrade()`
+helper that sends the cancel packet so the bot never sits in a phantom
+open-trade state (Tortoise's refusal branch already sent it; the helper keeps
+that guarantee in one place). The donor's selfbot-refusal half is not ported:
+selfbots are blocked upstream in TortoiseBots (ledger F18) and bot traders are
+handled by the module's `PlayerbotAIStorage` gate. No config key.
+
+Touches: `strategy/actions/TradeStatusAction.{h,cpp}`.
+
+## 006-interrupt-caststop.patch
+
+Ports AzerothCore mod-playerbots PR #2680 ("rework spell interrupt calls"):
+every force-interrupt call site that stopped "whatever the bot is doing"
+now uses the core's `Unit::CastStop()`, which only ends casts a player could
+stop — no cancelling of in-flight projectiles or queued melee swings, no
+synthetic spell-failure packets. Site-by-site: the reaction interrupt,
+`Reset(full)` and the fall handler in `PlayerbotAI.cpp` use `CastStop()`;
+`ReInitCurrentEngine()` no longer interrupts at all (donor end-state);
+`MovementAction::MoveTo2` no longer force-interrupts when starting to move
+(the core's natural move-interrupt flags break the cast like they do for a
+player); `MovementAction::Follow` uses a plain `CastStop()`;
+`JumpAction::DoJump` and the drink/eat actions use `CastStop()`. The
+`PlayerbotAI::InterruptSpell()` wrapper is kept for the "stop attacking"
+target-drop (no donor counterpart; already flag-gated and packet-clean).
+The donor's WotLK-only raid/dungeon call sites (ICC/Gruul/UK/Seth/Kara) have
+no Tortoise files, and Tortoise has no always-false interrupt guards of the
+donor's BattlegroundTactics shape. No config key.
+
+Touches: `PlayerbotAI.cpp`, `strategy/actions/MovementActions.cpp`,
+`strategy/actions/UseItemAction.h`, `strategy/generic/FleeStrategy.cpp`
+(comment only).
+
 ## Rules
 
 - One feature per patch, numbered, named `NNN-description.patch`.
