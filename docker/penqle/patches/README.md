@@ -190,6 +190,43 @@ Touches: `runtime/BotManager.{h,cpp}` (claim registry),
 claims). Implementation-verified (host contract + backoff harness pass),
 gameplay-untested.
 
+## 009-raid-boss-tactics.patch
+
+Ports per-boss raid tactics from AzerothCore mod-playerbots' `src/Ai/Raid/`
+(MC rework PR #2573, BWL fire-resist coverage #2631, Heigan dance #2671,
+Thaddius pet-phase fix #2669) onto TortoiseBots' DungeonStrategy family
+(gap prompt `docs/gap-prompts/01-raid-boss-tactics.md`):
+
+- **Onyxia**: fills the empty `OnyxiaFightStrategy` body — non-tanks exit
+  Onyxia's front/tail arcs, spread from Fireball splash, move perpendicular
+  out of the deep-breath corridor (donor's 3.3.5-lair safe-zone coordinates
+  do not transfer; replaced with corridor-relative movement), and
+  non-healers swap to Onyxian Whelps in phase 2.
+- **MC**: Golemagg Magma Splash stack back-off + skull-mark; Shazzrah
+  ranged/healer Arcane Explosion gate; Majordomo Flamewaker add-focus
+  attack; Ragnaros magma escape to the nearest dry group member.
+- **BWL**: Broodlord/Firemaw/Flamegor fight strategies — the first alive
+  raid paladin keeps Fire Resistance Aura up, everyone else pops a Fire
+  Protection Potion.
+- **Naxx**: Heigan fight-clock quadrant dance (90s fight / 45s dance,
+  re-derived from the core's `boss_heigan.cpp` event schedule; donor's
+  ranged platform hold dropped fail-closed) and Thaddius pet-phase target
+  fix + opposite-polarity spread.
+
+Every creature/spell ID was verified against Tortoise data (the core's
+`boss_*.cpp` scripts and `sql/base` creature templates); Turtle entries
+differ from the WotLK donor in several places (Golemagg 11988, Firemaw
+11983, Broodlord 12017). Void-zone creators: the 4H trigger already
+existed in the pin; Turtle's Grobbulus/Kel'Thuzad scripts summon no
+void-zone creatures, so there was nothing to add. No new config key.
+Implementation-verified (wiring checker live-missing=0, host contract
+pass), gameplay-untested.
+
+Touches: `strategy/generic/{OnyxiasLair,MoltenCore,BlackwingLair,Naxxramas}DungeonStrategies.{h,cpp}`,
+`strategy/triggers/{DungeonTriggers,{OnyxiasLair,MoltenCore,BlackwingLair,Naxxramas}DungeonTriggers}.{h,cpp}`,
+`strategy/actions/{DungeonActions,{OnyxiasLair,MoltenCore,BlackwingLair,Naxxramas}DungeonActions}.{h,cpp}`,
+`strategy/{TriggerContext.h,actions/ActionContext.h,StrategyContext.h}`.
+
 ## Rules
 
 - One feature per patch, numbered, named `NNN-description.patch`.
