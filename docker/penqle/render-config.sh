@@ -39,6 +39,8 @@ AI_ENABLE_RANDOM_TELEPORTS="${AI_ENABLE_RANDOM_TELEPORTS:-0}"
 AI_RANDOM_BOT_LFT_ENABLED="${AI_RANDOM_BOT_LFT_ENABLED:-0}"
 AI_AH_MARKET_ENABLED="${AI_AH_MARKET_ENABLED:-0}"
 AI_FORCE_REBUFF_ON_READY_CHECK="${AI_FORCE_REBUFF_ON_READY_CHECK:-0}"
+AI_FAILED_ACTION_RETRY_BASE="${AI_FAILED_ACTION_RETRY_BASE:-250}"
+AI_FAILED_ACTION_RETRY_MAX="${AI_FAILED_ACTION_RETRY_MAX:-2000}"
 
 DB_INFO() {
   local db="$1"
@@ -106,6 +108,8 @@ set_conf "${AI_CONF}" "AiPlayerbot.EnableRandomTeleports" "${AI_ENABLE_RANDOM_TE
 set_conf "${AI_CONF}" "AiPlayerbot.RandomBotLftEnabled" "${AI_RANDOM_BOT_LFT_ENABLED}"
 set_conf "${AI_CONF}" "AiPlayerbot.AhMarketEnabled" "${AI_AH_MARKET_ENABLED}"
 set_conf "${AI_CONF}" "AiPlayerbot.ForceRebuffOnReadyCheck" "${AI_FORCE_REBUFF_ON_READY_CHECK}"
+set_conf "${AI_CONF}" "AiPlayerbot.FailedActionRetryBase" "${AI_FAILED_ACTION_RETRY_BASE}"
+set_conf "${AI_CONF}" "AiPlayerbot.FailedActionRetryMax" "${AI_FAILED_ACTION_RETRY_MAX}"
 set_conf "${AI_CONF}" "AiPlayerbot.SummonWhenGroup" "${AI_SUMMON_WHEN_GROUP}"
 set_conf "${AI_CONF}" "AiPlayerbot.DisableRandomLevels" "${AI_DISABLE_RANDOM_LEVELS}"
 set_conf "${AI_CONF}" "AiPlayerbot.randombotStartingLevel" "${AI_RANDOM_BOT_STARTING_LEVEL}"

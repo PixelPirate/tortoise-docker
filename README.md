@@ -127,6 +127,7 @@ you created.
 | `AI_DISABLE_RANDOM_LEVELS` | `0` | `1` = all bots start at `AI_RANDOM_BOT_STARTING_LEVEL` |
 | `AI_RANDOM_BOT_STARTING_LEVEL` | `1` | Starting level when `AI_DISABLE_RANDOM_LEVELS=1` |
 | `AI_RANDOM_BOT_MAX_LEVEL` | `60` | Upper level bound for random-bot gear/tuning |
+| `AI_FAILED_ACTION_RETRY_BASE` / `AI_FAILED_ACTION_RETRY_MAX` | `250` / `2000` | Failure backoff (ms) for bot background actions: a repeatedly failing action is skipped for base ms, doubling up to max, instead of being retried every tick; `0` disables |
 
 All bot services ship **off** upstream; the `.env` values opt them in.
 Raise bot counts cautiously — TortoiseBots is young and unsoaked at scale.

@@ -152,6 +152,44 @@ Touches: `TravelMgr.cpp` (`RpgTravelDestination::IsActive`),
 `MoveToRpgTargetAction.cpp,MovementActions.{h,cpp},RpgSubActions.cpp}`,
 `strategy/values/PossibleRpgTargetsValue.cpp`.
 
+## 008-engine-robustness.patch
+
+Closes the remaining bounded F25-SCHED gaps (gap prompt
+`docs/gap-prompts/03-engine-robustness.md`). The engine failure backoff half
+of F25 needed no patch: the pinned `BOTS_COMMIT` already contains the
+`ActionFailureBackoff` policy and its `Engine` consumer (upstream issue #84),
+with `AiPlayerbot.FailedActionRetryBase`/`FailedActionRetryMax` (plus the
+cache TTL/size keys) documented in `aiplayerbot.conf.dist.in` and wired as
+`AI_FAILED_ACTION_RETRY_BASE`/`AI_FAILED_ACTION_RETRY_MAX` in the image.
+
+(1) **Restart orphan cleanup** — deterministic one-shot drains at module
+init, no background polling. BG side: `character_battleground_data` rows
+persist across a realm restart while core queue memberships do not, so
+sessionless random-bot characters carried stale rows;
+`BattlegroundQueueService::Initialize` deletes them scoped to the
+`RandomBotAccountPrefix` account pool and offline characters only (human
+rows keep the core's own relogin handling). LFT side:
+`LftBotFillService::Initialize` drains core queue/offer entries whose
+character has no live session through the native `LFTMgr::LeaveQueue`
+cancellation path (a no-op at cold start, a deterministic drain on warm
+re-init).
+
+(2) **Solo-idle arbitration** — an idle solo bot can be simultaneously
+eligible for the AH market errand, the BG auto-queue, and the LFT fill.
+`BotManager::ClaimIdleBot` implements a per-tick claim (keyed by a tick
+counter bumped at the top of `BotManager::OnWorldUpdate`, so one claimant
+wins per bot per world tick regardless of WorldScript dispatch order). The
+effective priority is the fixed host update order: AH market → BG auto-queue
+→ LFT fill; losing services re-evaluate the bot on a later interval, and
+cross-tick conflicts stay covered by the existing fail-closed eligibility
+guards. No new config key; no central arbitrator (explicit F25 follow-up).
+
+Touches: `runtime/BotManager.{h,cpp}` (claim registry),
+`runtime/AhMarketService.cpp` (claims), `runtime/BattlegroundQueueService.{h,cpp}`
+(BG data drain + claims), `runtime/LftBotFillService.{h,cpp}` (LFT drain +
+claims). Implementation-verified (host contract + backoff harness pass),
+gameplay-untested.
+
 ## Rules
 
 - One feature per patch, numbered, named `NNN-description.patch`.
