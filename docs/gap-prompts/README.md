@@ -24,6 +24,8 @@ Shared context every prompt assumes — do not repeat it in chat:
 | 4 | `04-dungeon-cc-suppression.md` | Generic CC fires in 5-man dungeons, wipes pulls | mod-playerbots PR #2648 | M-BG-LFG |
 | 5 | `05-grind-rpg-corrections.md` | Crowd tally, RNG source, patrol pause, taxi-cheat exclusions missing | Shyalya branch post-`1f9497e` | F04-RPG |
 | 6 | `06-qol-batch.md` | Ready-check rebuff, trade hardening, taxi graph fixes, interrupt rework, rogue Riposte/Blade Flurry | mod-playerbots PRs #2571 #2651 #2668 #2680 #2616 #2684 | various |
+| 7 | `07-dungeon-clear-port.md` | Full port of Shyalya's `mod-dungeon-clear` (autonomous 5-man dungeon clearing: routing, pull modes, scripted events, run logistics, addon) — reverses the `S-DUNGEON-CLEAR-EXCLUDE` decision | Shyalya `modules/mod-dungeon-clear/` (upstream: jrad7/mod-dungeon-clear) | S-DUNGEON-CLEAR-EXCLUDE |
 
-Recommended order: 4 (smallest, prevents group wipes) → 2 → 6 → 5 → 3 → 1
-(1 is the largest and most ID-sensitive).
+Recommended order: 4 (smallest, prevents group wipes) → 2 → 6 → 5 → 3 → 1 →
+7 (7 is by far the largest: ~85k lines of module code + ~21k lines of test
+harness; budget accordingly).
