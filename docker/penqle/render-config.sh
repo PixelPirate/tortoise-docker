@@ -76,6 +76,7 @@ ensure_conf "${ETC_DIST}/realmd.conf.dist" "${ETC}/realmd.conf"
 # TortoiseBots module configs (templates baked from the module clone)
 ensure_conf "${ETC_DIST}/modules/aiplayerbot.conf" "${ETC}/modules/aiplayerbot.conf"
 ensure_conf "${ETC_DIST}/modules/tortoise_bots.conf" "${ETC}/modules/tortoise_bots.conf"
+ensure_conf "${ETC_DIST}/modules/mod_dungeon_clear.conf" "${ETC}/modules/mod_dungeon_clear.conf"
 
 # mangosd (key names per Penqle's mangosd.conf.dist)
 set_conf "${ETC}/mangosd.conf" "LoginDatabase.Info" "\"$(DB_INFO "${DB_LOGIN}")\""
@@ -112,6 +113,14 @@ set_conf "${AI_CONF}" "AiPlayerbot.FailedActionRetryBase" "${AI_FAILED_ACTION_RE
 set_conf "${AI_CONF}" "AiPlayerbot.FailedActionRetryMax" "${AI_FAILED_ACTION_RETRY_MAX}"
 set_conf "${AI_CONF}" "AiPlayerbot.SummonWhenGroup" "${AI_SUMMON_WHEN_GROUP}"
 set_conf "${AI_CONF}" "AiPlayerbot.DisableRandomLevels" "${AI_DISABLE_RANDOM_LEVELS}"
+
+# mod-dungeon-clear (vendored): only keys that exist in the module's .dist.
+# Master toggle, default OFF (house rule: autonomous background services are
+# opt-in). The rest of the module's DungeonClear.* keys stay at their conf.dist
+# defaults; edit the rendered file directly for those.
+DC_CONF="${ETC}/modules/mod_dungeon_clear.conf"
+DUNGEON_CLEAR_ENABLED="${DUNGEON_CLEAR_ENABLED:-0}"
+set_conf "${DC_CONF}" "DungeonClear.Enabled" "${DUNGEON_CLEAR_ENABLED}"
 set_conf "${AI_CONF}" "AiPlayerbot.randombotStartingLevel" "${AI_RANDOM_BOT_STARTING_LEVEL}"
 set_conf "${AI_CONF}" "AiPlayerbot.RandomBotMaxLevel" "${AI_RANDOM_BOT_MAX_LEVEL}"
 

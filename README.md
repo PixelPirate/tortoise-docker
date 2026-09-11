@@ -128,6 +128,7 @@ you created.
 | `AI_RANDOM_BOT_STARTING_LEVEL` | `1` | Starting level when `AI_DISABLE_RANDOM_LEVELS=1` |
 | `AI_RANDOM_BOT_MAX_LEVEL` | `60` | Upper level bound for random-bot gear/tuning |
 | `AI_FAILED_ACTION_RETRY_BASE` / `AI_FAILED_ACTION_RETRY_MAX` | `250` / `2000` | Failure backoff (ms) for bot background actions: a repeatedly failing action is skipped for base ms, doubling up to max, instead of being retried every tick; `0` disables |
+| `DUNGEON_CLEAR_ENABLED` | `0` | Master switch for the vendored dungeon-clear module (autonomous 5-man dungeon clearing). `1` lets the party tank drive a run: `.dc on` in party chat (or the `dc on` keyword), `.dc status|bosses|skip|pull|off` to control it; requires navmesh data of good quality (see "Dungeon clearing" below) |
 
 All bot services ship **off** upstream; the `.env` values opt them in.
 Raise bot counts cautiously — TortoiseBots is young and unsoaked at scale.

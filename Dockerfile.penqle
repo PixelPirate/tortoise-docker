@@ -97,6 +97,7 @@ RUN mkdir -p /opt/turtle/sql \
 RUN mkdir -p /opt/turtle/etc.dist/modules \
     && cp /opt/turtle/etc/*.conf.dist /opt/turtle/etc.dist/ \
     && cp modules/TortoiseBots/conf/tortoise_bots.conf.dist /opt/turtle/etc.dist/modules/tortoise_bots.conf \
+    && cp modules/TortoiseBots/conf/mod_dungeon_clear.conf.dist /opt/turtle/etc.dist/modules/mod_dungeon_clear.conf \
     && cp modules/TortoiseBots/ai/playerbot/aiplayerbot.conf.dist.in /opt/turtle/etc.dist/modules/aiplayerbot.conf
 
 # -----------------------------------------------------------------------------

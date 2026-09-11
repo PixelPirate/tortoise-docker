@@ -112,8 +112,12 @@ Deliverables in **this repo**:
   pending); expect rough edges.
 - Random-bot characters are NOT auto-created. Users pre-create accounts/
   characters with the `RNDBOT` prefix (see module README/RUNBOOK).
-- No dungeon-clearing autonomous guide (`.dc`), no DK/glyphs/vehicles (not in
-  vanilla anyway), raid boss tactics largely empty.
+- Dungeon-clearing autonomous guide (`.dc`) IS present since 2026-09-10: the
+  donor `mod-dungeon-clear` is vendored into TortoiseBots as
+  `ai/dungeonclear/` (patches `010-dungeon-clear`), master toggle
+  `DUNGEON_CLEAR_ENABLED` default off. Implementation-verified,
+  gameplay-untested. No DK/glyphs/vehicles (not in vanilla anyway); raid boss
+  tactics largely empty (non-raid dungeons are covered by the port).
 
 ### 3.4 Pre-flight findings (resolved from local checkouts, 2026-09-09)
 

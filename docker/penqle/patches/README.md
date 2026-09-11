@@ -236,3 +236,67 @@ Touches: `strategy/generic/{OnyxiasLair,MoltenCore,BlackwingLair,Naxxramas}Dunge
 - The same changes are applied to the local checkout
   `/Users/pho/Turtle/New/TortoiseBots` for reference; if you upstream a patch
   into TortoiseBots proper, delete it here after the pin includes it.
+
+## 010-dungeon-clear.patch
+
+Full port of the Shyalya donor's `mod-dungeon-clear` — autonomous 5-man
+dungeon clearing (gap prompt `docs/gap-prompts/07-dungeon-clear-port.md`).
+Reverses the `S-DUNGEON-CLEAR-EXCLUDE` product decision: the vendored module
+lives in TortoiseBots as `ai/dungeonclear/` (AGPL-3.0, donor provenance in the
+module's `docs/PROVENANCE.md` row and `ai/dungeonclear/LICENSE.agpl3`) and
+brings the run driver ("dungeon clear" / "dungeon clear combat" strategies),
+the three-mode pull system, long-range/strided/navmesh-snap pathing with
+generated route data, the per-dungeon scripted event tables (classic +
+Turtle-custom + TBC, degrading fail-closed where the 1.12 core lacks a map),
+hazard resolvers, run logistics (smart rest, loot policy, regroup, death and
+stranded recovery, wipe verdicts), the `.dc on|off|pause|skip|pull|status|
+bosses|go|config|spectate` command surface with the 1.12 companion addon, the
+per-run settings registry, diagnostics, and the TestRun runtime.
+
+Donor-host API drift is closed at the compat layer: `AcCompat.h`
+(force-included ahead of every module TU, donor mechanism preserved) plus
+`ai/dungeonclear/compat/` shims — `PlayerbotMgr`/`BotSlots`/
+`RandomPlayerbotMgr` onto the BotManager/RandomBotFacade/PlayerbotAIStorage
+runtime, the degenerate `Difficulty` typedef, movement funnels onto
+`MotionMaster::MovePath`/`MovePoint` (no escort generator on this core),
+`InstanceData` boss-state/encounter-mask/persistent-data face shims, map-wide
+loaded-object scans via grid visit, spectator viewpoint via `Camera::SetView`.
+Module-side seams added to the bot tree: `AiContextAugment` (per-bot context
+extension registry), `MovementPriority` + the dropping `MoveTo` overload,
+`ManualSetValue::RefGet`, `AttackersValue::IsPossibleTarget`,
+`PlayerbotAI::SetSuppressAreaTriggerRelay` (read by `AreaTriggerAction`).
+`cmangos-compat-shim.h`'s `GuidVector` becomes `std::list<ObjectGuid>` — the
+type the stock guid values actually produce (donor finding; a vector alias
+made every stock-guid consumer read through a null).
+
+`DungeonClear.Enabled` ships default **OFF** (house rule: autonomous
+background services are opt-in) and is exposed as `DUNGEON_CLEAR_ENABLED` in
+the image (rendered config, `.env.example.penqle`, compose, README table).
+The rest of the ~200 `DungeonClear.*` keys stay at conf.dist defaults.
+
+Status: implementation-verified (mechanical port + compat audit; the module
+entry TU compiles clean under a `clang++ -fsyntax-only` loop against the real
+core headers), **gameplay-untested**. Residual per-TU compile debt (a few
+dozen sites across ~50 files, same recurring shim classes as above) plus the
+ported `t/` harness run are tracked as follow-up work; the TortoiseBots tree
+and its docs carry the same caveats. Also note: the pinned module's bot code
+includes `<boost/...>` headers (LootValues.h, MemoryMonitor.cpp, ChatHelper.cpp,
+PlayerbotAI.cpp, PlayerbotAIConfig.cpp) while this Dockerfile installs no
+Boost — a pre-existing image-build issue to resolve (add libboost-dev to the
+builder or prune the includes); independent of this port.
+
+Touches: `ai/dungeonclear/**` (new, vendored), `ai/dungeonclear/compat/**`
+(new, shims), `ai/playerbot/AiContextAugment.{h,cpp}` (new),
+`ai/playerbot/PlayerbotAI.{h,cpp}`, `ai/playerbot/PlayerbotAIConfig.{h,cpp}`,
+`ai/playerbot/strategy/AiObjectContext.{h,cpp}`, `ai/playerbot/strategy/Value.h`,
+`ai/playerbot/strategy/Engine.cpp`, `ai/playerbot/strategy/Strategy.h`,
+`ai/playerbot/strategy/StrategyContext.h`,
+`ai/playerbot/strategy/Trigger.{h,cpp}`,
+`ai/playerbot/strategy/triggers/TriggerContext.h`,
+`ai/playerbot/strategy/triggers/DungeonTriggers.cpp`,
+`ai/playerbot/strategy/actions/{MovementActions.{h,cpp},AreaTriggerAction.cpp,AttackersValue via values}`,
+`ai/playerbot/strategy/values/AttackersValue.h`, `ai/cmangos-compat-shim.h`,
+`TortoiseBots.cmake`, `conf/mod_dungeon_clear.conf.dist` (new),
+`docs/migration/CAPABILITIES.tsv` (S-DUNGEON-CLEAR-EXCLUDE →
+S-DUNGEON-CLEAR-PORT), `docs/migration/KNOWN_LIMITATIONS.md`,
+`docs/PROVENANCE.md`.
