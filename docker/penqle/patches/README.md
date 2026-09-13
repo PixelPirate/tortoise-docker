@@ -274,29 +274,48 @@ background services are opt-in) and is exposed as `DUNGEON_CLEAR_ENABLED` in
 the image (rendered config, `.env.example.penqle`, compose, README table).
 The rest of the ~200 `DungeonClear.*` keys stay at conf.dist defaults.
 
-Status: implementation-verified (mechanical port + compat audit; the module
-entry TU compiles clean under a `clang++ -fsyntax-only` loop against the real
-core headers), **gameplay-untested**. Residual per-TU compile debt (a few
-dozen sites across ~50 files, same recurring shim classes as above) plus the
-ported `t/` harness run are tracked as follow-up work; the TortoiseBots tree
-and its docs carry the same caveats. Also note: the pinned module's bot code
-includes `<boost/...>` headers (LootValues.h, MemoryMonitor.cpp, ChatHelper.cpp,
-PlayerbotAI.cpp, PlayerbotAIConfig.cpp) while this Dockerfile installs no
-Boost — a pre-existing image-build issue to resolve (add libboost-dev to the
-builder or prune the includes); independent of this port.
+Status: compile-verified and unit-tested (2026-09-10). Every module TU builds
+in the real cmake configuration and the ported `t/` harness runs green as a
+`dungeon_clear_tests` cmake target (`BUILD_TESTING=ON`): 961 passed, 0 failed,
+21 skipped — the skips are the navmesh-dependent route/nav probes, which
+GTEST_SKIP on their own when the mmaps slice is absent (client data is never
+committed). `t/TestDungeonClearUtil.cpp` is excluded from the target with a
+documented blocker: it mocks the world through the donor's `IWorld` gmock
+seam, and this core's `sWorld` is a concrete singleton with no interface to
+mock (the donor's `TestMap` DBC fixture doesn't exist here either). The suite
+exposed and fixed two real port bugs: the Turtle Black Morass events (map 269)
+referenced objective hooks 8/12 whose registration was `#ifndef
+MANGOSBOT_ZERO`'d out, and the route registry had lost its heroic→normal
+row fallback; the replay/rejoin math and the authored event tables
+(Razorfen Downs' gong, ZulFarrak's pyramid data id, Uldaman's three-clicker
+rituals, BRD's data ids) are now pinned at their vendored values by the
+harness. Still **gameplay-untested**. The pinned module's `<boost/...>`
+includes (algorithm/string, bimap, stacktrace) are satisfied by
+`libboost-dev` + `libboost-stacktrace-dev` in the Dockerfile builder and
+`libboost-stacktrace1.74.0` on the runtime image (the stacktrace link
+dependency comes from MemoryMonitor's `BOOST_STACKTRACE_LINK`).
 
 Touches: `ai/dungeonclear/**` (new, vendored), `ai/dungeonclear/compat/**`
-(new, shims), `ai/playerbot/AiContextAugment.{h,cpp}` (new),
-`ai/playerbot/PlayerbotAI.{h,cpp}`, `ai/playerbot/PlayerbotAIConfig.{h,cpp}`,
+(new, shims), `ai/dungeonclear/Ai/Dungeon/DungeonClear/Data/WorldSpawnWalk.h`
+(new, SQL spawn walk), `ai/playerbot/AiContextAugment.{h,cpp}` (new),
+`ai/playerbot/PlayerbotAI.{h,cpp}`, `ai/playerbot/PlayerbotAIBase.h`,
+`ai/playerbot/PlayerbotAIConfig.{h,cpp}`,
 `ai/playerbot/strategy/AiObjectContext.{h,cpp}`, `ai/playerbot/strategy/Value.h`,
 `ai/playerbot/strategy/Engine.cpp`, `ai/playerbot/strategy/Strategy.h`,
 `ai/playerbot/strategy/StrategyContext.h`,
 `ai/playerbot/strategy/Trigger.{h,cpp}`,
 `ai/playerbot/strategy/triggers/TriggerContext.h`,
-`ai/playerbot/strategy/triggers/DungeonTriggers.cpp`,
-`ai/playerbot/strategy/actions/{MovementActions.{h,cpp},AreaTriggerAction.cpp,AttackersValue via values}`,
-`ai/playerbot/strategy/values/AttackersValue.h`, `ai/cmangos-compat-shim.h`,
-`TortoiseBots.cmake`, `conf/mod_dungeon_clear.conf.dist` (new),
+`ai/playerbot/strategy/triggers/{DungeonTriggers.cpp,GenericTriggers.cpp}`,
+`ai/playerbot/strategy/generic/ClassStrategy.{h,cpp}` and the class strategy
+headers that call its CC-suppression gate,
+`ai/playerbot/strategy/generic/ForceRebuff.cpp`,
+`ai/playerbot/strategy/actions/{MovementActions.{h,cpp},AreaTriggerAction.cpp,RpgSubActions.cpp,AcceptInvitationAction.h}`,
+`ai/playerbot/strategy/values/AttackersValue.h`, `ai/playerbot/TravelMgr.{h,cpp}`,
+`ai/cmangos-compat-shim.h`,
+`TortoiseBots.cmake` (module wiring + `dungeon_clear_tests` target + the
+Detour `DT_VIRTUAL_QUERYFILTER` define the route filter needs),
+`conf/mod_dungeon_clear.conf.dist` (new),
 `docs/migration/CAPABILITIES.tsv` (S-DUNGEON-CLEAR-EXCLUDE →
 S-DUNGEON-CLEAR-PORT), `docs/migration/KNOWN_LIMITATIONS.md`,
-`docs/PROVENANCE.md`.
+`docs/PROVENANCE.md` (the doc rows ride in the local TortoiseBots checkout;
+this patch carries the source changes only).

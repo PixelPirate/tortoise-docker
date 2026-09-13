@@ -133,6 +133,27 @@ you created.
 All bot services ship **off** upstream; the `.env` values opt them in.
 Raise bot counts cautiously — TortoiseBots is young and unsoaked at scale.
 
+## Dungeon clearing
+
+`DUNGEON_CLEAR_ENABLED=1` enables the vendored dungeon-clear module
+(autonomous 5-man dungeon runs). The party tank drives the run:
+
+- `.dc on|off|pause|skip|status|bosses|pull|config|spectate` in party chat
+  (or the bare keywords `dc on` / `dungeon clear on` from the master).
+- On dungeon entry the tank asks `Ready to go?`; the master's `go` in party
+  chat (or the master simply starting a fight) starts the run.
+
+Notes and caveats:
+
+- Requires navmesh (mmaps) data of **good quality** — routes are built on the
+  core's mmaps, so regenerate them from your client data if you see
+  off-mesh/recovery-hop log spam.
+- Content beyond vanilla 1.12 (TBC/Turtle-custom event tables the Penqle core
+  has no map for) degrades to skipped steps; it never fakes progress.
+- The module compiles clean and is wiring-verified, but is **gameplay-untested**
+  — expect rough edges and report logs from the `playerbots.dungeonclear`
+  channel.
+
 ## Grouping with bots
 
 When you invite a bot to your party and it accepts, it is **teleported to

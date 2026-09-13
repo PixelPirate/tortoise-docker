@@ -25,7 +25,9 @@ ARG CPU_TARGET=x86-64-v2
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=UTC
 
-# No Boost needed: the Penqle core links ACE, MySQL client, OpenSSL, ZLIB.
+# Boost headers (algorithm/string, bimap) are header-only; the bot module's
+# MemoryMonitor uses boost::stacktrace with BOOST_STACKTRACE_LINK, which pulls
+# in the stacktrace runtime library on the runtime image as well.
 # libcurl is for optional tooling; kept so the build never fails on it.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
@@ -33,6 +35,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         cmake \
         git \
         libace-dev \
+        libboost-dev \
+        libboost-stacktrace-dev \
         libcurl4-openssl-dev \
         default-libmysqlclient-dev \
         libssl-dev \
@@ -119,11 +123,13 @@ ENV DEBIAN_FRONTEND=noninteractive \
     TURTLE_HOME=/opt/turtle \
     PATH=/opt/turtle/bin:$PATH
 
-# Shared libraries matching the builder's link set. No Boost, no readline:
-# the Penqle core uses neither. mariadb-client is for init-db.sh.
+# Shared libraries matching the builder's link set. Boost is needed only for
+# boost::stacktrace (MemoryMonitor); everything else it uses is header-only.
+# mariadb-client is for init-db.sh.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         libace-7.0.6 \
+        libboost-stacktrace1.74.0 \
         libcurl4 \
         libmysqlclient21 \
         libssl3 \

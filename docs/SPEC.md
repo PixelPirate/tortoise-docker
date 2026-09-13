@@ -115,9 +115,11 @@ Deliverables in **this repo**:
 - Dungeon-clearing autonomous guide (`.dc`) IS present since 2026-09-10: the
   donor `mod-dungeon-clear` is vendored into TortoiseBots as
   `ai/dungeonclear/` (patches `010-dungeon-clear`), master toggle
-  `DUNGEON_CLEAR_ENABLED` default off. Implementation-verified,
-  gameplay-untested. No DK/glyphs/vehicles (not in vanilla anyway); raid boss
-  tactics largely empty (non-raid dungeons are covered by the port).
+  `DUNGEON_CLEAR_ENABLED` default off. The vendored tree compiles clean
+  against the pinned core (module target builds; residual per-TU compile debt
+  closed 2026-09-10); still gameplay-untested. No DK/glyphs/vehicles (not in
+  vanilla anyway); raid boss tactics largely empty (non-raid dungeons are
+  covered by the port).
 
 ### 3.4 Pre-flight findings (resolved from local checkouts, 2026-09-09)
 
