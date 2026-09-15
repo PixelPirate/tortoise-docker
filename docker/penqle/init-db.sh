@@ -68,6 +68,15 @@ fi
 echo "Ensuring character_inventory_copy exists..."
 mysql_root "${DB_CHAR}" < "${character_inventory_copy_sql}"
 
+# TortoiseBots' BattlegroundQueueService joins `account` on the character-DB
+# connection (runtime/BattlegroundQueueService.cpp) while the table lives in
+# the login DB. Expose a read-only compatibility view so those queries resolve.
+echo "Ensuring ${DB_CHAR}.account compatibility view..."
+mysql_root <<SQL
+CREATE OR REPLACE VIEW ${DB_CHAR}.account AS
+SELECT id, username FROM ${DB_LOGIN}.account;
+SQL
+
 echo "Creating application user '${DB_USER}' and grants..."
 mysql_root <<SQL
 CREATE USER IF NOT EXISTS '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASSWORD}';
@@ -91,6 +100,17 @@ for f in "${base_files[@]}"; do
   mysql_root "${DB_WORLD}" < "${f}"
 done
 
+# Upstream ships placeholder playercreateinfo rows for Turtle's custom races
+# (9=goblin -> zone 5536 on map 1, 10=high elf -> zone 5225 on map 0). Those
+# zones do not exist on the vanilla maps this image ships map/vmap data for,
+# and bots spawned there crash the world server. Pin both races to the same
+# valid start positions the reference image hardcodes in its bot factory.
+echo "Fixing custom-race playercreateinfo rows..."
+mysql_root <<SQL
+UPDATE ${DB_WORLD}.playercreateinfo SET map=0, zone=12, position_x=-8949.95, position_y=-132.493, position_z=83.5312, orientation=0 WHERE race=10;
+UPDATE ${DB_WORLD}.playercreateinfo SET map=1, zone=14, position_x=-618.518, position_y=-4251.67, position_z=38.718, orientation=0 WHERE race=9;
+SQL
+
 # Core database_updates are NOT applied here. The core AutoUpdater applies them
 # on first mangosd start (Database.AutoUpdate.Path) and records proper SHA1
 # hashes in each database's `migrations` table — the mechanism the old Shyalya
@@ -106,13 +126,17 @@ if [[ -d "${MODULE_SQL}/world" ]]; then
     mysql_root "${DB_WORLD}" < "${f}"
   done
 fi
-if [[ -d "${MODULE_SQL}/char" ]]; then
-  echo "Applying TortoiseBots character module SQL..."
-  for f in "${MODULE_SQL}"/char/*.sql; do
-    echo "  -> $(basename "${f}")"
-    mysql_root "${DB_CHAR}" < "${f}"
-  done
-fi
+# Upstream named the character-side dir `character` at the pinned commit
+# (older checkouts used `char`); accept either so the schema never lags.
+for CHAR_DIR in char character; do
+  if [[ -d "${MODULE_SQL}/${CHAR_DIR}" ]]; then
+    echo "Applying TortoiseBots character module SQL (${CHAR_DIR}/)..."
+    for f in "${MODULE_SQL}/${CHAR_DIR}"/*.sql; do
+      echo "  -> $(basename "${f}")"
+      mysql_root "${DB_CHAR}" < "${f}"
+    done
+  fi
+done
 
 echo "Inserting realmlist row..."
 mysql_root <<SQL
