@@ -127180,7 +127180,7 @@ index 0000000..8bd9bd0
 --- /dev/null
 +++ b/conf/mod_dungeon_clear.conf.dist
 @@ -0,0 +1,1608 @@
-+"[worldserver]
++[worldserver]
 +
 +########################################
 +# mod-dungeon-clear configuration

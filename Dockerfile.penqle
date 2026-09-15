@@ -40,6 +40,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libcurl4-openssl-dev \
         default-libmysqlclient-dev \
         libssl-dev \
+        ripgrep \
         zlib1g-dev \
         pkg-config \
     && rm -rf /var/lib/apt/lists/*
@@ -47,10 +48,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /src
 
 # Pinning the commit right before the clone busts the cache only when the pin moves.
-RUN git clone --depth 1 --branch "${CORE_REF}" "${CORE_REPO}" tortoise-wow \
-    && git -C tortoise-wow checkout --detach "${CORE_COMMIT}" \
-    && git clone --depth 1 "${BOTS_REPO}" tortoise-wow/modules/TortoiseBots \
-    && git -C tortoise-wow/modules/TortoiseBots checkout --detach "${BOTS_COMMIT}"
+# Fetch the pinned SHA directly instead of the branch tip: a --depth 1 branch
+# clone fails with "reference is not a tree" once upstream advances past the pin.
+RUN git clone --no-checkout "${CORE_REPO}" tortoise-wow \
+    && git -C tortoise-wow fetch --depth 1 origin "${CORE_COMMIT}" \
+    && git -C tortoise-wow checkout --detach FETCH_HEAD \
+    && git clone --no-checkout "${BOTS_REPO}" tortoise-wow/modules/TortoiseBots \
+    && git -C tortoise-wow/modules/TortoiseBots fetch --depth 1 origin "${BOTS_COMMIT}" \
+    && git -C tortoise-wow/modules/TortoiseBots checkout --detach FETCH_HEAD
 
 # Local feature patches on top of the pinned module. Keep them numbered and
 # rebase-able; each must apply cleanly or the build fails (see patches/README).

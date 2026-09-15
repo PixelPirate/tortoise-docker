@@ -6,3 +6,4 @@ config/
 logs/
 *.log
 .DS_Store
+migrate/
