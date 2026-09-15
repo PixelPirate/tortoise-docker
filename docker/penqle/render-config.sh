@@ -35,6 +35,7 @@ AI_DISABLE_RANDOM_LEVELS="${AI_DISABLE_RANDOM_LEVELS:-0}"
 AI_RANDOM_BOT_STARTING_LEVEL="${AI_RANDOM_BOT_STARTING_LEVEL:-1}"
 AI_RANDOM_BOT_MAX_LEVEL="${AI_RANDOM_BOT_MAX_LEVEL:-60}"
 AI_RANDOM_BOT_AUTOLOGIN="${AI_RANDOM_BOT_AUTOLOGIN:-0}"
+AI_RANDOM_BOT_AUTO_CREATE="${AI_RANDOM_BOT_AUTO_CREATE:-0}"
 AI_ENABLE_RANDOM_TELEPORTS="${AI_ENABLE_RANDOM_TELEPORTS:-0}"
 AI_RANDOM_BOT_LFT_ENABLED="${AI_RANDOM_BOT_LFT_ENABLED:-0}"
 AI_AH_MARKET_ENABLED="${AI_AH_MARKET_ENABLED:-0}"
@@ -99,11 +100,17 @@ set_conf "${ETC}/realmd.conf" "BindIP" "\"${BIND_IP}\""
 
 # TortoiseBots — all bot services default OFF upstream; .env opts in.
 AI_CONF="${ETC}/modules/aiplayerbot.conf"
+# The module resolves its config next to mangosd.conf (or via this override);
+# without it it falls back to compiled-in defaults (Enabled=0) and switches off.
+set_conf "${ETC}/mangosd.conf" "AiPlayerbot.ConfigFile" "${AI_CONF}"
 set_conf "${AI_CONF}" "AiPlayerbot.Enabled" "${AI_PLAYERBOT_ENABLED}"
 set_conf "${AI_CONF}" "AiPlayerbot.MinRandomBots" "${AI_MIN_RANDOM_BOTS}"
 set_conf "${AI_CONF}" "AiPlayerbot.MaxRandomBots" "${AI_MAX_RANDOM_BOTS}"
-set_conf "${AI_CONF}" "AiPlayerbot.RandomBotAutoCreate" "0"
+set_conf "${AI_CONF}" "AiPlayerbot.RandomBotAutoCreate" "${AI_RANDOM_BOT_AUTO_CREATE}"
 set_conf "${AI_CONF}" "AiPlayerbot.RandomBotAutologin" "${AI_RANDOM_BOT_AUTOLOGIN}"
+# The new service gates its pool start-up on RandomBotLoginAtStartup
+# (RandomBotService m_started); Autologin alone is the legacy key.
+set_conf "${AI_CONF}" "AiPlayerbot.RandomBotLoginAtStartup" "${AI_RANDOM_BOT_AUTOLOGIN}"
 set_conf "${AI_CONF}" "AiPlayerbot.RandomBotLoginWithPlayer" "${AI_RANDOM_BOT_LOGIN_WITH_PLAYER}"
 set_conf "${AI_CONF}" "AiPlayerbot.EnableRandomTeleports" "${AI_ENABLE_RANDOM_TELEPORTS}"
 set_conf "${AI_CONF}" "AiPlayerbot.RandomBotLftEnabled" "${AI_RANDOM_BOT_LFT_ENABLED}"

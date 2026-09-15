@@ -117,7 +117,8 @@ you created.
 | `TURTLE_IMAGE` | local build | Full image reference override |
 | `AI_PLAYERBOT_ENABLED` | `1` | Master switch for the bot module |
 | `AI_MIN_RANDOM_BOTS` / `AI_MAX_RANDOM_BOTS` | `10` / `10` | Random bots kept online |
-| `AI_RANDOM_BOT_AUTOLOGIN` | `0` | Log bots in automatically after restarts |
+| `AI_RANDOM_BOT_AUTOLOGIN` | `0` | Log bots in automatically after restarts; also controls `RandomBotLoginAtStartup` (the pool start-up gate) |
+| `AI_RANDOM_BOT_AUTO_CREATE` | `0` | Auto-create RNDBOT accounts/characters toward the Min/Max target, throttled to ~1 character per update interval |
 | `AI_ENABLE_RANDOM_TELEPORTS` | `0` | Bots roam/teleport the world on their own |
 | `AI_RANDOM_BOT_LFT_ENABLED` | `0` | Bots fill empty LFG/dungeon queues |
 | `AI_AH_MARKET_ENABLED` | `0` | Bots run a native auction-house market |
