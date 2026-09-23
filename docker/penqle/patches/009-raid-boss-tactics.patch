@@ -1,72 +1,3 @@
-diff --git a/ai/playerbot/strategy/actions/ActionContext.h b/ai/playerbot/strategy/actions/ActionContext.h
-index 6fb3109..0a9f9d4 100644
---- a/ai/playerbot/strategy/actions/ActionContext.h
-+++ b/ai/playerbot/strategy/actions/ActionContext.h
-@@ -329,11 +329,32 @@ namespace ai
-             // Dungeon Boss Actions
-             creators["enable onyxia fight strategy"] = [](PlayerbotAI* ai) { return new OnyxiaEnableFightStrategyAction(ai); };
-             creators["disable onyxia fight strategy"] = [](PlayerbotAI* ai) { return new OnyxiaDisableFightStrategyAction(ai); };
-+            creators["move out of onyxia breath"] = [](PlayerbotAI* ai) { return new OnyxiaMoveOutOfBreathAction(ai); };
-+            creators["move to onyxia side"] = [](PlayerbotAI* ai) { return new OnyxiaMoveToSideAction(ai); };
-+            creators["spread from onyxia fireball"] = [](PlayerbotAI* ai) { return new OnyxiaSpreadOutAction(ai); };
-+            creators["attack onyxian whelp"] = [](PlayerbotAI* ai) { return new OnyxiaKillWhelpsAction(ai); };
- 
-             creators["enable magmadar fight strategy"] = [](PlayerbotAI* ai) { return new MagmadarEnableFightStrategyAction(ai); };
-             creators["disable magmadar fight strategy"] = [](PlayerbotAI* ai) { return new MagmadarDisableFightStrategyAction(ai); };
-             creators["move away from magmadar"] = [](PlayerbotAI* ai) { return new MagmadarMoveAwayAction(ai); };
- 
-+            creators["enable golemagg fight strategy"] = [](PlayerbotAI* ai) { return new GolemaggEnableFightStrategyAction(ai); };
-+            creators["disable golemagg fight strategy"] = [](PlayerbotAI* ai) { return new GolemaggDisableFightStrategyAction(ai); };
-+            creators["back off from golemagg"] = [](PlayerbotAI* ai) { return new GolemaggBackOffAction(ai); };
-+            creators["mark golemagg boss"] = [](PlayerbotAI* ai) { return new GolemaggMarkBossAction(ai); };
-+
-+            creators["enable shazzrah fight strategy"] = [](PlayerbotAI* ai) { return new ShazzrahEnableFightStrategyAction(ai); };
-+            creators["disable shazzrah fight strategy"] = [](PlayerbotAI* ai) { return new ShazzrahDisableFightStrategyAction(ai); };
-+            creators["move away from shazzrah"] = [](PlayerbotAI* ai) { return new ShazzrahMoveAwayAction(ai); };
-+
-+            creators["enable majordomo fight strategy"] = [](PlayerbotAI* ai) { return new MajordomoEnableFightStrategyAction(ai); };
-+            creators["disable majordomo fight strategy"] = [](PlayerbotAI* ai) { return new MajordomoDisableFightStrategyAction(ai); };
-+            creators["attack majordomo add"] = [](PlayerbotAI* ai) { return new AttackMajordomoAddAction(ai); };
-+
-+            creators["enable ragnaros fight strategy"] = [](PlayerbotAI* ai) { return new RagnarosEnableFightStrategyAction(ai); };
-+            creators["disable ragnaros fight strategy"] = [](PlayerbotAI* ai) { return new RagnarosDisableFightStrategyAction(ai); };
-+            creators["move from mc lava"] = [](PlayerbotAI* ai) { return new McMoveFromLavaAction(ai); };
-+
-             creators["move away from hazard"] = [](PlayerbotAI* ai) { return new MoveAwayFromHazard(ai); };
-             creators["move away from specific creatures"] = [](PlayerbotAI* ai) { return new MoveAwayFromSpecificCreatures(ai, 10.0f); };
-             creators["move to mc rune"] = [](PlayerbotAI* ai) { return new MoveToMCRuneAction(ai); };
-@@ -344,10 +365,31 @@ namespace ai
-             creators["stealth for suppression device"] = [](PlayerbotAI* ai) { return new StealthForSuppressionDeviceAction(ai); };
-             creators["disarm suppression device"] = [](PlayerbotAI* ai) { return new DisarmSuppressionDeviceAction(ai); };
- 
-+            creators["enable broodlord fight strategy"] = [](PlayerbotAI* ai) { return new BroodlordEnableFightStrategyAction(ai); };
-+            creators["disable broodlord fight strategy"] = [](PlayerbotAI* ai) { return new BroodlordDisableFightStrategyAction(ai); };
-+            creators["broodlord fire resistance aura"] = [](PlayerbotAI* ai) { return new BwlFireResistanceAction(ai, "broodlord fire resistance aura"); };
-+
-+            creators["enable firemaw fight strategy"] = [](PlayerbotAI* ai) { return new FiremawEnableFightStrategyAction(ai); };
-+            creators["disable firemaw fight strategy"] = [](PlayerbotAI* ai) { return new FiremawDisableFightStrategyAction(ai); };
-+            creators["firemaw fire resistance aura"] = [](PlayerbotAI* ai) { return new BwlFireResistanceAction(ai, "firemaw fire resistance aura"); };
-+
-+            creators["enable flamegor fight strategy"] = [](PlayerbotAI* ai) { return new FlamegorEnableFightStrategyAction(ai); };
-+            creators["disable flamegor fight strategy"] = [](PlayerbotAI* ai) { return new FlamegorDisableFightStrategyAction(ai); };
-+            creators["flamegor fire resistance aura"] = [](PlayerbotAI* ai) { return new BwlFireResistanceAction(ai, "flamegor fire resistance aura"); };
-+
-             creators["enable four horseman fight strategy"] = [](PlayerbotAI* ai) { return new FourHorsemanEnableFightStrategyAction(ai); };
-             creators["disable four horseman fight strategy"] = [](PlayerbotAI* ai) { return new FourHorsemanDisableFightStrategyAction(ai); };
-             creators["move away from void zone"] = [](PlayerbotAI* ai) { return new FourHorsemanMoveAwayFromVoidZoneAction(ai); };
- 
-+            creators["enable heigan fight strategy"] = [](PlayerbotAI* ai) { return new HeiganEnableFightStrategyAction(ai); };
-+            creators["disable heigan fight strategy"] = [](PlayerbotAI* ai) { return new HeiganDisableFightStrategyAction(ai); };
-+            creators["move to heigan safe spot"] = [](PlayerbotAI* ai) { return new MoveToHeiganSafeSpotAction(ai); };
-+
-+            creators["enable thaddius fight strategy"] = [](PlayerbotAI* ai) { return new ThaddiusEnableFightStrategyAction(ai); };
-+            creators["disable thaddius fight strategy"] = [](PlayerbotAI* ai) { return new ThaddiusDisableFightStrategyAction(ai); };
-+            creators["attack thaddius pet"] = [](PlayerbotAI* ai) { return new AttackThaddiusPetAction(ai); };
-+            creators["thaddius polarity spread"] = [](PlayerbotAI* ai) { return new ThaddiusPolaritySpreadAction(ai); };
-+
-         }
-     };
- };
 diff --git a/ai/playerbot/strategy/actions/BlackwingLairDungeonActions.h b/ai/playerbot/strategy/actions/BlackwingLairDungeonActions.h
 index 5d37eaa..bfd5450 100644
 --- a/ai/playerbot/strategy/actions/BlackwingLairDungeonActions.h
@@ -135,24 +66,8 @@ index 5d37eaa..bfd5450 100644
 +        FlamegorDisableFightStrategyAction(PlayerbotAI* ai) : ChangeAllStrategyAction(ai, "disable flamegor fight strategy", "-flamegor") {}
 +    };
 +}
-diff --git a/ai/playerbot/strategy/actions/DungeonActions.h b/ai/playerbot/strategy/actions/DungeonActions.h
-index 33eb129..dc8c2ac 100644
---- a/ai/playerbot/strategy/actions/DungeonActions.h
-+++ b/ai/playerbot/strategy/actions/DungeonActions.h
-@@ -5,6 +5,11 @@
- 
- namespace ai
- {
-+    // Shared boss-encounter helper (defined in triggers/DungeonTriggers.cpp):
-+    // finds an engaged boss by creature entry among the bot's attackers, else
-+    // among possible targets. Returns null when the boss is not engaged.
-+    Unit* FindDungeonBoss(PlayerbotAI* ai, uint32 entry);
-+
-     class MoveAwayFromHazard : public MovementAction
-     {
-     public:
 diff --git a/ai/playerbot/strategy/actions/MoltenCoreDungeonActions.h b/ai/playerbot/strategy/actions/MoltenCoreDungeonActions.h
-index 26f6b63..4671d82 100644
+index 9ed6743..5b20390 100644
 --- a/ai/playerbot/strategy/actions/MoltenCoreDungeonActions.h
 +++ b/ai/playerbot/strategy/actions/MoltenCoreDungeonActions.h
 @@ -1,8 +1,10 @@
@@ -300,8 +215,8 @@ index 26f6b63..4671d82 100644
      class MoveToMCRuneAction : public MoveToAction
      {
      public:
-@@ -59,4 +188,54 @@ namespace ai
-     public:
+@@ -61,4 +190,54 @@ namespace ai
+         // Eternal Quintessence (22754): exalted-Hydraxian upgrade, same use.
          DouseMCRuneActionEternal(PlayerbotAI* ai) : UseItemIdAction(ai, "douse mc rune eternal") { qualifier = "{22754,entry filter::{gos close,mc runes}}"; }
      };
 -}
@@ -917,7 +832,7 @@ index 351d61a..ac5523e 100644
  }
 \ No newline at end of file
 diff --git a/ai/playerbot/strategy/generic/MoltenCoreDungeonStrategies.cpp b/ai/playerbot/strategy/generic/MoltenCoreDungeonStrategies.cpp
-index 2f56a44..863f9c2 100644
+index acb27e4..a0ff79c 100644
 --- a/ai/playerbot/strategy/generic/MoltenCoreDungeonStrategies.cpp
 +++ b/ai/playerbot/strategy/generic/MoltenCoreDungeonStrategies.cpp
 @@ -10,6 +10,22 @@ void MoltenCoreDungeonStrategy::InitCombatTriggers(std::list<TriggerNode*>& trig
@@ -943,7 +858,7 @@ index 2f56a44..863f9c2 100644
  }
  
  void MoltenCoreDungeonStrategy::InitNonCombatTriggers(std::list<TriggerNode*>& triggers)
-@@ -87,3 +103,113 @@ void MagmadarFightStrategy::InitCombatMultipliers(std::list<Multiplier*>& multip
+@@ -73,3 +89,113 @@ void MagmadarFightStrategy::InitCombatMultipliers(std::list<Multiplier*>& multip
          multipliers.push_back(new PreventMoveAwayFromCreatureOnReachToCastMultiplier(ai));
      }
  }
@@ -1235,14 +1150,13 @@ index 8dc87a4..a22f648 100644
  }
 \ No newline at end of file
 diff --git a/ai/playerbot/strategy/generic/OnyxiasLairDungeonStrategies.cpp b/ai/playerbot/strategy/generic/OnyxiasLairDungeonStrategies.cpp
-index f98aede..18d3a20 100644
+index d4cbade..868e7b4 100644
 --- a/ai/playerbot/strategy/generic/OnyxiasLairDungeonStrategies.cpp
 +++ b/ai/playerbot/strategy/generic/OnyxiasLairDungeonStrategies.cpp
-@@ -13,7 +13,25 @@ void OnyxiasLairDungeonStrategy::InitCombatTriggers(std::list<TriggerNode*>& tri
+@@ -13,6 +13,26 @@ void OnyxiasLairDungeonStrategy::InitCombatTriggers(std::list<TriggerNode*>& tri
  
  void OnyxiaFightStrategy::InitCombatTriggers(std::list<TriggerNode*>& triggers)
  {
--    // ...
 +    // Phase 1 (grounded): non-tanks avoid the front knockback and tail arcs.
 +    triggers.push_back(new TriggerNode(
 +        "onyxia near tail",
@@ -1262,10 +1176,11 @@ index f98aede..18d3a20 100644
 +    triggers.push_back(new TriggerNode(
 +        "onyxia deep breath",
 +        NextAction::array(0, new NextAction("move out of onyxia breath", 110.0f), NULL)));
- }
- 
- void OnyxiaFightStrategy::InitNonCombatTriggers(std::list<TriggerNode*>& triggers)
-@@ -32,5 +50,7 @@ void OnyxiaFightStrategy::InitDeadTriggers(std::list<TriggerNode*>& triggers)
++
+     // Phase 2 airborne: melee cannot reach; wands/shoot keep DPS on the
+     // boss while whelp packs are the valid melee targets. Ranged spread
+     // trims Fireball (18392) splash; universal flank keeps Deep Breath
+@@ -39,5 +59,7 @@ void OnyxiaFightStrategy::InitDeadTriggers(std::list<TriggerNode*>& triggers)
  
  void OnyxiaFightStrategy::InitReactionTriggers(std::list<TriggerNode*>& triggers)
  {
@@ -1369,104 +1284,6 @@ index fd9e5bc..df33234 100644
 +    };
 +
      class SuppressionDeviceNeedStealthTrigger : public Trigger
-     {
-     public:
-diff --git a/ai/playerbot/strategy/triggers/DungeonTriggers.cpp b/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
-index d745722..057db54 100644
---- a/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
-+++ b/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
-@@ -9,6 +9,7 @@
- #include "Maps/GridNotifiers.h"
- #include "Maps/GridNotifiersImpl.h"
- #include "Maps/CellImpl.h"
-+#include <algorithm>
- 
- using namespace ai;
- 
-@@ -84,6 +85,41 @@ bool EndBossFightTrigger::IsActive()
-     return false;
- }
- 
-+Unit* FindDungeonBoss(PlayerbotAI* ai, uint32 entry)
-+{
-+    const std::list<ObjectGuid> attackers = AI_VALUE(std::list<ObjectGuid>, "attackers");
-+    for (const ObjectGuid& guid : attackers)
-+    {
-+        Unit* unit = ai->GetUnit(guid);
-+        if (unit && unit->IsAlive() && unit->GetEntry() == entry)
-+            return unit;
-+    }
-+
-+    const std::list<ObjectGuid> possible = AI_VALUE(std::list<ObjectGuid>, "possible targets");
-+    for (const ObjectGuid& guid : possible)
-+    {
-+        Unit* unit = ai->GetUnit(guid);
-+        if (unit && unit->IsAlive() && unit->GetEntry() == entry && unit->IsInCombat())
-+            return unit;
-+    }
-+
-+    return nullptr;
-+}
-+
-+bool BossCastingSpellTrigger::IsActive()
-+{
-+    Unit* boss = FindDungeonBoss(ai, bossEntry);
-+    if (!boss)
-+        return false;
-+
-+    Spell* currentSpell = boss->GetCurrentSpell(channeled ? CURRENT_CHANNELED_SPELL : CURRENT_GENERIC_SPELL);
-+    if (!currentSpell || !currentSpell->m_spellInfo)
-+        return false;
-+
-+    const uint32 spellId = currentSpell->m_spellInfo->Id;
-+    return std::find(spellIds.begin(), spellIds.end(), spellId) != spellIds.end();
-+}
-+
- bool CloseToHazardTrigger::IsActive()
- {
-     // If the bot is ready
-diff --git a/ai/playerbot/strategy/triggers/DungeonTriggers.h b/ai/playerbot/strategy/triggers/DungeonTriggers.h
-index d26cfc3..7a826b0 100644
---- a/ai/playerbot/strategy/triggers/DungeonTriggers.h
-+++ b/ai/playerbot/strategy/triggers/DungeonTriggers.h
-@@ -1,5 +1,6 @@
- #pragma once
- #include "playerbot/strategy/Trigger.h"
-+#include <vector>
- 
- namespace ai
- {
-@@ -67,6 +68,32 @@ namespace ai
-         uint64 bossID;
-     };
- 
-+    // Shared boss-encounter helper for the raid fight strategies: finds an
-+    // engaged boss (by creature entry) among the bot's attackers, else among
-+    // possible targets (boss the raid pulled but that is not yet on the bot's
-+    // personal threat list). Returns null when the boss is not engaged.
-+    Unit* FindDungeonBoss(PlayerbotAI* ai, uint32 entry);
-+
-+    // Fires while an engaged boss is actively casting one of the given spells
-+    // (generic cast or channel). Used by fights that react to a boss cast
-+    // (Onyxia deep breath); the reacting action re-reads the current spell.
-+    class BossCastingSpellTrigger : public Trigger
-+    {
-+    public:
-+        BossCastingSpellTrigger(PlayerbotAI* ai, std::string name, uint32 bossEntry, std::vector<uint32> spellIds, bool channeled = false)
-+        : Trigger(ai, name, 1)
-+        , bossEntry(bossEntry)
-+        , spellIds(spellIds)
-+        , channeled(channeled) {}
-+
-+        bool IsActive() override;
-+
-+    private:
-+        uint32 bossEntry;
-+        std::vector<uint32> spellIds;
-+        bool channeled;
-+    };
-+
-     class CloseToHazardTrigger : public Trigger
      {
      public:
 diff --git a/ai/playerbot/strategy/triggers/MoltenCoreDungeonTriggers.h b/ai/playerbot/strategy/triggers/MoltenCoreDungeonTriggers.h
@@ -1720,14 +1537,13 @@ index c7c9970..f46ad3d 100644
  }
 \ No newline at end of file
 diff --git a/ai/playerbot/strategy/triggers/OnyxiasLairDungeonTriggers.h b/ai/playerbot/strategy/triggers/OnyxiasLairDungeonTriggers.h
-index 926bde4..536a1b7 100644
+index 38f9409..7109150 100644
 --- a/ai/playerbot/strategy/triggers/OnyxiasLairDungeonTriggers.h
 +++ b/ai/playerbot/strategy/triggers/OnyxiasLairDungeonTriggers.h
-@@ -26,4 +26,100 @@ namespace ai
-     public:
+@@ -27,6 +27,102 @@ namespace ai
          OnyxiaEndFightTrigger(PlayerbotAI* ai) : EndBossFightTrigger(ai, "end onyxia fight", "onyxia", 10184) {}
      };
-+
+ 
 +    // Onyxia is casting one of the eight directional deep breaths. Spell IDs
 +    // verified against the core's boss_onyxia.cpp (they match the classic
 +    // 1.12 IDs, unlike most other Tortoise encounter IDs).
@@ -1823,76 +1639,7 @@ index 926bde4..536a1b7 100644
 +            return false;
 +        }
 +    };
- }
-\ No newline at end of file
-diff --git a/ai/playerbot/strategy/triggers/TriggerContext.h b/ai/playerbot/strategy/triggers/TriggerContext.h
-index e496c43..521b974 100644
---- a/ai/playerbot/strategy/triggers/TriggerContext.h
-+++ b/ai/playerbot/strategy/triggers/TriggerContext.h
-@@ -294,12 +294,33 @@ namespace ai
-             // Dungeon Boss Triggers
-             creators["start onyxia fight"] = [](PlayerbotAI* ai) { return new OnyxiaStartFightTrigger(ai); };
-             creators["end onyxia fight"] = [](PlayerbotAI* ai) { return new OnyxiaEndFightTrigger(ai); };
-+            creators["onyxia deep breath"] = [](PlayerbotAI* ai) { return new OnyxiaDeepBreathTrigger(ai); };
-+            creators["onyxia near tail"] = [](PlayerbotAI* ai) { return new OnyxiaNearTailTrigger(ai); };
-+            creators["onyxia fireball splash"] = [](PlayerbotAI* ai) { return new OnyxiaFireballSplashTrigger(ai); };
-+            creators["onyxian whelps spawn"] = [](PlayerbotAI* ai) { return new OnyxianWhelpsSpawnTrigger(ai); };
- 
-             creators["start magmadar fight"] = [](PlayerbotAI* ai) { return new MagmadarStartFightTrigger(ai); };
-             creators["end magmadar fight"] = [](PlayerbotAI* ai) { return new MagmadarEndFightTrigger(ai); };
-             creators["magmadar lava bomb"] = [](PlayerbotAI* ai) { return new MagmadarLavaBombTrigger(ai); };
-             creators["magmadar too close"] = [](PlayerbotAI* ai) { return new MagmadarTooCloseTrigger(ai); };
- 
-+            creators["start golemagg fight"] = [](PlayerbotAI* ai) { return new GolemaggStartFightTrigger(ai); };
-+            creators["end golemagg fight"] = [](PlayerbotAI* ai) { return new GolemaggEndFightTrigger(ai); };
-+            creators["golemagg magma splash"] = [](PlayerbotAI* ai) { return new GolemaggMagmaSplashTrigger(ai); };
-+            creators["golemagg mark boss"] = [](PlayerbotAI* ai) { return new GolemaggMarkBossTrigger(ai); };
 +
-+            creators["start shazzrah fight"] = [](PlayerbotAI* ai) { return new ShazzrahStartFightTrigger(ai); };
-+            creators["end shazzrah fight"] = [](PlayerbotAI* ai) { return new ShazzrahEndFightTrigger(ai); };
-+            creators["shazzrah too close"] = [](PlayerbotAI* ai) { return new ShazzrahTooCloseTrigger(ai); };
-+
-+            creators["start majordomo fight"] = [](PlayerbotAI* ai) { return new MajordomoStartFightTrigger(ai); };
-+            creators["end majordomo fight"] = [](PlayerbotAI* ai) { return new MajordomoEndFightTrigger(ai); };
-+            creators["majordomo add up"] = [](PlayerbotAI* ai) { return new MajordomoAddUpTrigger(ai); };
-+
-+            creators["start ragnaros fight"] = [](PlayerbotAI* ai) { return new RagnarosStartFightTrigger(ai); };
-+            creators["end ragnaros fight"] = [](PlayerbotAI* ai) { return new RagnarosEndFightTrigger(ai); };
-+            creators["mc in lava"] = [](PlayerbotAI* ai) { return new McInLavaTrigger(ai); };
-+
-             creators["fire protection potion ready"] = [](PlayerbotAI* ai) { return new FireProtectionPotionReadyTrigger(ai); };
- 
-             creators["mc rune in sight"] = [](PlayerbotAI* ai) { return new MCRuneInSightTrigger(ai); };
-@@ -309,11 +330,32 @@ namespace ai
-             creators["suppression device in sight"] = [](PlayerbotAI* ai) { return new SuppressionDeviceInSightTrigger(ai); };
-             creators["suppression device close"] = [](PlayerbotAI* ai) { return new SuppressionDeviceCloseTrigger(ai); };
- 
-+            creators["start broodlord fight"] = [](PlayerbotAI* ai) { return new BroodlordStartFightTrigger(ai); };
-+            creators["end broodlord fight"] = [](PlayerbotAI* ai) { return new BroodlordEndFightTrigger(ai); };
-+            creators["broodlord fire resistance"] = [](PlayerbotAI* ai) { return new BwlFireResistanceTrigger(ai, "broodlord fire resistance", 12017); };
-+
-+            creators["start firemaw fight"] = [](PlayerbotAI* ai) { return new FiremawStartFightTrigger(ai); };
-+            creators["end firemaw fight"] = [](PlayerbotAI* ai) { return new FiremawEndFightTrigger(ai); };
-+            creators["firemaw fire resistance"] = [](PlayerbotAI* ai) { return new BwlFireResistanceTrigger(ai, "firemaw fire resistance", 11983); };
-+
-+            creators["start flamegor fight"] = [](PlayerbotAI* ai) { return new FlamegorStartFightTrigger(ai); };
-+            creators["end flamegor fight"] = [](PlayerbotAI* ai) { return new FlamegorEndFightTrigger(ai); };
-+            creators["flamegor fire resistance"] = [](PlayerbotAI* ai) { return new BwlFireResistanceTrigger(ai, "flamegor fire resistance", 11981); };
-+
- 
-             creators["start four horseman fight"] = [](PlayerbotAI* ai) { return new FourHorsemanStartFightTrigger(ai); };
-             creators["end four horseman fight"] = [](PlayerbotAI* ai) { return new FourHorsemanEndFightTrigger(ai); };
-             creators["void zone too close"] = [](PlayerbotAI* ai) { return new FourHorsemanVoidZoneTrigger(ai); };
- 
-+            creators["start heigan fight"] = [](PlayerbotAI* ai) { return new HeiganStartFightTrigger(ai); };
-+            creators["end heigan fight"] = [](PlayerbotAI* ai) { return new HeiganEndFightTrigger(ai); };
-+            creators["heigan fight active"] = [](PlayerbotAI* ai) { return new HeiganFightActiveTrigger(ai); };
-+
-+            creators["start thaddius fight"] = [](PlayerbotAI* ai) { return new ThaddiusStartFightTrigger(ai); };
-+            creators["end thaddius fight"] = [](PlayerbotAI* ai) { return new ThaddiusEndFightTrigger(ai); };
-+            creators["thaddius pet phase"] = [](PlayerbotAI* ai) { return new ThaddiusPetPhaseTrigger(ai); };
-+            creators["thaddius polarity"] = [](PlayerbotAI* ai) { return new ThaddiusPolarityTrigger(ai); };
-+
-         }
-     };
- };
+     // Phase 2: Onyxia takes flight (Hover aura 17131, core boss_onyxia.cpp).
+     // Melee cannot reach her; the fight strategy swaps them to wands/shoot
+     // and spreads the raid for Fireball splash. Grounds on phase 3.

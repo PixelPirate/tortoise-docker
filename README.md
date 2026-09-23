@@ -1,8 +1,8 @@
-# Tortoise WoW (Penqle + TortoiseBots) — Docker
+# Tortoise WoW (canonical core + TortoiseBots) — Docker
 
 Run a private [Turtle WoW](https://turtle-wow.org/) server with Docker, built
-from the canonical [Penqle/tortoise-wow](https://github.com/Penqle/tortoise-wow)
-core (`bot-helpers` branch) with the
+from the canonical [tortoise-wow/tortoise-wow](https://github.com/tortoise-wow/tortoise-wow)
+core (`1181dev` branch, formerly `Penqle/tortoise-wow`) with the
 [Sagiroth/TortoiseBots](https://github.com/Sagiroth/TortoiseBots) playerbot
 module compiled in.
 
@@ -28,6 +28,10 @@ client (see the old project's README or the TortoiseBots docs for how).
 ```bash
 docker build -f Dockerfile.penqle -t tortoise-docker:penqle-bots .
 ```
+
+On ARM hosts (e.g. Apple Silicon) add `--build-arg CPU_TARGET=armv8-a`; the
+default `x86-64-v2` is not a valid GCC `-march` value there and the build
+fails during CMake's compiler check.
 
 The build compiles the C++ server (expect 1–6 hours depending on your CPU).
 If a prebuilt image is published, you can skip this and set
@@ -272,7 +276,7 @@ edges; report gameplay issues to
 
 ## Credits
 
-- Server core: [Penqle/tortoise-wow](https://github.com/Penqle/tortoise-wow) (AGPL-3.0)
+- Server core: [tortoise-wow/tortoise-wow](https://github.com/tortoise-wow/tortoise-wow) (AGPL-3.0, formerly `Penqle/tortoise-wow`)
 - Bot module: [Sagiroth/TortoiseBots](https://github.com/Sagiroth/TortoiseBots)
 - Prior art: [Nescabir/tortoise-docker](https://github.com/Nescabir/tortoise-docker),
   [Shyalya/tortoise-wow](https://github.com/Shyalya/tortoise-wow)

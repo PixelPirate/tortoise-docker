@@ -1,5 +1,49 @@
 # Patches applied to TortoiseBots at image build time (after the pinned clone).
 
+Pins these patches are written against (see `Dockerfile.penqle`):
+
+```text
+CORE_REPO   https://github.com/tortoise-wow/tortoise-wow.git
+CORE_REF    1181dev
+CORE_COMMIT 010cdb6d513ae3c29ab685e2ff708fb18d8295c8
+BOTS_COMMIT 76a0a13d9bfce850e51f2e5df085019521caf386
+```
+
+The series is generated from the local `TortoiseBots` `bot-helpers` branch as
+the difference against `BOTS_COMMIT`, so applying all patches in numeric order
+reproduces that branch's source tree. Several features the series used to carry
+were merged upstream in the meantime and are now upstream's own code rather
+than a patch (see the notes under 008). Patch 011 was dropped for that reason.
+
+### Regenerating after a pin bump
+
+The upstream module takes commits several times a day, so re-pinning is routine.
+The procedure that produced the current series:
+
+1. In the local `TortoiseBots` checkout: `git fetch origin main`, fast-forward
+   `main`, then `git merge main` on the `bot-helpers` branch (resolve
+   conflicts there, not in the patches).
+2. Bump `BOTS_COMMIT` in `Dockerfile.penqle` to the new `origin/main` tip.
+3. Regenerate each patch as the diff of its own file set between the new
+   `BOTS_COMMIT` and `bot-helpers`, in numeric order, applying each patch's
+   file set to a scratch checkout of `BOTS_COMMIT` before generating the next
+   one. A file belongs to the first patch that names it, so the series stays a
+   linear stack and each patch still applies on top of the previous.
+4. Verify: apply the whole series in order to a scratch checkout of
+   `BOTS_COMMIT` and confirm the result equals `bot-helpers` (docs excluded),
+   then rebuild the image. The acceptance check is:
+
+   ```bash
+   git -C <module> worktree add --detach /tmp/bots-verify <BOTS_COMMIT>
+   cd /tmp/bots-verify
+   for p in <patches>/*.patch; do git apply --check "$p" && git apply "$p"; done
+   git add -A
+   git diff --cached bot-helpers -- . ':(exclude)docs/' ':(exclude)*.md'   # empty
+   ```
+
+Documentation files (`docs/`, `*.md`) are deliberately excluded: the patches
+carry source changes only, and the image does not need the docs.
+
 ## 001-summon-when-group.patch
 
 Ports AzerothCore mod-playerbots' `AiPlayerbot.SummonWhenGroup` behavior:
@@ -155,39 +199,35 @@ Touches: `TravelMgr.cpp` (`RpgTravelDestination::IsActive`),
 ## 008-engine-robustness.patch
 
 Closes the remaining bounded F25-SCHED gaps (gap prompt
-`docs/gap-prompts/03-engine-robustness.md`). The engine failure backoff half
-of F25 needed no patch: the pinned `BOTS_COMMIT` already contains the
-`ActionFailureBackoff` policy and its `Engine` consumer (upstream issue #84),
-with `AiPlayerbot.FailedActionRetryBase`/`FailedActionRetryMax` (plus the
-cache TTL/size keys) documented in `aiplayerbot.conf.dist.in` and wired as
-`AI_FAILED_ACTION_RETRY_BASE`/`AI_FAILED_ACTION_RETRY_MAX` in the image.
+`docs/gap-prompts/03-engine-robustness.md`). Two of the three halves now need
+no patch at all:
 
-(1) **Restart orphan cleanup** — deterministic one-shot drains at module
-init, no background polling. BG side: `character_battleground_data` rows
-persist across a realm restart while core queue memberships do not, so
-sessionless random-bot characters carried stale rows;
-`BattlegroundQueueService::Initialize` deletes them scoped to the
-`RandomBotAccountPrefix` account pool and offline characters only (human
-rows keep the core's own relogin handling). LFT side:
-`LftBotFillService::Initialize` drains core queue/offer entries whose
-character has no live session through the native `LFTMgr::LeaveQueue`
-cancellation path (a no-op at cold start, a deterministic drain on warm
-re-init).
+- **Engine failure backoff** — the pinned `BOTS_COMMIT` contains the
+  `ActionFailureBackoff` policy and its `Engine` consumer (upstream issue #84),
+  with `AiPlayerbot.FailedActionRetryBase`/`FailedActionRetryMax` (plus the
+  cache TTL/size keys) documented in `aiplayerbot.conf.dist.in` and wired as
+  `AI_FAILED_ACTION_RETRY_BASE`/`AI_FAILED_ACTION_RETRY_MAX` in the image.
+- **Solo-idle arbitration** — the interim per-tick `BotManager::ClaimIdleBot`
+  lock this patch used to add was superseded by upstream's
+  `BotActivityLeaseManager` (upstream issue #89), a single lease map with
+  priorities and timeouts that the AH market, BG auto-queue and LFT fill all
+  already consult. The claim registry is gone from the module; the lease
+  manager is upstream code.
 
-(2) **Solo-idle arbitration** — an idle solo bot can be simultaneously
-eligible for the AH market errand, the BG auto-queue, and the LFT fill.
-`BotManager::ClaimIdleBot` implements a per-tick claim (keyed by a tick
-counter bumped at the top of `BotManager::OnWorldUpdate`, so one claimant
-wins per bot per world tick regardless of WorldScript dispatch order). The
-effective priority is the fixed host update order: AH market → BG auto-queue
-→ LFT fill; losing services re-evaluate the bot on a later interval, and
-cross-tick conflicts stay covered by the existing fail-closed eligibility
-guards. No new config key; no central arbitrator (explicit F25 follow-up).
+What the patch still carries is (1) **restart orphan cleanup** — deterministic
+one-shot drains at module init, no background polling. BG side:
+`character_battleground_data` rows persist across a realm restart while core
+queue memberships do not, so sessionless random-bot characters carried stale
+rows; `BattlegroundQueueService::Initialize` deletes them scoped to the
+`RandomBotAccountPrefix` account pool and offline characters only (human rows
+keep the core's own relogin handling). LFT side:
+`LftBotFillService::Initialize` drains core queue/offer entries whose character
+has no live session through the native `LFTMgr::LeaveQueue` cancellation path
+(a no-op at cold start, a deterministic drain on warm re-init).
 
-Touches: `runtime/BotManager.{h,cpp}` (claim registry),
-`runtime/AhMarketService.cpp` (claims), `runtime/BattlegroundQueueService.{h,cpp}`
-(BG data drain + claims), `runtime/LftBotFillService.{h,cpp}` (LFT drain +
-claims). Implementation-verified (host contract + backoff harness pass),
+Touches: `runtime/BattlegroundQueueService.cpp` (BG data drain),
+`runtime/BattlegroundQueueService.h`, `runtime/LftBotFillService.{h,cpp}` (LFT
+drain). Implementation-verified (host contract + backoff harness pass),
 gameplay-untested.
 
 ## 009-raid-boss-tactics.patch
@@ -221,6 +261,12 @@ existed in the pin; Turtle's Grobbulus/Kel'Thuzad scripts summon no
 void-zone creatures, so there was nothing to add. No new config key.
 Implementation-verified (wiring checker live-missing=0, host contract
 pass), gameplay-untested.
+
+Upstream has since added its own raid-survival actions (`raid bomb runout`,
+`dragon flank`, `raid spread`, `dragon tank face away`) and its own Onyxia
+phase-2 `OnyxiaAirborneTrigger`. Both sets are kept: the upstream actions
+cover generic raid survival, this patch's Onyxia triggers cover the
+encounter-specific front/tail, Fireball-splash and deep-breath reactions.
 
 Touches: `strategy/generic/{OnyxiasLair,MoltenCore,BlackwingLair,Naxxramas}DungeonStrategies.{h,cpp}`,
 `strategy/triggers/{DungeonTriggers,{OnyxiasLair,MoltenCore,BlackwingLair,Naxxramas}DungeonTriggers}.{h,cpp}`,
@@ -319,3 +365,16 @@ Detour `DT_VIRTUAL_QUERYFILTER` define the route filter needs),
 S-DUNGEON-CLEAR-PORT), `docs/migration/KNOWN_LIMITATIONS.md`,
 `docs/PROVENANCE.md` (the doc rows ride in the local TortoiseBots checkout;
 this patch carries the source changes only).
+
+## Merged upstream since the last pin
+
+The bot-pass mutation-safety fix (formerly `011-bot-pass-mutation-safety.patch`)
+is now upstream's own code: `BotManager::UpdateBots` snapshots the bot keys,
+sets `m_inBotUpdate` for the duration of the pass, and `RemoveBot` defers a
+reentrant removal into `m_pendingBotRemovals`, draining it once no AI update is
+on the stack. Patch 011 has been deleted; the crash it fixed is still fixed.
+
+The AI context extension seam the dungeon-clear port needs
+(`ai/playerbot/AiContextAugment.h`) is also upstream now, under the names
+`RegisterAiContextAugmenter` / `ApplyAiContextAugmenters` (applied from
+`AiFactory::createAiObjectContext`). The patch no longer adds it.

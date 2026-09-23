@@ -2,7 +2,7 @@
 
 You are working in the TortoiseBots module checkout at
 `/Users/pho/Turtle/New/TortoiseBots` (branch `main`, pinned upstream commit
-`3003220`). The image repo that consumes your work is
+`76a0a13d`). The image repo that consumes your work is
 `/Users/pho/Turtle/New/tortoise-docker` — read `docs/SPEC.md` first for
 conventions (patch format, vanilla constraints, pin handling).
 
@@ -63,7 +63,7 @@ Order of work (highest value first):
    build; at minimum self-consistent).
 2. A patch file `docker/penqle/patches/00N-raid-boss-tactics.patch` in the
    image repo (`git diff` output), verified with `git apply --check` against
-   the pinned `BOTS_COMMIT` `3003220...` (bump the pin in
+   the pinned `BOTS_COMMIT` `76a0a13d...` (bump the pin in
    `Dockerfile.penqle` + `.github/workflows/publish.yml` only if the patch
    needs newer upstream code, and note that in the patch README).
 3. A summary row appended to the capability ledger style (what was ported,

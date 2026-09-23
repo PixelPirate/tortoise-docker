@@ -1,35 +1,8 @@
-diff --git a/runtime/AhMarketService.cpp b/runtime/AhMarketService.cpp
-index 094b76d..2418490 100644
---- a/runtime/AhMarketService.cpp
-+++ b/runtime/AhMarketService.cpp
-@@ -825,6 +825,11 @@ bool AhMarketService::BuyAuctionCandidate(AuctionEntry* auction, AuctionHouseObj
-             continue;
-         if (auction->bidder && sObjectMgr.GetPlayerAccountIdByGUID(ObjectGuid(HIGHGUID_PLAYER, auction->bidder)) == bot->GetSession()->GetAccountId())
-             continue;
-+        // F25 solo-idle arbitration: an idle solo bot may also be picked by
-+        // the BG auto-queue or the LFT fill this tick. One claimant wins;
-+        // losing services re-evaluate the bot on a later interval.
-+        if (!BotManager::Instance().ClaimIdleBot(bot->GetObjectGuid(), BotManager::IdleBotClaimant::AhMarket))
-+            continue;
-         eligible.push_back(bot);
-     }
-     if (eligible.empty())
-@@ -1265,6 +1270,10 @@ void AhMarketService::Update(uint32_t diff)
-             continue;
-         if (!PlayerbotAIStorage::Instance().GetAI(bot))
-             continue;
-+        // F25 solo-idle arbitration: one background service wins per tick
-+        // (see BotManager::ClaimIdleBot).
-+        if (!BotManager::Instance().ClaimIdleBot(bot->GetObjectGuid(), BotManager::IdleBotClaimant::AhMarket))
-+            continue;
-         eligible.push_back(bot);
-     }
-     if (eligible.empty())
 diff --git a/runtime/BattlegroundQueueService.cpp b/runtime/BattlegroundQueueService.cpp
-index 590f093..cf931fc 100644
+index 70ab83d..ff8a8e5 100644
 --- a/runtime/BattlegroundQueueService.cpp
 +++ b/runtime/BattlegroundQueueService.cpp
-@@ -118,6 +118,29 @@ BattlegroundQueueService& BattlegroundQueueService::Instance()
+@@ -120,6 +120,29 @@ BattlegroundQueueService& BattlegroundQueueService::Instance()
      return instance;
  }
  
@@ -59,7 +32,7 @@ index 590f093..cf931fc 100644
  void BattlegroundQueueService::Initialize()
  {
      if (m_initialized)
-@@ -125,6 +148,8 @@ void BattlegroundQueueService::Initialize()
+@@ -127,6 +150,8 @@ void BattlegroundQueueService::Initialize()
      m_initialized = true;
      m_elapsedMs = 0;
  
@@ -67,24 +40,12 @@ index 590f093..cf931fc 100644
 +
      if (!sPlayerbotAIConfig.enabled || !sPlayerbotAIConfig.randomBotBgEnabled)
      {
-         sLog.outString("TortoiseBots: BG auto-queue disabled (ai %u bg %u)",
-@@ -492,6 +517,11 @@ void BattlegroundQueueService::Update(uint32_t diff)
-             break;
-         if (!IsEligible(bot))
-             continue;
-+        // F25 solo-idle arbitration: an idle solo bot may also be picked by
-+        // the AH market errand or the LFT fill this tick. One claimant wins;
-+        // losing services re-evaluate the bot on a later interval.
-+        if (!BotManager::Instance().ClaimIdleBot(bot->GetObjectGuid(), BotManager::IdleBotClaimant::BgQueue))
-+            continue;
- 
-         for (HumanBgDemand const& demand : demands)
-         {
+         TB_LOG_BASIC("TortoiseBots: BG auto-queue disabled (ai %u bg %u)",
 diff --git a/runtime/BattlegroundQueueService.h b/runtime/BattlegroundQueueService.h
-index 5aa60c4..c0877df 100644
+index b731110..aa3aab1 100644
 --- a/runtime/BattlegroundQueueService.h
 +++ b/runtime/BattlegroundQueueService.h
-@@ -36,6 +36,7 @@ private:
+@@ -40,6 +40,7 @@ private:
      bool IsGroupFullyBotOwned(::Group* group) const;
      bool HasLiveNonBotMember(::Group* group) const;
      void PruneOwnedQueueSet();
@@ -92,82 +53,11 @@ index 5aa60c4..c0877df 100644
  
      bool m_initialized = false;
      uint32_t m_elapsedMs = 0;
-diff --git a/runtime/BotManager.cpp b/runtime/BotManager.cpp
-index a275300..d364c5b 100644
---- a/runtime/BotManager.cpp
-+++ b/runtime/BotManager.cpp
-@@ -842,6 +842,10 @@ void BotManager::UpdateBots(uint32_t diff)
- 
- void BotManager::OnWorldUpdate(uint32_t diff)
- {
-+    // F25 solo-idle arbitration: advance the claim tick before any service
-+    // runs, so claims from the previous tick never block this tick's winner.
-+    ++m_arbitrationTick;
-+
-     // Core owns Headless session lifecycle (queue, LoginPlayer dispatch, reclaim).
-     // Module only tracks BotRecord and polls adapter state. No pending promotion.
-     for (auto it = m_bots.begin(); it != m_bots.end(); )
-@@ -955,6 +959,23 @@ void BotManager::OnWorldUpdate(uint32_t diff)
-         UpdatePacketBridgeTest(diff);
- }
- 
-+bool BotManager::ClaimIdleBot(::ObjectGuid guid, IdleBotClaimant claimant)
-+{
-+    if (guid.IsEmpty() || claimant == IdleBotClaimant::None)
-+        return false;
-+    // Only module-owned bots are arbitrable; players/unknown guids fail closed.
-+    if (!IsBot(guid))
-+        return false;
-+
-+    uint32_t key = guid.GetCounter();
-+    std::unordered_map<uint32_t, std::pair<uint32_t, IdleBotClaimant>>::iterator it = m_idleClaims.find(key);
-+    if (it != m_idleClaims.end() && it->second.first == m_arbitrationTick)
-+        return it->second.second == claimant;
-+
-+    m_idleClaims[key] = std::make_pair(m_arbitrationTick, claimant);
-+    return true;
-+}
-+
- void BotManager::UpdatePacketBridgeTest(uint32_t diff)
- {
-     (void)diff;
-diff --git a/runtime/BotManager.h b/runtime/BotManager.h
-index e737cd1..b0ff16f 100644
---- a/runtime/BotManager.h
-+++ b/runtime/BotManager.h
-@@ -130,6 +130,17 @@ public:
-     // Snapshot of in-world bots owned by a master. Callers never receive the
-     // manager's records or session pointers, only live Player identities.
-     std::vector<Player*> GetBotsForMaster(ObjectGuid masterGuid) const;
-+    // F25 solo-idle arbitration. An idle solo bot can be simultaneously
-+    // eligible for the AH market errand, the BG auto-queue, and the LFT fill.
-+    // One claimant wins per bot per world tick, so a single background service
-+    // owns the bot's autonomous transition for that tick. The effective
-+    // priority is the fixed host update order (AH market -> BG auto-queue ->
-+    // LFT fill); cross-tick conflicts remain covered by the services'
-+    // fail-closed eligibility guards. Claims keyed by tick, so the boundary
-+    // between the host's WorldScript passes cannot double-clear.
-+    enum class IdleBotClaimant : uint8_t { None = 0, AhMarket, BgQueue, LftFill };
-+    bool ClaimIdleBot(::ObjectGuid guid, IdleBotClaimant claimant);
-+
-     // Snapshot of every live module-owned bot for legacy holder adapters and
-     // diagnostics. Ownership remains entirely inside BotManager.
-     std::vector<Player*> GetAllBots() const;
-@@ -177,6 +188,9 @@ private:
- 
- 
-     std::unordered_map<uint32_t, BotEntry> m_bots; // key = guid counter
-+    // F25 solo-idle arbitration state: guid counter -> (tick, claimant).
-+    std::unordered_map<uint32_t, std::pair<uint32_t, IdleBotClaimant>> m_idleClaims;
-+    uint32_t m_arbitrationTick = 0;
-     bool m_autoTestEnabled = false;
-     uint32_t m_autoTestAccount = 0;
- // pi-lens-ignore: clang:unknown_typename
 diff --git a/runtime/LftBotFillService.cpp b/runtime/LftBotFillService.cpp
-index 4ed1a22..21e6c51 100644
+index 7e2e9ea..8d7120d 100644
 --- a/runtime/LftBotFillService.cpp
 +++ b/runtime/LftBotFillService.cpp
-@@ -126,6 +126,28 @@ LftBotFillService& LftBotFillService::Instance()
+@@ -129,6 +129,28 @@ LftBotFillService& LftBotFillService::Instance()
      return instance;
  }
  
@@ -196,7 +86,7 @@ index 4ed1a22..21e6c51 100644
  void LftBotFillService::Initialize()
  {
      if (m_initialized)
-@@ -134,6 +156,8 @@ void LftBotFillService::Initialize()
+@@ -137,6 +159,8 @@ void LftBotFillService::Initialize()
      m_elapsedMs = 0;
      m_pending.clear();
  
@@ -204,29 +94,16 @@ index 4ed1a22..21e6c51 100644
 +
      if (!sPlayerbotAIConfig.enabled || !sPlayerbotAIConfig.randomBotLftEnabled)
      {
-         sLog.outString("TortoiseBots: LFT fill disabled (ai %u lft %u)", sPlayerbotAIConfig.enabled, sPlayerbotAIConfig.randomBotLftEnabled);
-@@ -491,6 +515,12 @@ void LftBotFillService::Update(uint32_t diff)
-                         continue;
-                     if (sLFTMgr.IsQueued(cand->GetObjectGuid()) || sLFTMgr.IsInOffer(cand->GetObjectGuid()))
-                         continue;
-+                    // F25 solo-idle arbitration: an idle solo bot may also be
-+                    // picked by the AH market errand or the BG auto-queue this
-+                    // tick. One claimant wins; losing services re-evaluate the
-+                    // bot on a later interval.
-+                    if (!BotManager::Instance().ClaimIdleBot(cand->GetObjectGuid(), BotManager::IdleBotClaimant::LftFill))
-+                        continue;
-                     chosen = cand;
-                     chosenIdx = idx;
-                     break;
+         TB_LOG_BASIC("TortoiseBots: LFT fill disabled (ai %u lft %u)", sPlayerbotAIConfig.enabled, sPlayerbotAIConfig.randomBotLftEnabled);
 diff --git a/runtime/LftBotFillService.h b/runtime/LftBotFillService.h
-index f24c4a9..5fc02f8 100644
+index ce06127..f4cef6f 100644
 --- a/runtime/LftBotFillService.h
 +++ b/runtime/LftBotFillService.h
-@@ -39,6 +39,7 @@ private:
+@@ -44,6 +44,7 @@ private:
      void ReconcilePending(bool cancelAll, std::vector<std::string> const* activeInstances = nullptr);
      void AcceptPendingOffers();
      void ClearForcedRole(uint32 guidLow);
 +    void DrainStaleLftQueue();
- 
-     bool m_initialized = false;
-     uint32_t m_elapsedMs = 0;
+     // Issue #189 Phase 4: natural-role eligibility (no borrowing by default)
+     // plus best-shield-from-bags equip for shield-class tanks. Returns the
+     // skip reason when the bot must not fill the role, empty when it may.

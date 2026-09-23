@@ -9,13 +9,13 @@ on:
   workflow_dispatch:
     inputs:
       core_commit:
-        description: "Commit SHA of Penqle/tortoise-wow (bot-helpers) to build"
+        description: "Commit SHA of tortoise-wow (1181dev) to build"
         required: false
-        default: "b74e4ee43b94fc898823409b713436fe872febe8"
+        default: "010cdb6d513ae3c29ab685e2ff708fb18d8295c8"
       bots_commit:
         description: "Commit SHA of Sagiroth/TortoiseBots to build"
         required: false
-        default: "300322076c41c9f99c9e909693e3c19491d6d9f9"
+        default: "76a0a13d9bfce850e51f2e5df085019521caf386"
 
 permissions:
   contents: read
@@ -42,9 +42,8 @@ jobs:
       - name: Resolve source commits
         id: source
         run: |
-          CORE_SHA="${{ github.event.inputs.core_commit || 'b74e4ee43b94fc898823409b713436fe872febe8' }}"
-          BOTS_SHA="$(git ls-remote https://github.com/Sagiroth/TortoiseBots.git HEAD | cut -f1)"
-          [ -n "${BOTS_SHA}" ] || { echo "Could not resolve TortoiseBots HEAD" >&2; exit 1; }
+          CORE_SHA="${{ github.event.inputs.core_commit || '010cdb6d513ae3c29ab685e2ff708fb18d8295c8' }}"
+          BOTS_SHA="${{ github.event.inputs.bots_commit || '76a0a13d9bfce850e51f2e5df085019521caf386' }}"
           echo "Core pin: ${CORE_SHA}"
           echo "Bots pin: ${BOTS_SHA}"
           echo "core_sha=${CORE_SHA}" >> "$GITHUB_OUTPUT"

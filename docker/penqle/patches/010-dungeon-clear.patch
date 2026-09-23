@@ -1,5 +1,5 @@
 diff --git a/TortoiseBots.cmake b/TortoiseBots.cmake
-index 06116f1..8564601 100644
+index fb183e6..2ba08c8 100644
 --- a/TortoiseBots.cmake
 +++ b/TortoiseBots.cmake
 @@ -8,6 +8,16 @@
@@ -34,15 +34,7 @@ index 06116f1..8564601 100644
    # Optional module migrations are installed only with the module. The core
    # AutoUpdater applies them on startup without making bots a core dependency.
    # AutoUpdater's module contract is case-sensitive on Linux. Penqle's
-@@ -96,6 +114,7 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
-     "${TORTOISEBOTS_ROOT}/ai/playerbot/PlayerbotAI.cpp"
-     "${TORTOISEBOTS_ROOT}/ai/playerbot/PlayerbotAIConfig.cpp"
-     "${TORTOISEBOTS_ROOT}/ai/playerbot/AiFactory.cpp"
-+    "${TORTOISEBOTS_ROOT}/ai/playerbot/AiContextAugment.cpp"
-     "${TORTOISEBOTS_ROOT}/ai/playerbot/ServerFacade.cpp"
-     "${TORTOISEBOTS_ROOT}/ai/playerbot/PlayerbotSecurity.cpp"
-     "${TORTOISEBOTS_ROOT}/ai/playerbot/BotLog.cpp"
-@@ -156,6 +175,28 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
+@@ -166,6 +184,28 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
    file(GLOB TORTOISEBOTS_ACTION_SRC CONFIGURE_DEPENDS
      "${TORTOISEBOTS_ROOT}/ai/playerbot/strategy/actions/*.cpp")
  
@@ -71,7 +63,7 @@ index 06116f1..8564601 100644
    set(TORTOISEBOTS_SOURCES
      ${TORTOISEBOTS_HOST_SRC}
      ${TORTOISEBOTS_AI_SRC}
-@@ -166,6 +207,8 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
+@@ -176,6 +216,8 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
      ${TORTOISEBOTS_TRIGGER_SRC}
      ${TORTOISEBOTS_ACTION_SRC})
    list(REMOVE_DUPLICATES TORTOISEBOTS_SOURCES)
@@ -80,9 +72,9 @@ index 06116f1..8564601 100644
  
    foreach(TORTOISEBOTS_SOURCE IN LISTS TORTOISEBOTS_SOURCES)
      if(NOT EXISTS "${TORTOISEBOTS_SOURCE}")
-@@ -225,5 +268,91 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "POST_TARGETS")
-       target_precompile_headers("${TORTOISEBOTS_TARGET}" PRIVATE
-         "${TORTOISEBOTS_ROOT}/ai/botpch.h")
+@@ -255,5 +297,91 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "POST_TARGETS")
+           "-include" "${TORTOISEBOTS_PCH_HEADER}")
+       endif()
      endif()
 +
 +    # Dungeon-clear: its own include roots (module sources resolve
@@ -173,7 +165,7 @@ index 06116f1..8564601 100644
    endif()
  endif()
 diff --git a/ai/cmangos-compat-shim.h b/ai/cmangos-compat-shim.h
-index 17f6899..b524e4b 100644
+index af3d6f7..9c58d8a 100644
 --- a/ai/cmangos-compat-shim.h
 +++ b/ai/cmangos-compat-shim.h
 @@ -26,6 +26,7 @@
@@ -126560,122 +126552,6 @@ index 0000000..76f71a1
 +
 +if __name__ == "__main__":
 +    main()
-diff --git a/ai/playerbot/AiContextAugment.cpp b/ai/playerbot/AiContextAugment.cpp
-new file mode 100644
-index 0000000..8460765
---- /dev/null
-+++ b/ai/playerbot/AiContextAugment.cpp
-@@ -0,0 +1,37 @@
-+#include "AiContextAugment.h"
-+
-+#include <mutex>
-+
-+namespace
-+{
-+    std::mutex s_augmentMutex;
-+    std::vector<AiContextAugmenter>& Augmenters()
-+    {
-+        static std::vector<AiContextAugmenter> augmenters;
-+        return augmenters;
-+    }
-+}
-+
-+void RegisterAiContextAugmenter(AiContextAugmenter fn)
-+{
-+    if (!fn)
-+        return;
-+    std::lock_guard<std::mutex> lock(s_augmentMutex);
-+    Augmenters().push_back(fn);
-+}
-+
-+void RunAiContextAugmenters(PlayerbotAI* ai, ai::AiObjectContext* context)
-+{
-+    if (!ai || !context)
-+        return;
-+    // Snapshot under lock so a registration racing a bot login cannot
-+    // mutate the vector mid-iteration; the calls themselves run on the
-+    // caller's thread like the rest of context construction.
-+    std::vector<AiContextAugmenter> snapshot;
-+    {
-+        std::lock_guard<std::mutex> lock(s_augmentMutex);
-+        snapshot = Augmenters();
-+    }
-+    for (AiContextAugmenter fn : snapshot)
-+        fn(ai, context);
-+}
-diff --git a/ai/playerbot/AiContextAugment.h b/ai/playerbot/AiContextAugment.h
-new file mode 100644
-index 0000000..ed4df17
---- /dev/null
-+++ b/ai/playerbot/AiContextAugment.h
-@@ -0,0 +1,34 @@
-+// Modules extend every bot's AI context through here.
-+//
-+// mod-dungeon-clear (ported from the Shyalya host) registers its strategy/
-+// action/trigger/value contexts once and expects them handed to every bot
-+// context as it is built — including contexts that already exist when the
-+// module registers. TortoiseBots builds the registries per bot in the
-+// AiObjectContext constructor, so the constructor runs the registered
-+// augmenters at the end of construction. Augmenters stay registered for the
-+// process lifetime; there is deliberately no unregister (a module cannot be
-+// unloaded from a static build).
-+//
-+// OWNERSHIP: an augmenter must hand the context fresh instances per bot (the
-+// NamedObjectContextList takes ownership); shared function-local statics
-+// would be deleted with the first torn-down bot context and would bind one
-+// bot's PlayerbotAI into every later bot's objects.
-+
-+#ifndef TORTOISEBOTS_AICONTEXTAUGMENT_H
-+#define TORTOISEBOTS_AICONTEXTAUGMENT_H
-+
-+#include <vector>
-+
-+class PlayerbotAI;
-+
-+namespace ai
-+{
-+    class AiObjectContext;
-+}
-+
-+typedef void (*AiContextAugmenter)(PlayerbotAI* ai, ai::AiObjectContext* context);
-+
-+void RegisterAiContextAugmenter(AiContextAugmenter fn);
-+void RunAiContextAugmenters(PlayerbotAI* ai, ai::AiObjectContext* context);
-+
-+#endif
-diff --git a/ai/playerbot/PlayerbotAI.h b/ai/playerbot/PlayerbotAI.h
-index ea4f2ea..ebdbea0 100644
---- a/ai/playerbot/PlayerbotAI.h
-+++ b/ai/playerbot/PlayerbotAI.h
-@@ -342,6 +342,13 @@ public:
-     virtual void UpdateAI(uint32 elapsed, bool minimal = false);
- 
-     void HandleCommands();
-+    // Dungeon-clear port (donor host parity): while a dungeon-clear run drives
-+    // the bot, the chat-keyword areatrigger relay must not port it out mid-run
-+    // (the donor's live "leader tank vanished" bug). The strategy gate sets
-+    // this on run install and clears it on teardown; AreaTriggerAction reads
-+    // it and stands down.
-+    void SetSuppressAreaTriggerRelay(bool on) { m_suppressAreaTriggerRelay = on; }
-+    bool IsAreaTriggerRelaySuppressed() const { return m_suppressAreaTriggerRelay; }
- private:
-     void UpdateAIInternal(uint32 elapsed, bool minimal = false) override;
- public:
-@@ -797,9 +804,14 @@ public:
-     std::vector<std::string> GetRecordedMessages() { m_recordMessages = false; m_recordIncommingMessages= false; auto msgs = m_recordedMessages; m_recordedMessages.clear(); return msgs; }
-     void ClearRecordedMessages() { m_recordedMessages.clear(); m_recordMessages = false; m_recordIncommingMessages = false;}
- 
-+    Engine* GetEngine(BotState type) { return engines[(uint8)type]; }
-+
- #ifdef BUILD_ELUNA
-     MaNGOS::unique_weak_ptr<PlayerbotAI> m_weakRef;
- #endif
-+
-+private:
-+    bool m_suppressAreaTriggerRelay = false;
- };
- 
- template<typename T>
 diff --git a/ai/playerbot/PlayerbotAIBase.h b/ai/playerbot/PlayerbotAIBase.h
 index 79ebea8..63cdb7b 100644
 --- a/ai/playerbot/PlayerbotAIBase.h
@@ -126695,30 +126571,11 @@ index 79ebea8..63cdb7b 100644
      void ResetAIInternalUpdateDelay() { aiInternalUpdateDelay = 0U; }
      void IncreaseAIInternalUpdateDelay(uint32 delay);
      void YieldAIInternalThread(bool minimal = false);
-diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index bc709d2..03b7080 100644
---- a/ai/playerbot/PlayerbotAIConfig.h
-+++ b/ai/playerbot/PlayerbotAIConfig.h
-@@ -96,6 +96,14 @@ public:
- 	bool IsInPvpProhibitedZone(uint32 id);
- 
-     bool enabled;
-+    // The donor host caps how many bots one account may .add; the
-+    // dungeon-clear test runner reads it to size its parties. Zero keeps that
-+    // gate open, the same default the donor ships (never loaded from config).
-+    uint32 maxAddedBots = 0;
-+    // Donor-host gear ceilings for auto-equip; 0 is the shipped default and
-+    // means unlimited. The dungeon-clear test sidecar reads them.
-+    uint32 autoGearScoreLimit = 0;
-+    uint32 autoGearQualityLimit = 0;
-     bool allowGuildBots;
-     bool allowMultiAccountAltBots;
-     uint32 globalCoolDown, reactDelay, maxWaitForMove, expireActionTime, dispelAuraDuration, passiveDelay, repeatDelay,
 diff --git a/ai/playerbot/TravelMgr.h b/ai/playerbot/TravelMgr.h
-index 39da00f..2ce5ea2 100644
+index f6e2157..c75765d 100644
 --- a/ai/playerbot/TravelMgr.h
 +++ b/ai/playerbot/TravelMgr.h
-@@ -187,7 +187,7 @@ namespace ai
+@@ -189,7 +189,7 @@ namespace ai
  		virtual GameObjectInfo const* GetGoInfo() const { return goInfo; }
  		virtual CreatureInfo const* GetCreatureInfo() const { return creatureInfo; }
  		virtual TravelDestinationPurpose GetPurpose() const override { return purpose; }
@@ -126727,56 +126584,6 @@ index 39da00f..2ce5ea2 100644
  
  		virtual std::string GetShortName() const override;
  	private:
-diff --git a/ai/playerbot/strategy/AiObjectContext.cpp b/ai/playerbot/strategy/AiObjectContext.cpp
-index 2b71793..f3d0cd8 100644
---- a/ai/playerbot/strategy/AiObjectContext.cpp
-+++ b/ai/playerbot/strategy/AiObjectContext.cpp
-@@ -12,6 +12,7 @@
- #include "actions/WorldPacketActionContext.h"
- #include "values/ValueContext.h"
- #include "values/SharedValueContext.h"
-+#include "AiContextAugment.h"
- 
- 
- using namespace ai;
-@@ -35,6 +36,11 @@ AiObjectContext::AiObjectContext(PlayerbotAI* ai) : PlayerbotAIAware(ai)
-     valueContexts.Add(new ValueContext());
- 
-     //valueContexts.Add(&sSharedValueContext);
-+
-+    // Module extension seam: a vendored submodule (dungeon-clear) registers
-+    // its contexts once and receives every bot context here, exactly like
-+    // the donor host's AiContextAugment.
-+    RunAiContextAugmenters(ai, this);
- }
- 
- void AiObjectContext::ClearValues(std::string findName)
-diff --git a/ai/playerbot/strategy/AiObjectContext.h b/ai/playerbot/strategy/AiObjectContext.h
-index 1d91035..9017b46 100644
---- a/ai/playerbot/strategy/AiObjectContext.h
-+++ b/ai/playerbot/strategy/AiObjectContext.h
-@@ -102,6 +102,21 @@ namespace ai
-         {
-             valueContexts.Add(sharedValues);
-         }
-+        // Module extension seam (dungeon-clear port, donor host parity): a
-+        // submodule registers whole context families the same way, one fresh
-+        // instance per bot context (NamedObjectContextList owns them).
-+        virtual void AddShared(NamedObjectContext<Strategy>* sharedStrategies)
-+        {
-+            strategyContexts.Add(sharedStrategies);
-+        }
-+        virtual void AddShared(NamedObjectContext<Action>* sharedActions)
-+        {
-+            actionContexts.Add(sharedActions);
-+        }
-+        virtual void AddShared(NamedObjectContext<Trigger>* sharedTriggers)
-+        {
-+            triggerContexts.Add(sharedTriggers);
-+        }
-         std::list<std::string> Save();
-         void Load(std::list<std::string> data);
- 
 diff --git a/ai/playerbot/strategy/Value.h b/ai/playerbot/strategy/Value.h
 index 4472ddb..f4d30b4 100644
 --- a/ai/playerbot/strategy/Value.h
@@ -126802,19 +126609,6 @@ index 90e47ac..0eac4f1 100644
 +#include "Guild/GuildMgr.h"
 +
  // Implemented inline by the Tortoise action header.
-diff --git a/ai/playerbot/strategy/actions/AcceptInvitationAction.h b/ai/playerbot/strategy/actions/AcceptInvitationAction.h
-index 64446ff..22c532e 100644
---- a/ai/playerbot/strategy/actions/AcceptInvitationAction.h
-+++ b/ai/playerbot/strategy/actions/AcceptInvitationAction.h
-@@ -7,6 +7,8 @@
- #include "playerbot/strategy/Action.h"
- #include "UseMeetingStoneAction.h"
- 
-+#include "Guild/GuildMgr.h"
-+
- namespace ai
- {
-     class AcceptInvitationAction : public Action
 diff --git a/ai/playerbot/strategy/actions/AreaTriggerAction.cpp b/ai/playerbot/strategy/actions/AreaTriggerAction.cpp
 index 42335ba..a966afc 100644
 --- a/ai/playerbot/strategy/actions/AreaTriggerAction.cpp
@@ -126832,314 +126626,6 @@ index 42335ba..a966afc 100644
      LastMovement& movement = context->GetValue<LastMovement&>("last area trigger")->Get();
  
      uint32 triggerId = movement.lastAreaTrigger;
-diff --git a/ai/playerbot/strategy/actions/MovementActions.cpp b/ai/playerbot/strategy/actions/MovementActions.cpp
-index aa61e96..7c990e4 100644
---- a/ai/playerbot/strategy/actions/MovementActions.cpp
-+++ b/ai/playerbot/strategy/actions/MovementActions.cpp
-@@ -1128,6 +1128,26 @@ float MovementAction::GetFollowAngle()
-     return 0;
- }
- 
-+// No-argument form (dungeon-clear port, donor host parity): may the bot
-+// start moving from where it stands.
-+bool MovementAction::IsMovingAllowed()
-+{
-+    if (!bot)
-+        return false;
-+
-+    return IsMovingAllowed(bot->GetMapId(), bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ());
-+}
-+
-+// mod-playerbots spelling: jump the bot to a point, on MotionMaster::MoveJump.
-+bool MovementAction::JumpTo(uint32 /*mapId*/, float x, float y, float z, MovementPriority /*priority*/)
-+{
-+    if (!bot)
-+        return false;
-+
-+    bot->GetMotionMaster()->MoveJump(x, y, z, 10.0f, 5.0f);
-+    return true;
-+}
-+
- bool MovementAction::IsMovingAllowed(Unit* target)
- {
-     if (!target)
-diff --git a/ai/playerbot/strategy/actions/MovementActions.h b/ai/playerbot/strategy/actions/MovementActions.h
-index a8ccdaa..5228948 100644
---- a/ai/playerbot/strategy/actions/MovementActions.h
-+++ b/ai/playerbot/strategy/actions/MovementActions.h
-@@ -9,6 +9,19 @@
- #include "playerbot/strategy/values/HazardsValue.h"
- #include "playerbot/strategy/values/LastMovementValue.h"
- 
-+// Move priorities, for code ported from mod-playerbots, which arbitrates
-+// moves by them. Nothing in this tree arbitrates: MoveTo takes the move and
-+// issues it. The type exists so ported call sites keep their shape, and every
-+// place that drops the value says so (same shape the donor host gave its own
-+// MovementAction).
-+enum class MovementPriority : uint8
-+{
-+    MOVEMENT_IDLE   = 0,
-+    MOVEMENT_NORMAL = 1,
-+    MOVEMENT_COMBAT = 2,
-+    MOVEMENT_FORCED = 3
-+};
-+
- namespace ai
- {
-     class MovementAction : public Action
-@@ -31,8 +44,13 @@ namespace ai
-            return MoveTo(location.mapId, location.x, location.y, location.z, idle, react, noPath, ignoreEnemyTargets);
-         }
- 
-+    public:
-+        // Static taxi adapter shared with the RPG actions (which are not
-+        // MovementAction subclasses).
-         static bool UseTaxi(PlayerbotAI* ai, uint32 entry = 0, bool needNpc = true, Creature* sourceNpc = nullptr);
- 
-+    protected:
-+
- 
-         bool WaitForTransport();
- 
-@@ -84,10 +102,51 @@ namespace ai
-         bool ShouldReactionInterruptCast() const override { return true; }
-         bool ShouldReactionInterruptMovement() const override { return true; }
- 
--    private:
-+    protected: // the dungeon-clear port's dropping overloads are used by subclasses
-         bool IsValidPosition(const WorldPosition& position, const WorldPosition& visibleFromPosition);
-         bool IsHazardNearPosition(const WorldPosition& position, HazardPosition* outHazard = nullptr);
-         bool GeneratePathAvoidingHazards(std::vector<WorldPosition>& movePath);
-+
-+        // --- dungeon-clear port: mod-playerbots movement surface ------------
-+        // MoveTo overload dropping the mod-playerbots movement arguments
-+        // (see MovementPriority above and the donor host's MovementAction).
-+
-+        // mod-playerbots carries four more arguments on this call. Three are
-+        // accepted and dropped - exact_waypoint, lessDelay and backwards have
-+        // no counterpart in this generator - and the priority goes the way
-+        // every other priority here goes. normal_only maps onto noPath, which
-+        // is the same request: do not route, go straight.
-+        bool MoveTo(uint32 mapId, float x, float y, float z, bool idle, bool react,
-+                    bool normal_only, bool /*exact_waypoint*/,
-+                    MovementPriority /*priority*/, bool /*lessDelay*/ = false,
-+                    bool /*backwards*/ = false)
-+        { return MoveTo(mapId, x, y, z, idle, react, normal_only); }
-+
-+        // mod-playerbots refuses a move to a spot the bot was just sent to.
-+        // Nothing here records that, so nothing is a duplicate. False keeps
-+        // the move flowing, which is the safe direction - see
-+        // IsWaitingForLastMove.
-+        bool IsDuplicateMove(float /*x*/, float /*y*/, float /*z*/) const { return false; }
-+
-+        // mod-playerbots spelling: jump the bot to a point. Sits on
-+        // MotionMaster::MoveJump. The mapId is accepted and ignored - a jump
-+        // never leaves the map, and ported callers pass it because their
-+        // MoveTo takes one. The priority is dropped.
-+        bool JumpTo(uint32 /*mapId*/, float x, float y, float z,
-+                    MovementPriority /*priority*/ = MovementPriority::MOVEMENT_NORMAL);
-+
-+        // mod-playerbots records a wait sized to the last leg and refuses a
-+        // later move whose priority is not strictly greater. This tree
-+        // records no such wait - LastMovement carries no timestamp and no
-+        // priority - so there is nothing to answer from and this says "not
-+        // waiting". False is the safe answer, not merely the convenient one:
-+        // the failure it avoids is a leftover wait silently refusing the
-+        // NEXT leg, leaving the tank standing in the pack it just pulled.
-+        bool IsWaitingForLastMove(MovementPriority /*priority*/ = MovementPriority::MOVEMENT_NORMAL) const { return false; }
-+
-+        // No-argument form: may the bot start moving from where it stands.
-+        bool IsMovingAllowed();
-+        // --------------------------------------------------------------------
-     };
- 
-     class FleeAction : public MovementAction
-diff --git a/ai/playerbot/strategy/druid/GenericDruidStrategy.h b/ai/playerbot/strategy/druid/GenericDruidStrategy.h
-index 506a360..130730f 100644
---- a/ai/playerbot/strategy/druid/GenericDruidStrategy.h
-+++ b/ai/playerbot/strategy/druid/GenericDruidStrategy.h
-@@ -8,6 +8,13 @@
- #ifndef PLAYERBOTS_GENERICDRUIDSTRATEGY_H
- #define PLAYERBOTS_GENERICDRUIDSTRATEGY_H
- 
-+
-+// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
-+namespace ai
-+{
-+    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
-+}
-+
- #include "CombatStrategy.h"
- 
- class PlayerbotAI;
-diff --git a/ai/playerbot/strategy/generic/ForceRebuff.cpp b/ai/playerbot/strategy/generic/ForceRebuff.cpp
-index dfa4a2d..f69f45f 100644
---- a/ai/playerbot/strategy/generic/ForceRebuff.cpp
-+++ b/ai/playerbot/strategy/generic/ForceRebuff.cpp
-@@ -35,7 +35,9 @@ bool ForceRebuffState::IsPending() const
- 
- bool ForceRebuffState::IsOnGlobalCooldown() const
- {
--    return bot && lastGcdSpell && bot->HasGlobalCooldown(lastGcdSpell);
-+    // Unit carries the global-cooldown state on this core.
-+    return bot && lastGcdSpell &&
-+           bot->GetGlobalCooldownMgr().HasGlobalCooldown(lastGcdSpell);
- }
- 
- void ForceRebuffState::NoteBuffWork()
-@@ -101,7 +103,9 @@ public:
- 
- void ForceRebuffStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
- {
--    triggers.push_back(new TriggerNode("force rebuff pending", { new NextAction("ready reply", 6.0f) }));
-+    triggers.push_back(new TriggerNode(
-+        "force rebuff pending",
-+        NextAction::array(0, new NextAction("ready reply", 6.0f), NULL)));
- }
- 
- void ForceRebuffStrategy::InitMultipliers(std::vector<Multiplier*>& multipliers)
-diff --git a/ai/playerbot/strategy/hunter/GenericHunterStrategy.h b/ai/playerbot/strategy/hunter/GenericHunterStrategy.h
-index 901a05f..e88cd24 100644
---- a/ai/playerbot/strategy/hunter/GenericHunterStrategy.h
-+++ b/ai/playerbot/strategy/hunter/GenericHunterStrategy.h
-@@ -8,6 +8,13 @@
- #ifndef PLAYERBOTS_GENERICHUNTERSTRATEGY_H
- #define PLAYERBOTS_GENERICHUNTERSTRATEGY_H
- 
-+
-+// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
-+namespace ai
-+{
-+    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
-+}
-+
- #include "CombatStrategy.h"
- #include "Strategy.h"
- 
-diff --git a/ai/playerbot/strategy/mage/GenericMageStrategy.h b/ai/playerbot/strategy/mage/GenericMageStrategy.h
-index 7b10897..6ccda3d 100644
---- a/ai/playerbot/strategy/mage/GenericMageStrategy.h
-+++ b/ai/playerbot/strategy/mage/GenericMageStrategy.h
-@@ -8,6 +8,13 @@
- #ifndef PLAYERBOTS_GENERICMAGESTRATEGY_H
- #define PLAYERBOTS_GENERICMAGESTRATEGY_H
- 
-+
-+// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
-+namespace ai
-+{
-+    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
-+}
-+
- #include "CombatStrategy.h"
- #include "RangedCombatStrategy.h"
- 
-diff --git a/ai/playerbot/strategy/paladin/GenericPaladinStrategy.h b/ai/playerbot/strategy/paladin/GenericPaladinStrategy.h
-index 59cbca9..fad342d 100644
---- a/ai/playerbot/strategy/paladin/GenericPaladinStrategy.h
-+++ b/ai/playerbot/strategy/paladin/GenericPaladinStrategy.h
-@@ -8,6 +8,13 @@
- #ifndef PLAYERBOTS_GENERICPALADINSTRATEGY_H
- #define PLAYERBOTS_GENERICPALADINSTRATEGY_H
- 
-+
-+// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
-+namespace ai
-+{
-+    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
-+}
-+
- #include "CombatStrategy.h"
- 
- class PlayerbotAI;
-diff --git a/ai/playerbot/strategy/priest/GenericPriestStrategy.h b/ai/playerbot/strategy/priest/GenericPriestStrategy.h
-index 6e7b160..288b85b 100644
---- a/ai/playerbot/strategy/priest/GenericPriestStrategy.h
-+++ b/ai/playerbot/strategy/priest/GenericPriestStrategy.h
-@@ -8,6 +8,13 @@
- #ifndef PLAYERBOTS_GENERICPRIESTSTRATEGY_H
- #define PLAYERBOTS_GENERICPRIESTSTRATEGY_H
- 
-+
-+// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
-+namespace ai
-+{
-+    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
-+}
-+
- #include "CombatStrategy.h"
- #include "RangedCombatStrategy.h"
- 
-diff --git a/ai/playerbot/strategy/rogue/DpsRogueStrategy.h b/ai/playerbot/strategy/rogue/DpsRogueStrategy.h
-index 26fd5bc..97ff3d3 100644
---- a/ai/playerbot/strategy/rogue/DpsRogueStrategy.h
-+++ b/ai/playerbot/strategy/rogue/DpsRogueStrategy.h
-@@ -8,6 +8,13 @@
- #ifndef PLAYERBOTS_DPSROGUESTRATEGY_H
- #define PLAYERBOTS_DPSROGUESTRATEGY_H
- 
-+
-+// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
-+namespace ai
-+{
-+    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
-+}
-+
- #include "CombatStrategy.h"
- #include "MeleeCombatStrategy.h"
- 
-diff --git a/ai/playerbot/strategy/triggers/DungeonTriggers.cpp b/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
-index 057db54..a5e3ee3 100644
---- a/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
-+++ b/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
-@@ -58,7 +58,8 @@ bool StartBossFightTrigger::IsActive()
-         if (bot->IsInWorld() && !bot->IsBeingTeleported())
-         {
-             AiObjectContext* context = ai->GetAiObjectContext();
--            const std::list<ObjectGuid> attackers = AI_VALUE(std::list<ObjectGuid>, "attackers");
-+            const std::list<ObjectGuid> attackers =
-+        ai->GetAiObjectContext()->GetValue<std::list<ObjectGuid>>("attackers")->Get();
-             for (const ObjectGuid& attackerGuid : attackers)
-             {
-                 Unit* attacker = ai->GetUnit(attackerGuid);
-@@ -85,9 +86,10 @@ bool EndBossFightTrigger::IsActive()
-     return false;
- }
- 
--Unit* FindDungeonBoss(PlayerbotAI* ai, uint32 entry)
-+Unit* ai::FindDungeonBoss(PlayerbotAI* ai, uint32 entry)
- {
--    const std::list<ObjectGuid> attackers = AI_VALUE(std::list<ObjectGuid>, "attackers");
-+    const std::list<ObjectGuid> attackers =
-+        ai->GetAiObjectContext()->GetValue<std::list<ObjectGuid>>("attackers")->Get();
-     for (const ObjectGuid& guid : attackers)
-     {
-         Unit* unit = ai->GetUnit(guid);
-@@ -95,7 +97,8 @@ Unit* FindDungeonBoss(PlayerbotAI* ai, uint32 entry)
-             return unit;
-     }
- 
--    const std::list<ObjectGuid> possible = AI_VALUE(std::list<ObjectGuid>, "possible targets");
-+    const std::list<ObjectGuid> possible =
-+        ai->GetAiObjectContext()->GetValue<std::list<ObjectGuid>>("possible targets")->Get();
-     for (const ObjectGuid& guid : possible)
-     {
-         Unit* unit = ai->GetUnit(guid);
-diff --git a/ai/playerbot/strategy/triggers/GenericTriggers.cpp b/ai/playerbot/strategy/triggers/GenericTriggers.cpp
-index c48795a..d929dcd 100644
---- a/ai/playerbot/strategy/triggers/GenericTriggers.cpp
-+++ b/ai/playerbot/strategy/triggers/GenericTriggers.cpp
-@@ -194,7 +194,9 @@ bool BuffTrigger::IsActive()
- 	if (!target || !target->IsAlive())
- 		return false;
- 
--	Aura* aura = ai->GetAura(spell, target, false, checkIsOwner);
-+	// This tree's GetAura drops the owner-check to the member flag path
-+	// (same overload family, no fourth argument).
-+	Aura* aura = ai->GetAura(spell, target, checkIsOwner);
- 	if (!aura)
- 		return true;
- 
 diff --git a/ai/playerbot/strategy/values/AttackersValue.h b/ai/playerbot/strategy/values/AttackersValue.h
 index fb1b913..b64fab4 100644
 --- a/ai/playerbot/strategy/values/AttackersValue.h
@@ -127156,27 +126642,9 @@ index fb1b913..b64fab4 100644
          static bool IgnoreTarget(Unit* target, Player* playerToCheckAgainst);
          virtual std::string Format() override;
  
-diff --git a/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h b/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h
-index 0fe1803..a59f6dc 100644
---- a/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h
-+++ b/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h
-@@ -8,6 +8,13 @@
- #ifndef PLAYERBOTS_GENERICWARLOCKSTRATEGY_H
- #define PLAYERBOTS_GENERICWARLOCKSTRATEGY_H
- 
-+
-+// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
-+namespace ai
-+{
-+    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
-+}
-+
- #include "CombatStrategy.h"
- 
- class PlayerbotAI;
 diff --git a/conf/mod_dungeon_clear.conf.dist b/conf/mod_dungeon_clear.conf.dist
 new file mode 100644
-index 0000000..8bd9bd0
+index 0000000..df0d24b
 --- /dev/null
 +++ b/conf/mod_dungeon_clear.conf.dist
 @@ -0,0 +1,1608 @@

@@ -2,7 +2,7 @@
 
 You are working in the TortoiseBots module checkout at
 `/Users/pho/Turtle/New/TortoiseBots` (branch `main`, pinned upstream commit
-`3003220`). The image repo consuming your work is
+`76a0a13d`). The image repo consuming your work is
 `/Users/pho/Turtle/New/tortoise-docker` — read `docs/SPEC.md` for conventions.
 
 This is a batch of five small, independent behavior fixes, all ported from
@@ -80,7 +80,7 @@ cooldown use. Verify both spell IDs against Tortoise data.
 1. Working changes in the TortoiseBots checkout.
 2. One patch file per fix in the image repo:
    `docker/penqle/patches/00N-<fix-name>.patch`, each `git apply --check`
-   clean against pin `3003220...` **independently** (they must be droppable
+   clean against pin `76a0a13d...` **independently** (they must be droppable
    without breaking the others).
 3. Ledger note per fix (ported / skipped + reason).
 4. Env/compose/README wiring only for the ready-check config key (item 1);

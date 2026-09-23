@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# Tortoise WoW — canonical Penqle core (bot-helpers branch) + TortoiseBots module.
+# Tortoise WoW — canonical core (tortoise-wow 1181dev) + TortoiseBots module.
 # Packaged as a drop-in replacement for the Shyalya-based image; see docs/SPEC.md.
 #
 # Build-args CORE_COMMIT / BOTS_COMMIT pin both sources. Declaring them right
@@ -12,11 +12,11 @@ ARG UBUNTU_VERSION=22.04
 # -----------------------------------------------------------------------------
 FROM ubuntu:${UBUNTU_VERSION} AS builder
 
-ARG CORE_REPO=https://github.com/Penqle/tortoise-wow.git
-ARG CORE_REF=bot-helpers
-ARG CORE_COMMIT=b74e4ee43b94fc898823409b713436fe872febe8
+ARG CORE_REPO=https://github.com/tortoise-wow/tortoise-wow.git
+ARG CORE_REF=1181dev
+ARG CORE_COMMIT=010cdb6d513ae3c29ab685e2ff708fb18d8295c8
 ARG BOTS_REPO=https://github.com/Sagiroth/TortoiseBots.git
-ARG BOTS_COMMIT=300322076c41c9f99c9e909693e3c19491d6d9f9
+ARG BOTS_COMMIT=76a0a13d9bfce850e51f2e5df085019521caf386
 ARG CMAKE_BUILD_TYPE=Release
 ARG CMAKE_INSTALL_PREFIX=/opt/turtle
 ARG BUILD_JOBS=2
@@ -118,8 +118,8 @@ ARG CMAKE_INSTALL_PREFIX=/opt/turtle
 ARG CPU_TARGET=x86-64-v2
 
 LABEL org.opencontainers.image.title="tortoise-docker-penqle" \
-      org.opencontainers.image.description="Tortoise WoW server (Penqle bot-helpers core + TortoiseBots) — realmd + mangosd" \
-      org.opencontainers.image.source="https://github.com/Penqle/tortoise-wow" \
+      org.opencontainers.image.description="Tortoise WoW server (tortoise-wow 1181dev core + TortoiseBots) — realmd + mangosd" \
+      org.opencontainers.image.source="https://github.com/tortoise-wow/tortoise-wow" \
       org.opencontainers.image.licenses="AGPL-3.0" \
       org.opencontainers.image.cpu.target="${CPU_TARGET}"
 

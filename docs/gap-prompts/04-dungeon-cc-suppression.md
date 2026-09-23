@@ -2,7 +2,7 @@
 
 You are working in the TortoiseBots module checkout at
 `/Users/pho/Turtle/New/TortoiseBots` (branch `main`, pinned upstream commit
-`3003220`). The image repo consuming your work is
+`76a0a13d`). The image repo consuming your work is
 `/Users/pho/Turtle/New/tortoise-docker` — read `docs/SPEC.md` for conventions.
 
 ## Problem
@@ -62,7 +62,7 @@ and do not exist in Vanilla/Tortoise.
 
 1. Working changes in the TortoiseBots checkout.
 2. Patch `docker/penqle/patches/00N-dungeon-cc-suppression.patch` (image
-   repo), `git apply --check` clean against pin `3003220...`.
+   repo), `git apply --check` clean against pin `76a0a13d...`.
 3. Ledger row `M-BG-LFG` (or a new row) updated to record the mechanism.
 4. No env/compose changes needed (no new config key) unless you add one —
    then wire `render-config.sh` + `.env.example.penqle` + compose + README.

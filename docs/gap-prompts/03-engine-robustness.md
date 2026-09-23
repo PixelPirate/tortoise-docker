@@ -2,7 +2,7 @@
 
 You are working in the TortoiseBots module checkout at
 `/Users/pho/Turtle/New/TortoiseBots` (branch `main`, pinned upstream commit
-`3003220`). The image repo consuming your work is
+`76a0a13d`). The image repo consuming your work is
 `/Users/pho/Turtle/New/tortoise-docker` — read `docs/SPEC.md` for conventions.
 
 ## Problem
@@ -66,7 +66,7 @@ ghost-occupy queue slots after a server restart.
    harness passes (compile and run it standalone if a full build is not
    possible — it is designed for that).
 2. Patch `docker/penqle/patches/00N-engine-robustness.patch` (image repo),
-   `git apply --check` clean against pin `3003220...`.
+   `git apply --check` clean against pin `76a0a13d...`.
 3. Ledger row `F25-SCHED` updated: which of the three gaps closed, which
    remain.
 

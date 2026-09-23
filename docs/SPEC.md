@@ -1,7 +1,16 @@
-# Spec: Penqle `bot-helpers` + TortoiseBots Docker Image
+# Spec: canonical core + TortoiseBots Docker Image
 
 Status: implemented, build not yet run. Local checkouts exist; see §3.4.
 Repo: this spec lives in the new repo (`tortoise-docker`).
+
+> **Re-pin 2026-09-23.** The image now builds from the canonical core on
+> `1181dev` (`tortoise-wow/tortoise-wow`, the renamed `Penqle/tortoise-wow`),
+> pinned to `010cdb6d`, with the module pinned to upstream `main` `76a0a13d`
+> plus the patches in `docker/penqle/patches/` (see §3.1). The `bot-helpers`
+> core branch is no longer used: every seam TortoiseBots needs is merged
+> upstream and the module records `1181dev` as its canonical target. §0, §1,
+> §3.1, §3.4 and §4.1 below carry the current values; other sections describe
+> the original 2026-09-09 bring-up and stay as written.
 
 ## 0. Local context (paths on this machine)
 
@@ -12,8 +21,8 @@ An agent working here has these existing checkouts/projects:
 | `/Users/pho/Turtle/New/tortoise-docker` | **This repo.** All deliverables in §1 are built here. |
 | `/Users/pho/Turtle/tortoise-docker` | The **old image this project supersedes**: the working Shyalya-based setup ([Nescabir/tortoise-docker](https://github.com/Nescabir/tortoise-docker)). **Reference implementation AND parity target** — its `Dockerfile`, `docker-compose.yml`, and `docker/*.sh` scripts are the templates to adapt (see §4). Do not modify it. |
 | `/Users/pho/Turtle/TortoiseCompiledNew` | A Windows-native build/play setup of the current Shyalya stack (compile scripts `compile-tortoise-wow.{ps1,bat}`, compiled server binaries, live config files incl. `aiplayerbot.conf`). Useful as a config example and as proof of the user's client-side setup; not part of the Docker pipeline. |
-| `/Users/pho/Turtle/New/tortoise-wow` | Local clone of the Penqle core, branch `bot-helpers`, commit `b74e4ee4` (cloned 2026-09-09). |
-| `/Users/pho/Turtle/New/TortoiseBots` | Local clone of the bot module, commit `3003220` (cloned 2026-09-09). |
+| `/Users/pho/Turtle/New/tortoise-wow` | Local clone of the canonical core (`tortoise-wow/tortoise-wow`); the image pins it at `1181dev` `010cdb6d`. |
+| `/Users/pho/Turtle/New/TortoiseBots` | Local clone of the bot module; local `main` tracks upstream, the custom work lives on branch `bot-helpers`, and the image pins upstream `main` `76a0a13d` plus the patches in `docker/penqle/patches/`. |
 
 Both upstream projects are cloned locally (see §0); the clones above are the
 reference for reading code and re-running the host-contract verify script.
@@ -34,8 +43,10 @@ the bar — anything the old stack does, this one must do too.
 
 A Docker image, packaged like the old one, that runs:
 
-- **Core**: [Penqle/tortoise-wow](https://github.com/Penqle/tortoise-wow),
-  branch **`bot-helpers`** (NOT `main` — see §3.1), pinned to a commit SHA.
+- **Core**: [tortoise-wow/tortoise-wow](https://github.com/tortoise-wow/tortoise-wow)
+  (the renamed `Penqle/tortoise-wow`), branch **`1181dev`**, pinned to a commit
+  SHA (`010cdb6d`, the branch tip whose seams the module's host-contract gate
+  accepts).
 - **Bot module**: [Sagiroth/TortoiseBots](https://github.com/Sagiroth/TortoiseBots),
   cloned into the core checkout as `modules/TortoiseBots`, pinned to a commit SHA.
 - Same Compose stack shape as today: `db` (MariaDB) + one-shot `db-init` +
@@ -73,17 +84,20 @@ Deliverables in **this repo**:
 
 ### 3.1 Core branch compatibility
 
-- `bot-helpers` tip `b74e4ee4` contains the host seams TortoiseBots needs:
-  `src/game/SessionTransport.h` (with `SessionTransport::Headless`) and
-  `src/game/HeadlessSessionMgr.{h,cpp}`.
-- Penqle PRs **#411** ("generic Headless WorldSession support") and **#416**
-  ("generic participant lifecycle primitives") were **closed unmerged** into
-  `main` on 2026-09-02. Their content lives on the `bot-helpers` branch instead.
-- **Gap resolved (pre-flight 2026-09-09)**: `IWorldUpdateListener` is **not**
-  referenced anywhere in TortoiseBots' source — it is not required. The
-  module's `tools/verify_penqle_host_contract.sh --core <checkout>` was run
-  locally against core `b74e4ee4` and **PASSES** (checks
-  `SessionTransport::Headless`, `HeadlessSessionMgr`,
+- The image pins core `1181dev` at `010cdb6d`. The module records `1181dev` as
+  its canonical target in `CHANGELOG.md` (#162); its `docs/HOST_API.md` still
+  names the older `main` `5fafe43b` ("Merging headless session and module API
+  expansion") baseline.
+- Penqle PRs **#411** and **#416** were closed unmerged on 2026-09-02, but
+  their surface landed on `main` through **#438** (transport plus `World`
+  Headless lifecycle, and the generic participant primitives), with **#469**
+  (module script hooks), **#475** (headless sessions drain synthesized client
+  packets), **#476** (hardened chat hooks) and **#493**
+  (`PlayerScript::OnChatYell`) alongside. The earlier `bot-helpers` pin is no
+  longer needed.
+- The module's `tools/verify_penqle_host_contract.sh --core <checkout>`
+  **PASSES** against `010cdb6d` and runs as a build gate in `Dockerfile.penqle`
+  (checks `SessionTransport::Headless`, `HeadlessSessionMgr`,
   `WorldSession::InitHeadlessSession/IsHeadless`, `World::Start/Stop/
   GetHeadlessSessionState`, `CharacterCreation::CreateCharacter`, LFT/BG
   queue primitives, and asserts no legacy `PlayerBotMgr` coupling). No core
@@ -124,7 +138,7 @@ Deliverables in **this repo**:
 ### 3.4 Pre-flight findings (resolved from local checkouts, 2026-09-09)
 
 Local clones exist at `/Users/pho/Turtle/New/tortoise-wow` (core,
-`b74e4ee4`) and `/Users/pho/Turtle/New/TortoiseBots` (module, `3003220`).
+`010cdb6d`) and `/Users/pho/Turtle/New/TortoiseBots` (module, `76a0a13d`).
 Facts established by reading them:
 
 1. **`-march=native` IS present** in Penqle's `CMakeLists.txt:457` → keep
@@ -145,16 +159,21 @@ Facts established by reading them:
    `${CMAKE_INSTALL_PREFIX}/etc` alongside `mangosd.conf.dist` (as
    `aiplayerbot.conf` and `tortoise_bots.conf`, via `CopyModuleConfig`).
    The etc.dist hard-copy mechanism from the reference image applies as-is.
-5. **Module SQL needs NO manual db-init import**: TortoiseBots' migrations
-   (`data/sql/world/`, `data/sql/char/`) are installed to
-   `${prefix}/modules/TortoiseBots/data/sql/{world,character}` and applied
-   by the **core AutoUpdater on mangosd startup**
-   (`Database.AutoUpdate.Enabled=1`, `Database.AutoUpdate.AllowedModules=
-   "all"`). db-init only imports the core's base SQL
-   (`sql/create_databases.sql`, `sql/base/`). Note: Penqle's
+5. **Module SQL is applied by db-init, not the runtime AutoUpdater**
+   (corrected 2026-09-23 against core `010cdb6d`): TortoiseBots' migrations
+   (`data/sql/world/`, `data/sql/char/`) install to
+   `${prefix}/modules/TortoiseBots/data/sql/{world,character}`, but
+   `AutoUpdater::ProcessUpdates` only scans `TW_SOURCE_MODULES_DIR`
+   (`CMakeLists.txt:593` → `${CMAKE_SOURCE_DIR}/modules`, the build tree) or a
+   CWD-relative `modules` — neither exists in the runtime image, so it logs
+   "Module update path ... does not exist, skipped". `docker/penqle/init-db.sh`
+   applies them instead, behind its init marker. Consequence: a module pin
+   bump that adds migrations does **not** reach an existing database; apply
+   the new files under
+   `/opt/turtle/modules/TortoiseBots/data/sql/{world,character}` manually
+   after rebuilding (or re-init the database). Note: Penqle's
    `database_updates/` has `world/` AND `character/` subfolders (Shyalya's
-   had world-only) — if pre-applying updates in db-init, handle both;
-   otherwise let AutoUpdater do it.
+   had world-only).
 6. **`character_inventory_copy` is still needed**: Penqle's core has
    `ObjectMgr::BackupCharacterInventory()` which TRUNCATEs/INSERTs into
    `character_inventory_copy` (`BackupCharacterInventory = 1` in
@@ -169,10 +188,10 @@ Facts established by reading them:
 Model on the reference `Dockerfile` at
 `/Users/pho/Turtle/tortoise-docker/Dockerfile`. Key changes:
 
-- Build args: `CORE_REPO` (default `https://github.com/Penqle/tortoise-wow.git`),
-  `CORE_REF` (default `bot-helpers`), `CORE_COMMIT` (pin, e.g. `b74e4ee4`),
+- Build args: `CORE_REPO` (default `https://github.com/tortoise-wow/tortoise-wow.git`),
+  `CORE_REF` (default `1181dev`), `CORE_COMMIT` (pin, currently `010cdb6d`),
   `BOTS_REPO` (default `https://github.com/Sagiroth/TortoiseBots.git`),
-  `BOTS_COMMIT` (pin; resolve latest `main` at spec time), `CPU_TARGET=x86-64-v2`,
+  `BOTS_COMMIT` (pin, currently `76a0a13d`), `CPU_TARGET=x86-64-v2`,
   `BUILD_JOBS`.
 - Clone core at pinned SHA (cache-bust pattern from the existing Dockerfile:
   declare the SHA right before the clone `RUN`), then clone TortoiseBots into

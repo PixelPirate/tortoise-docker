@@ -1,5 +1,5 @@
 diff --git a/ai/playerbot/strategy/actions/TradeStatusAction.cpp b/ai/playerbot/strategy/actions/TradeStatusAction.cpp
-index cde2f57..4ca28c2 100644
+index 37c6233..c891378 100644
 --- a/ai/playerbot/strategy/actions/TradeStatusAction.cpp
 +++ b/ai/playerbot/strategy/actions/TradeStatusAction.cpp
 @@ -15,6 +15,12 @@ using namespace ai;
@@ -27,8 +27,8 @@ index cde2f57..4ca28c2 100644
          return false;
      }
  
-@@ -141,6 +144,12 @@ void TradeStatusAction::BeginTrade()
-     }
+@@ -204,6 +207,12 @@ void TradeStatusAction::AutoShareConjured(Player* trader)
+     (void)placed;
  }
  
 +void TradeStatusAction::CancelTrade()
@@ -41,7 +41,7 @@ index cde2f57..4ca28c2 100644
  {
      Player* trader = bot->GetTrader();
 diff --git a/ai/playerbot/strategy/actions/TradeStatusAction.h b/ai/playerbot/strategy/actions/TradeStatusAction.h
-index 452782c..7025b47 100644
+index e2489f6..04f040e 100644
 --- a/ai/playerbot/strategy/actions/TradeStatusAction.h
 +++ b/ai/playerbot/strategy/actions/TradeStatusAction.h
 @@ -12,6 +12,7 @@ namespace ai
@@ -49,6 +49,6 @@ index 452782c..7025b47 100644
      private:
          void BeginTrade();
 +        void CancelTrade();
+         void AutoShareConjured(Player* trader);
          bool CheckTrade();
          int32 CalculateCost(Player *player, bool sell);
-     };

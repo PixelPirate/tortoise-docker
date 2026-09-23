@@ -2,7 +2,7 @@
 
 You are working in the TortoiseBots module checkout at
 `/Users/pho/Turtle/New/TortoiseBots` (branch `main`, pinned upstream commit
-`3003220`). The image repo consuming your work is
+`76a0a13d`). The image repo consuming your work is
 `/Users/pho/Turtle/New/tortoise-docker` — read `docs/SPEC.md` for conventions.
 
 ## Problem
@@ -64,7 +64,7 @@ because the Tortoise core lacks support).
 
 1. Working changes in the TortoiseBots checkout.
 2. Patch `docker/penqle/patches/00N-grind-rpg-corrections.patch` (image
-   repo), `git apply --check` clean against pin `3003220...`.
+   repo), `git apply --check` clean against pin `76a0a13d...`.
 3. Ledger row `F04-RPG` updated per correction (ported / skipped+why).
 
 ## Verify

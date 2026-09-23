@@ -2,7 +2,7 @@
 
 You are working in the TortoiseBots module checkout at
 `/Users/pho/Turtle/New/TortoiseBots` (branch `main`, pinned upstream commit
-`3003220`). The image repo consuming your work is
+`76a0a13d`). The image repo consuming your work is
 `/Users/pho/Turtle/New/tortoise-docker` — read `docs/SPEC.md` for conventions.
 
 ## Problem
@@ -60,7 +60,7 @@ because nothing tells them which creatures to avoid and by how far.
 
 1. Working changes in the TortoiseBots checkout.
 2. Patch `docker/penqle/patches/00N-avoid-creature.patch` (image repo),
-   `git apply --check` clean against pin `3003220...`.
+   `git apply --check` clean against pin `76a0a13d...`.
 3. If you add a config key (e.g. default avoid distance), wire it through
    `docker/penqle/render-config.sh` + `.env.example.penqle` +
    `docker-compose.penqle.yml` + image README; otherwise none.

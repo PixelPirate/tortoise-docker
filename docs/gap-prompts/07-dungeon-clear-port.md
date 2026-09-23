@@ -2,7 +2,7 @@
 
 You are working in the TortoiseBots module checkout at
 `/Users/pho/Turtle/New/TortoiseBots` (branch `main`, pinned upstream commit
-`3003220`). The image repo that consumes your work is
+`76a0a13d`). The image repo that consumes your work is
 `/Users/pho/Turtle/New/tortoise-docker` — read `docs/SPEC.md` first for
 conventions (patch format, vanilla constraints, pin handling).
 
@@ -271,7 +271,7 @@ Vendored subsystems (from `src/Ai/Dungeon/DungeonClear/`):
 2. Patch(es) in the image repo: `docker/penqle/patches/004-dungeon-clear.patch`
    (a small ordered series `004…00N` split by subsystem is acceptable if a
    single diff is unwieldy — each patch must apply cleanly in sequence),
-   `git apply --check` clean against pin `3003220...` with patches
+   `git apply --check` clean against pin `76a0a13d...` with patches
    001–003 applied before it (and against the bare pin if the series is
    ordered so).
 3. Config wiring: `render-config.sh` + `.env.example.penqle` +

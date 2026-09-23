@@ -8,7 +8,7 @@ This repo contains **no application source code**. It is a Docker packaging
 project: `Dockerfile.penqle` builds a Turtle WoW private-server image by
 cloning and compiling two external C++ projects at pinned commit SHAs:
 
-- **Core**: [Penqle/tortoise-wow](https://github.com/Penqle/tortoise-wow), branch `bot-helpers`
+- **Core**: [tortoise-wow/tortoise-wow](https://github.com/tortoise-wow/tortoise-wow), branch `1181dev`
 - **Bot module**: [Sagiroth/TortoiseBots](https://github.com/Sagiroth/TortoiseBots), cloned into the core as `modules/TortoiseBots`
 
 Everything else is Compose orchestration, shell scripts run inside the image,
@@ -66,7 +66,9 @@ Bot-behavior changes are delivered as **build-time patches**, not forks:
 - The `-march=native` sed + grep guard exists because upstream hardcodes it;
   published images must not depend on the build host's CPU. If the guard's
   grep fails the build, upstream changed its CMakeLists — fix the sed, don't
-  delete the guard.
+  delete the guard. `CPU_TARGET` must be a valid GCC `-march` value for the
+  host architecture: `x86-64-v2` (default, x86_64 CI) or `armv8-a` on
+  ARM/Apple Silicon, where the x86 default fails CMake's compiler check.
 - The module's host-contract check
   (`tools/verify_penqle_host_contract.sh --core .`) runs before compilation on
   purpose: it fails in minutes instead of after an hour of building.

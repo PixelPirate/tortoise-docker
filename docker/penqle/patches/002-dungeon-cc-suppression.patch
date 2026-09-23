@@ -1,8 +1,29 @@
 diff --git a/ai/playerbot/PlayerbotAI.cpp b/ai/playerbot/PlayerbotAI.cpp
-index 303a50b..6fa454c 100644
+index ddbfc97..efde829 100644
 --- a/ai/playerbot/PlayerbotAI.cpp
 +++ b/ai/playerbot/PlayerbotAI.cpp
-@@ -784,6 +784,12 @@ bool PlayerbotAI::IsInPve()
+@@ -179,7 +179,7 @@ PlayerbotAI::PlayerbotAI() : PlayerbotAIBase(), bot(NULL), aiObjectContext(NULL)
+ }
+ 
+ PlayerbotAI::PlayerbotAI(Player* bot) :
+-    PlayerbotAIBase(), chatHelper(this), chatFilter(this), security(bot), master(NULL), faceTargetUpdateDelay(0), jumpTime(0), fallAfterJump(false)
++    PlayerbotAIBase(), chatHelper(this), chatFilter(this), security(bot), master(NULL), faceTargetUpdateDelay(0), jumpTime(0), fallAfterJump(false), forceRebuff(bot)
+ {
+     this->bot = bot;
+     if (!bot->IsTaxiCheater() && HasCheat(BotCheatMask::taxi))
+@@ -801,7 +801,10 @@ bool PlayerbotAI::UpdateAIReaction(uint32 elapsed, bool minimal, bool isStunned)
+         {
+             if(reaction->ShouldInterruptCast())
+             {
+-                InterruptSpell();
++                // Interrupt rework (mod-playerbots PR #2680): CastStop only
++                // ends casts a player could stop (no queued melee swings, no
++                // synthetic spell-failure packets).
++                bot->CastStop();
+             }
+ 
+             if (reaction->ShouldInterruptMovement())
+@@ -912,6 +915,12 @@ bool PlayerbotAI::IsInPve()
      return !IsInPvp() && !IsInRaid();
  }
  
@@ -15,11 +36,68 @@ index 303a50b..6fa454c 100644
  bool PlayerbotAI::IsInPvp()
  {
      if (IsSafe(bot))
+@@ -1625,7 +1634,7 @@ void PlayerbotAI::Reset(bool full)
+         RESET_AI_VALUE2(std::string, "manual string", "future travel purpose");
+         RESET_AI_VALUE2(int, "manual int", "future travel relevance");
+ 
+-        InterruptSpell();
++        bot->CastStop();
+ 
+         StopMoving();
+ 
+@@ -2148,7 +2157,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
+         verticalSpeed = -verticalSpeed;
+ 
+         // stop casting
+-        InterruptSpell(false);
++        bot->CastStop();
+ 
+         // stop movement
+         StopMoving();
+@@ -2535,7 +2544,6 @@ void PlayerbotAI::DoNextAction(bool min, bool forceActivity)
+ 
+ void PlayerbotAI::ReInitCurrentEngine()
+ {
+-    InterruptSpell();
+     currentEngine->Init();
+ }
+ 
+@@ -4867,6 +4875,8 @@ bool PlayerbotAI::CastSpell(uint32 spellId, Unit* target, Item* itemTarget, bool
+ 
+     PlayAttackEmote(6);
+ 
++    forceRebuff.NoteCast(pSpellInfo);
++
+     if(waitForSpell)
+     {
+         WaitForSpellCast(spell);
 diff --git a/ai/playerbot/PlayerbotAI.h b/ai/playerbot/PlayerbotAI.h
-index 6ab4892..da02226 100644
+index 4b289c3..b91d44b 100644
 --- a/ai/playerbot/PlayerbotAI.h
 +++ b/ai/playerbot/PlayerbotAI.h
-@@ -700,6 +700,7 @@ public:
+@@ -10,6 +10,7 @@
+ #include "PlayerTalentSpec.h"
+ #include <stack>
+ #include "strategy/IterateItemsMask.h"
++#include "strategy/generic/ForceRebuff.h"
+ #include "../../runtime/BotManager.h"
+ 
+ class Player;
+@@ -341,6 +342,13 @@ public:
+     virtual void UpdateAI(uint32 elapsed, bool minimal = false);
+ 
+     void HandleCommands();
++    // Dungeon-clear port (donor host parity): while a dungeon-clear run drives
++    // the bot, the chat-keyword areatrigger relay must not port it out mid-run
++    // (the donor's live "leader tank vanished" bug). The strategy gate sets
++    // this on run install and clears it on teardown; AreaTriggerAction reads
++    // it and stands down.
++    void SetSuppressAreaTriggerRelay(bool on) { m_suppressAreaTriggerRelay = on; }
++    bool IsAreaTriggerRelaySuppressed() const { return m_suppressAreaTriggerRelay; }
+ private:
+     void UpdateAIInternal(uint32 elapsed, bool minimal = false) override;
+ public:
+@@ -730,6 +738,7 @@ public:
      bool IsInPve();
      bool IsInPvp();
      bool IsInRaid();
@@ -27,11 +105,36 @@ index 6ab4892..da02226 100644
  
      void SetMoveToTransport(bool flag = true) { isMovingToTransport = flag; }
      bool GetMoveToTransport() { return isMovingToTransport; }
+@@ -822,15 +831,24 @@ protected:
+     bool deathHandled_ = false; // this death was logged and counted; cleared when the bot is seen alive again
+ 
+ public:
++    // Force-rebuff window state (mod-playerbots PR #2571): ready-check defer,
++    // manual "rebuff" command, buff-first heal suppression.
++    ForceRebuffState forceRebuff;
++
+     void RecordMessages(bool record, bool incomming = false) { m_recordMessages = record; m_recordIncommingMessages = incomming; if (!record) m_recordedMessages.clear(); }
+     bool IsRecordingMessages() const { return m_recordMessages; }
+     bool IsRecordingIncommingMessages() const { return m_recordIncommingMessages; }
+     std::vector<std::string> GetRecordedMessages() { m_recordMessages = false; m_recordIncommingMessages= false; auto msgs = m_recordedMessages; m_recordedMessages.clear(); return msgs; }
+     void ClearRecordedMessages() { m_recordedMessages.clear(); m_recordMessages = false; m_recordIncommingMessages = false;}
+ 
++    Engine* GetEngine(BotState type) { return engines[(uint8)type]; }
++
+ #ifdef BUILD_ELUNA
+     MaNGOS::unique_weak_ptr<PlayerbotAI> m_weakRef;
+ #endif
++
++private:
++    bool m_suppressAreaTriggerRelay = false;
+ };
+ 
+ template<typename T>
 diff --git a/ai/playerbot/strategy/Engine.cpp b/ai/playerbot/strategy/Engine.cpp
-index 16711ca..660ec75 100644
+index ea4b5a1..9a82087 100644
 --- a/ai/playerbot/strategy/Engine.cpp
 +++ b/ai/playerbot/strategy/Engine.cpp
-@@ -202,6 +202,8 @@ void Engine::Init()
+@@ -210,6 +210,8 @@ void Engine::Init()
      for (std::map<std::string, Strategy*>::iterator i = strategies.begin(); i != strategies.end(); i++)
      {
          Strategy* strategy = i->second;
@@ -40,6 +143,32 @@ index 16711ca..660ec75 100644
          strategy->InitMultipliers(multipliers, state);
          strategy->InitTriggers(triggers, state);
          std::vector<Multiplier*> modernMultipliers;
+@@ -273,6 +275,12 @@ bool Engine::DoNextAction(Unit* unit, int depth, bool minimal, bool isStunned)
+     bool const wasInDoNextAction = inDoNextAction;
+     inDoNextAction = true;
+ 
++    // Force-rebuff pass (mod-playerbots PR #2571): a new engine cycle starts
++    // with no buff work observed yet; the reply action waits for a cycle
++    // where no buff cast ran.
++    if (!minimal)
++        ai->forceRebuff.RollBuffPendingCycle();
++
+     time_t currentTime = time(0);
+     aiObjectContext->Update();
+     ProcessTriggers(minimal);
+@@ -873,6 +881,12 @@ void Engine::ProcessTriggers(bool minimal)
+             if (!event)
+                 continue;
+ 
++            // Force-rebuff pass (mod-playerbots PR #2571): a fired self-buff
++            // trigger marks the cycle as having proposed buff work, which
++            // defers the ready reply and suppresses interleaved heals.
++            if (trigger->IsBuffTrigger() && !trigger->IsDebuffTrigger())
++                ai->forceRebuff.NoteBuffProposed();
++
+             MultiplyAndPush(node->getHandlers(), 0.0f, false, event, "trigger");
+             LogAction("T:%s src=%s", trigger->getName().c_str(), event.getSource().c_str());
+         }
 diff --git a/ai/playerbot/strategy/Strategy.h b/ai/playerbot/strategy/Strategy.h
 index 0c46daa..23bad6a 100644
 --- a/ai/playerbot/strategy/Strategy.h
@@ -57,10 +186,24 @@ index 0c46daa..23bad6a 100644
  		virtual std::string getName() = 0;
  		std::string GetName() { return getName(); }
 diff --git a/ai/playerbot/strategy/druid/GenericDruidStrategy.h b/ai/playerbot/strategy/druid/GenericDruidStrategy.h
-index 16673c2..506a360 100644
+index 16673c2..130730f 100644
 --- a/ai/playerbot/strategy/druid/GenericDruidStrategy.h
 +++ b/ai/playerbot/strategy/druid/GenericDruidStrategy.h
-@@ -44,6 +44,8 @@ class DruidCcStrategy : public Strategy
+@@ -8,6 +8,13 @@
+ #ifndef PLAYERBOTS_GENERICDRUIDSTRATEGY_H
+ #define PLAYERBOTS_GENERICDRUIDSTRATEGY_H
+ 
++
++// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
++namespace ai
++{
++    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
++}
++
+ #include "CombatStrategy.h"
+ 
+ class PlayerbotAI;
+@@ -44,6 +51,8 @@ class DruidCcStrategy : public Strategy
  public:
      DruidCcStrategy(PlayerbotAI* botAI) : Strategy(botAI) {}
  
@@ -113,10 +256,24 @@ index c1a1ee2..de0b2eb 100644
          virtual void InitCombatTriggers(std::list<TriggerNode*>& triggers) override;
          virtual void InitNonCombatTriggers(std::list<TriggerNode*>& triggers) override;
 diff --git a/ai/playerbot/strategy/hunter/GenericHunterStrategy.h b/ai/playerbot/strategy/hunter/GenericHunterStrategy.h
-index 273b5e2..901a05f 100644
+index 273b5e2..e88cd24 100644
 --- a/ai/playerbot/strategy/hunter/GenericHunterStrategy.h
 +++ b/ai/playerbot/strategy/hunter/GenericHunterStrategy.h
-@@ -37,6 +37,8 @@ class HunterCcStrategy : public Strategy
+@@ -8,6 +8,13 @@
+ #ifndef PLAYERBOTS_GENERICHUNTERSTRATEGY_H
+ #define PLAYERBOTS_GENERICHUNTERSTRATEGY_H
+ 
++
++// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
++namespace ai
++{
++    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
++}
++
+ #include "CombatStrategy.h"
+ #include "Strategy.h"
+ 
+@@ -37,6 +44,8 @@ class HunterCcStrategy : public Strategy
  public:
      HunterCcStrategy(PlayerbotAI* botAI) : Strategy(botAI) {}
  
@@ -126,10 +283,24 @@ index 273b5e2..901a05f 100644
      std::string getName() override { return "cc"; }
  };
 diff --git a/ai/playerbot/strategy/mage/GenericMageStrategy.h b/ai/playerbot/strategy/mage/GenericMageStrategy.h
-index 0b66caf..7b10897 100644
+index 0b66caf..6ccda3d 100644
 --- a/ai/playerbot/strategy/mage/GenericMageStrategy.h
 +++ b/ai/playerbot/strategy/mage/GenericMageStrategy.h
-@@ -49,6 +49,8 @@ class MageCcStrategy : public Strategy
+@@ -8,6 +8,13 @@
+ #ifndef PLAYERBOTS_GENERICMAGESTRATEGY_H
+ #define PLAYERBOTS_GENERICMAGESTRATEGY_H
+ 
++
++// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
++namespace ai
++{
++    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
++}
++
+ #include "CombatStrategy.h"
+ #include "RangedCombatStrategy.h"
+ 
+@@ -49,6 +56,8 @@ class MageCcStrategy : public Strategy
  public:
      MageCcStrategy(PlayerbotAI* botAI) : Strategy(botAI) {}
  
@@ -139,10 +310,24 @@ index 0b66caf..7b10897 100644
      std::string getName() override { return "cc"; }
  };
 diff --git a/ai/playerbot/strategy/paladin/GenericPaladinStrategy.h b/ai/playerbot/strategy/paladin/GenericPaladinStrategy.h
-index fe69eeb..59cbca9 100644
+index fe69eeb..fad342d 100644
 --- a/ai/playerbot/strategy/paladin/GenericPaladinStrategy.h
 +++ b/ai/playerbot/strategy/paladin/GenericPaladinStrategy.h
-@@ -44,6 +44,8 @@ class PaladinCcStrategy : public Strategy
+@@ -8,6 +8,13 @@
+ #ifndef PLAYERBOTS_GENERICPALADINSTRATEGY_H
+ #define PLAYERBOTS_GENERICPALADINSTRATEGY_H
+ 
++
++// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
++namespace ai
++{
++    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
++}
++
+ #include "CombatStrategy.h"
+ 
+ class PlayerbotAI;
+@@ -44,6 +51,8 @@ class PaladinCcStrategy : public Strategy
  public:
      PaladinCcStrategy(PlayerbotAI* botAI) : Strategy(botAI) {}
  
@@ -152,10 +337,24 @@ index fe69eeb..59cbca9 100644
      std::string getName() override { return "cc"; }
  };
 diff --git a/ai/playerbot/strategy/priest/GenericPriestStrategy.h b/ai/playerbot/strategy/priest/GenericPriestStrategy.h
-index 406de1f..6e7b160 100644
+index 406de1f..288b85b 100644
 --- a/ai/playerbot/strategy/priest/GenericPriestStrategy.h
 +++ b/ai/playerbot/strategy/priest/GenericPriestStrategy.h
-@@ -44,6 +44,8 @@ class PriestCcStrategy : public Strategy
+@@ -8,6 +8,13 @@
+ #ifndef PLAYERBOTS_GENERICPRIESTSTRATEGY_H
+ #define PLAYERBOTS_GENERICPRIESTSTRATEGY_H
+ 
++
++// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
++namespace ai
++{
++    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
++}
++
+ #include "CombatStrategy.h"
+ #include "RangedCombatStrategy.h"
+ 
+@@ -44,6 +51,8 @@ class PriestCcStrategy : public Strategy
  public:
      PriestCcStrategy(PlayerbotAI* botAI) : Strategy(botAI) {}
  
@@ -165,10 +364,24 @@ index 406de1f..6e7b160 100644
      std::string getName() override { return "cc"; }
  };
 diff --git a/ai/playerbot/strategy/rogue/DpsRogueStrategy.h b/ai/playerbot/strategy/rogue/DpsRogueStrategy.h
-index a2bf5f1..26fd5bc 100644
+index a2bf5f1..97ff3d3 100644
 --- a/ai/playerbot/strategy/rogue/DpsRogueStrategy.h
 +++ b/ai/playerbot/strategy/rogue/DpsRogueStrategy.h
-@@ -67,6 +67,8 @@ class RogueCcStrategy : public Strategy
+@@ -8,6 +8,13 @@
+ #ifndef PLAYERBOTS_DPSROGUESTRATEGY_H
+ #define PLAYERBOTS_DPSROGUESTRATEGY_H
+ 
++
++// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
++namespace ai
++{
++    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
++}
++
+ #include "CombatStrategy.h"
+ #include "MeleeCombatStrategy.h"
+ 
+@@ -67,6 +74,8 @@ class RogueCcStrategy : public Strategy
  public:
      RogueCcStrategy(PlayerbotAI* botAI) : Strategy(botAI) {}
  
@@ -178,10 +391,24 @@ index a2bf5f1..26fd5bc 100644
      std::string getName() override { return "cc"; }
  };
 diff --git a/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h b/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h
-index 86eaaf0..0fe1803 100644
+index 86eaaf0..a59f6dc 100644
 --- a/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h
 +++ b/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h
-@@ -55,6 +55,8 @@ class WarlockCcStrategy : public Strategy
+@@ -8,6 +8,13 @@
+ #ifndef PLAYERBOTS_GENERICWARLOCKSTRATEGY_H
+ #define PLAYERBOTS_GENERICWARLOCKSTRATEGY_H
+ 
++
++// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
++namespace ai
++{
++    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
++}
++
+ #include "CombatStrategy.h"
+ 
+ class PlayerbotAI;
+@@ -55,6 +62,8 @@ class WarlockCcStrategy : public Strategy
  public:
      WarlockCcStrategy(PlayerbotAI* botAI) : Strategy(botAI){};
  
@@ -190,24 +417,3 @@ index 86eaaf0..0fe1803 100644
      std::string getName() override { return "cc"; }
      void InitTriggers(std::vector<TriggerNode*>& triggers) override;
  };
-diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index 53a901e..f929510 100644
---- a/ai/playerbot/aiplayerbot.conf.dist.in
-+++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -196,6 +196,16 @@ AiPlayerbot.DisableActivityPriorities = 1
- # Limit combat activity for slight performance boost.
- #AiPlayerbot.LimitCombatActivity = 0
- 
-+# Crowd control inside non-raid dungeons: there is no config key for this, the
-+# behavior is always on. The generic per-class "cc" strategies do not fire
-+# while the bot is in a non-raid dungeon, so bots will not cast their generic
-+# CC spells (Polymorph, Shackle Undead, Turn Undead, Scare Beast, Hibernate,
-+# Freezing Trap, Sap, Entangling Roots, Banish, Fear) on dungeon trash - a
-+# CC'd mob that breaks out early aggros nearby packs and can wipe the group.
-+# Dungeon instance strategies keep their own named CC, and open world, raids
-+# and battlegrounds keep generic CC. Ported from mod-playerbots PR #2648.
-+# Implementation-verified, gameplay-untested.
-+
- # Percentage of fully active bots. Default is 10, higher numbers may affect performance
- # AiPlayerbot.botActiveAlone = 10
- 
