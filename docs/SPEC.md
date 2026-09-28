@@ -181,6 +181,83 @@ Facts established by reading them:
 7. **Console FIFO works**: `src/mangosd/CliRunnable.cpp` reads commands via
    `fgets(stdin)` — the reference FIFO pattern carries over unchanged.
 
+### 3.5 World tick budget with random bots (measured 2026-09-25)
+
+The world server targets a 50 ms tick (`WORLD_SLEEP_CONST` in
+`src/mangosd/WorldRunnable.cpp`). With ~667 random bots online on the pinned
+`010cdb6d` core the tick was 3-8 s: `.perf cpu` reported `Tick 7858 ms` with
+`MapManager` at only 13% of it, the max tick was 34.6 s, and a mangosd console
+command (FIFO round trip) took 3.4-8.5 s. `logs/perf.log` attributed the map
+time almost entirely to `cells` (mean 818 ms, max 22.6 s per pass; ~80% of
+slow single-map passes), i.e. the marked-cell object update pass plus the
+motion-update wait, not bot AI (`players` 7-167 ms).
+
+Cause: continent cell and motion updates run on per-map thread pools sized
+from config, and upstream's `mangosd.conf.dist` ships both knobs at 1 —
+`Map::Map` builds the cell pool with `max(threads - 1, 0)`, so 1 means zero
+workers and every marked cell is processed on one thread.
+
+After raising `MapUpdate.Continents.MTCells.Threads` from 1 to 6 (5 workers,
+one pool per continent) on 2026-09-25, with a *higher* population (1001
+players):
+
+| Metric | threads=1 (667 players) | threads=6 (1001 players) |
+|---|---|---|
+| `cells` per slow map pass | mean 818 ms, max 22,644 ms | mean 196 ms, max 583 ms |
+| map-system passes > 200 ms | 5.2/min, mean 1266 ms | 3.6/min, mean 351 ms, max 987 ms |
+| stalled share of wall time | 11% mean, 47% worst minute | ~2% mean, 4% worst minute |
+| console round trip | 3.37-8.47 s | p50 0.29 s, p90 1.15 s, max 2.73 s |
+
+Caveats recorded at the time: the after-run had 1.5x the bots (the module
+filled to its target), and the restart also cleared 44 h of accumulated grid
+state, so the `cells` mean dropping 4x is the load-bearing evidence (that is
+the exact loop the extra workers parallelize).
+
+Still unresolved as of 2026-09-25: the tick is no longer cell-bound. A sample
+showed `Tick 2613 ms` with `MapManager 337 ms` (13%), i.e. seconds spent in
+the uninstrumented part of `World::Update` (module tick at `World.cpp:2783`,
+`sTerrainMgr.Update` at `World.cpp:2762`, async results), and the worst tick
+observed since the change was 47.9 s during the 1000-bot login ramp, where the
+map path accounted for only ~6 s.
+
+### 3.6 Where the rest of the tick goes (measured 2026-09-25)
+
+With `MTCells.Threads = 6` and 1001 players in world, `.perf cpu` sampled three
+times in a row:
+
+```text
+Tick: 577.11 ms   MapManager: 61.41 ms (10.6%)   UpdateSession: 0.45 ms
+Tick: 558.17 ms   MapManager: 48.04 ms ( 8.6%)   UpdateSession: 0.56 ms
+Tick: 515.67 ms   MapManager: 48.16 ms ( 9.3%)   UpdateSession: 0.73 ms
+```
+
+So the map path is ~10 % of the tick and sessions are free; the remaining
+~0.45 s is per-bot work in the module tick (`WorldScript::OnUpdate` ->
+`BotHostAdapter::OnUpdate` -> `BotManager::OnWorldUpdate` -> `UpdateBots`,
+where every bot in `m_bots` gets a full `PlayerbotAIAdapter::Update` per world
+tick). Three independent measurements agree:
+
+- Empty server (0 players, same image): a mangosd console round trip through
+  the FIFO took 23-42 ms, i.e. the tick is at its 50 ms target with no bots.
+- 1001 bots: console round trip p50 0.29 s, frame (response-to-response) p50
+  0.58 s, world thread ~89 % of one core, bot action rate ~2100 events/min.
+- Adding per-bot work scales the frame directly: `DisableActivityPriorities=0`
+  (which adds the donor activity-priority chain - nearby-player scan,
+  guild-order AI value - to every bot's tick) moved the frame from p50 0.58 s
+  to 0.75 s, p90 0.73 s to 1.19 s, max 1.3 s to 6.7 s while cutting bot
+  actions to ~40 %; reverting restored p50 0.58 s. `IterationsPerTick = 10`
+  (compiled default 100) measured neutral.
+
+Conclusion: at this population the world tick is bounded by the single-threaded
+bot AI loop, ~0.45 ms per bot per tick, not by map/cell work or by the network
+path. `012-bot-ai-tick-divisor.patch` adds `AiPlayerbot.BotAiTickDivisor`
+(exposed as `AI_BOT_AI_TICK_DIVISOR`) to stagger that loop for bots no real
+player owns, groups, fights beside, or is near; it needs an image rebuild, and
+the expected gain is proportional to the divisor for the share of the pool that
+is eligible (95 %+ on a solo realm). The alternative with no rebuild is a
+smaller pool: the tick cost is linear in the bot count, so ~300 bots lands near
+a 0.2 s tick.
+
 ## 4. Implementation plan
 
 ### 4.1 `Dockerfile.penqle`

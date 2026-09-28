@@ -1,0 +1,170 @@
+diff --git a/ai/playerbot/PlayerbotAIConfig.cpp b/ai/playerbot/PlayerbotAIConfig.cpp
+index 9abeeab..60cd6b3 100644
+--- a/ai/playerbot/PlayerbotAIConfig.cpp
++++ b/ai/playerbot/PlayerbotAIConfig.cpp
+@@ -625,6 +625,11 @@ bool PlayerbotAIConfig::Initialize()
+     limitCombatActivity = config.GetBoolDefault("AiPlayerbot.LimitCombatActivity", false);
+     guildOrderAlwaysActive = config.GetBoolDefault("AiPlayerbot.GuildOrderAlwaysActive", true);
+     botActiveAlone = config.GetIntDefault("AiPlayerbot.botActiveAlone", 10);
++    botAiTickDivisor = config.GetIntDefault("AiPlayerbot.BotAiTickDivisor", 1);
++    if (botAiTickDivisor < 1)
++        botAiTickDivisor = 1;
++    if (botAiTickDivisor > 60)
++        botAiTickDivisor = 60;
+     diffWithPlayer = config.GetIntDefault("AiPlayerbot.DiffWithPlayer", 100);
+     diffEmpty = config.GetIntDefault("AiPlayerbot.DiffEmpty", 200);
+     RandombotsWalkingRPG = config.GetBoolDefault("AiPlayerbot.RandombotsWalkingRPG", false);
+diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
+index 7977039..6dd0f1a 100644
+--- a/ai/playerbot/PlayerbotAIConfig.h
++++ b/ai/playerbot/PlayerbotAIConfig.h
+@@ -345,6 +345,10 @@ public:
+     bool limitCombatActivity;
+     bool guildOrderAlwaysActive;
+     uint32 botActiveAlone;
++    // Update every eligible bot's AI once every this many world ticks. 1 keeps
++    // the donor behavior (a full AI tick per bot per tick); >1 staggers bots
++    // that no real player is grouped/fighting/seeing with. See BotManager.
++    uint32 botAiTickDivisor;
+     uint32 diffWithPlayer;
+     uint32 diffEmpty;
+     uint32 minEnchantingBotLevel;
+diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
+index 5f3bfa3..d097c26 100644
+--- a/ai/playerbot/aiplayerbot.conf.dist.in
++++ b/ai/playerbot/aiplayerbot.conf.dist.in
+@@ -249,6 +249,19 @@ AiPlayerbot.DisableActivityPriorities = 1
+ # Percentage of fully active bots. Default is 10, higher numbers may affect performance
+ # AiPlayerbot.botActiveAlone = 10
+ 
++# Update every eligible bot's AI once every this many world ticks (1-60,
++# default 1). The world server runs one bot AI tick per world tick, so at a
++# large random-bot population the tick cost scales 1:1 with the pool and the
++# world loop falls behind (seconds per tick at a thousand bots). Raising this
++# staggers the bots that no real player is involved with - no owner/master, no
++# group, not in combat, no network player within ReactDistance - so the cost
++# grows with what the players actually interact with instead of with the pool.
++# Bots a player owns, groups, fights beside, or can see always keep a full
++# update rate, and a staggered bot gets the skipped time handed back on its
++# next run so its own timers stay wall-clock correct. Suggested: 3-5 for a few
++# hundred bots, 5-10 for a thousand.
++AiPlayerbot.BotAiTickDivisor = 1
++
+ # Sync non-random bot alt levels to master level automatically
+ # When enabled, bot alts will level up one level at a time to match their master's level
+ # AiPlayerbot.SyncAltLevelToMaster = 0
+diff --git a/runtime/BotManager.cpp b/runtime/BotManager.cpp
+index dd5f48f..307ceba 100644
+--- a/runtime/BotManager.cpp
++++ b/runtime/BotManager.cpp
+@@ -1284,10 +1284,25 @@ void BotManager::UpdateBots(uint32_t diff)
+ 
+         if (entry.aiAdapter && entry.aiAdapter->IsUsable())
+         {
+-            entry.aiAdapter->Update(diff);
++            // Activity stagger: a bot nobody is grouping, fighting beside, or
++            // looking at does not need a full AI tick every world tick. Skipping
++            // it for other ticks keeps the world tick cost off the population
++            // curve; the skipped time is handed back to the AI on its next run
++            // so its own timers stay wall-clock correct.
++            if (ShouldStaggerAiThisTick(entry, player))
++            {
++                entry.record.aiSkippedMs += diff;
++                continue;
++            }
++
++            uint32_t const elapsed = diff + entry.record.aiSkippedMs;
++            entry.record.aiSkippedMs = 0;
++            entry.aiAdapter->Update(elapsed);
+         }
+     }
+ 
++    ++m_aiTickCounter;
++
+     m_inBotUpdate = false;
+ 
+     if (!m_pendingBotRemovals.empty())
+@@ -1299,6 +1314,55 @@ void BotManager::UpdateBots(uint32_t diff)
+     }
+ }
+ 
++// Activity stagger (performance). At a large random-bot population the world
++// tick cost scales 1:1 with the number of bots, because every bot runs a full
++// AI tick every tick. Bots that no real player is involved with are instead
++// updated every `AiPlayerbot.BotAiTickDivisor` ticks (rotating by guid), which
++// removes most of that cost without taking anyone out of the world. Kept
++// deliberately conservative: every bot a player owns, groups, fights beside, or
++// could see keeps a full update rate.
++bool BotManager::ShouldStaggerAiThisTick(BotEntry const& entry, Player* player) const
++{
++    uint32_t const divisor = sPlayerbotAIConfig.botAiTickDivisor;
++    if (divisor <= 1 || !entry.record.random)
++        return false;
++
++    if (entry.record.masterGuid || entry.record.ownerAccountId)
++        return false;
++    if (!player || player->IsInCombat() || player->GetGroup())
++        return false;
++
++    float const range = sPlayerbotAIConfig.reactDistance > 0.0f
++        ? sPlayerbotAIConfig.reactDistance : 150.0f;
++    if (HasRealPlayerWithin(player, range))
++        return false;
++
++    return ((entry.record.characterGuid.GetCounter() + m_aiTickCounter) % divisor) != 0;
++}
++
++bool BotManager::HasRealPlayerWithin(Player* bot, float range) const
++{
++    float const rangeSq = range * range;
++    for (auto const& sessionEntry : sWorld.GetAllSessions())
++    {
++        WorldSession* session = sessionEntry.second;
++        if (!session || !session->HasNetworkTransport())
++            continue;
++
++        Player* player = session->GetPlayer();
++        if (!player || player == bot || !player->IsInWorld())
++            continue;
++        if (player->GetMapId() != bot->GetMapId())
++            continue;
++
++        float const dx = player->GetPositionX() - bot->GetPositionX();
++        float const dy = player->GetPositionY() - bot->GetPositionY();
++        if ((dx * dx + dy * dy) <= rangeSq)
++            return true;
++    }
++    return false;
++}
++
+ void BotManager::OnWorldUpdate(uint32_t diff)
+ {
+     // Core owns Headless session lifecycle (queue, LoginPlayer dispatch, reclaim).
+diff --git a/runtime/BotManager.h b/runtime/BotManager.h
+index e0b20c2..5ca2757 100644
+--- a/runtime/BotManager.h
++++ b/runtime/BotManager.h
+@@ -51,6 +51,9 @@ struct BotRecord
+     // retains the historical accountId fallback for diagnostics.
+     uint32_t ownerAccountId = 0;
+     uint32_t ticksInWorld = 0;
++    // World time this bot's AI update was skipped by the activity stagger, owed
++    // back to the AI on its next run so its own timers stay wall-clock correct.
++    uint32_t aiSkippedMs = 0;
+     bool enteredWorld = false;
+     bool random = false;
+     bool syncedInWorld = false;
+@@ -218,6 +221,13 @@ private:
+     ObjectGuid m_packetTestBotGuid;
+     uint32_t m_packetTestTicks = 0;
+     void SweepStrandedBots(uint32_t diff);
++    // Activity stagger: true when this bot's AI may be skipped for this tick.
++    // Only bots with no owner/master, no group, not in combat and no real
++    // player nearby are eligible, so anything a player is involved with keeps
++    // a full update rate. See UpdateBots.
++    bool ShouldStaggerAiThisTick(BotEntry const& entry, Player* player) const;
++    bool HasRealPlayerWithin(Player* bot, float range) const;
++    uint32_t m_aiTickCounter = 0;
+     uint32_t m_strandedSweepElapsedMs = 0;
+     std::unordered_map<uint32_t, time_t> m_strandedSince; // key = guid counter
+     uint8_t m_packetTestStage = 0;

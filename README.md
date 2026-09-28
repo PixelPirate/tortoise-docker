@@ -126,6 +126,8 @@ you created.
 | `AI_ENABLE_RANDOM_TELEPORTS` | `0` | Bots roam/teleport the world on their own |
 | `AI_RANDOM_BOT_LFT_ENABLED` | `0` | Bots fill empty LFG/dungeon queues |
 | `AI_AH_MARKET_ENABLED` | `0` | Bots run a native auction-house market |
+| `AI_DISABLE_ACTIVITY_PRIORITIES` | `1` | `1` (upstream) = every bot runs a full AI tick every world tick; `0` = bots away from players share a rotating ~10% activity budget. Measured slower here — prefer `AI_BOT_AI_TICK_DIVISOR` |
+| `AI_BOT_AI_TICK_DIVISOR` | `1` | Bot AI ticks per world tick (1-60, via the `012-bot-ai-tick-divisor` patch). `1` = every eligible bot every tick; `5`-`10` staggers bots no real player owns/groups/fights beside/can see, which is what makes a large pool affordable — see "World tick budget" |
 | `AI_SUMMON_WHEN_GROUP` | `1` | Bot teleports to you when it accepts a group invite |
 | `AI_FORCE_REBUFF_ON_READY_CHECK` | `0` | On a ready check, bots top up missing/expiring buffs before reporting ready (out-of-reagent bots report not-ready) |
 | `AI_RANDOM_BOT_LOGIN_WITH_PLAYER` | `1` | Random bots only online while humans are (login on first human, logout when last leaves) |
@@ -134,9 +136,14 @@ you created.
 | `AI_RANDOM_BOT_MAX_LEVEL` | `60` | Upper level bound for random-bot gear/tuning |
 | `AI_FAILED_ACTION_RETRY_BASE` / `AI_FAILED_ACTION_RETRY_MAX` | `250` / `2000` | Failure backoff (ms) for bot background actions: a repeatedly failing action is skipped for base ms, doubling up to max, instead of being retried every tick; `0` disables |
 | `DUNGEON_CLEAR_ENABLED` | `0` | Master switch for the vendored dungeon-clear module (autonomous 5-man dungeon clearing). `1` lets the party tank drive a run: `.dc on` in party chat (or the `dc on` keyword), `.dc status|bosses|skip|pull|off` to control it; requires navmesh data of good quality (see "Dungeon clearing" below) |
+| `MAPUPDATE_MTCELLS_THREADS` | `6` | Workers for the continent cell/object update pass, plus one (so `6` = 5 workers, one per-map pool). Upstream ships `1`, which means no workers at all. Raise with the bot population — see "World tick budget" |
+| `MAPUPDATE_MOTIONUPDATE_THREADS` | `1` | Workers for continent unit-motion updates (a plain worker count). Upstream default; raise only if motion shows up in the tick breakdown |
 
 All bot services ship **off** upstream; the `.env` values opt them in.
 Raise bot counts cautiously — TortoiseBots is young and unsoaked at scale.
+The world server targets a 50 ms tick; a large bot population spends it
+mostly in continent cell updates, so budget for `MAPUPDATE_MTCELLS_THREADS`
+(see "World tick budget").
 
 ## Dungeon clearing
 
@@ -208,6 +215,39 @@ else you edit is left as-is. After editing, restart the affected service:
 ```bash
 docker compose -f docker-compose.penqle.yml up -d mangosd realmd
 ```
+
+## World tick budget
+
+The world server aims for a 50 ms tick. `logs/perf.log` (container path
+`/opt/turtle/logs/perf.log`, threshold keys `PerformanceLog.*` in
+`mangosd.conf`) records every map update that runs long, with the split:
+
+```
+Update single map 0 inst 0: 11623ms [sess 2ms|players 25ms|cells 11189ms|sendObjUpdates 172ms|relocations 108ms|players2 127ms|wait 0 0ms]
+```
+
+Two console commands report live numbers (they work in the mangosd console,
+and through the FIFO used by `docker exec ... echo "perf cpu" > /opt/turtle/run/mangosd.in`):
+
+- `.perf cpu` — current tick, session/map split, per-map update times.
+- `.perf resources` — loaded objects and players.
+
+With a large random-bot population the dominant term is `cells` (the
+marked-cell object update pass, plus the wait for continent unit-motion
+updates); bot AI shows up as `players` and is comparatively small. Budget for
+`MAPUPDATE_MTCELLS_THREADS` accordingly — each continent gets
+`value - 1` workers, so `6` is 5 workers per continent. Cells closer than
+`MapUpdate.Continents.MTCells.SafeDistance` always stay on one worker, so very
+dense bot clusters parallelize less.
+
+Measured before/after numbers and the remaining overhead are in
+`docs/SPEC.md` §3.5.
+
+The world-tick balance above is the *map* side. Bot AI is the other side: every
+bot gets a full AI tick every world tick, so at 1000 bots the tick settled at
+~0.5 s with the map side only ~10 % of it. `AI_BOT_AI_TICK_DIVISOR` (patch
+`012-bot-ai-tick-divisor`) staggers the bot AI loop for bots no real player is
+involved with; `1` is the historical behavior.
 
 ## Common commands
 

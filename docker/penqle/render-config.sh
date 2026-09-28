@@ -42,6 +42,25 @@ AI_AH_MARKET_ENABLED="${AI_AH_MARKET_ENABLED:-0}"
 AI_FORCE_REBUFF_ON_READY_CHECK="${AI_FORCE_REBUFF_ON_READY_CHECK:-0}"
 AI_FAILED_ACTION_RETRY_BASE="${AI_FAILED_ACTION_RETRY_BASE:-250}"
 AI_FAILED_ACTION_RETRY_MAX="${AI_FAILED_ACTION_RETRY_MAX:-2000}"
+# 1 (upstream default) = every bot runs a full AI tick every world tick.
+# 0 = bots far from any player (and in maps/zones with no players) share a
+# rotating activity budget instead, so the per-tick bot cost stops scaling 1:1
+# with the population. Bots near, visible to, grouped with, or fighting near a
+# player stay fully active either way. See README "World tick budget".
+AI_DISABLE_ACTIVITY_PRIORITIES="${AI_DISABLE_ACTIVITY_PRIORITIES:-1}"
+# Bot AI ticks per world tick divisor: 1 (default) = every eligible bot gets a
+# full AI tick every tick; >1 staggers bots that no real player is involved
+# with (see BotManager::ShouldStaggerAiThisTick) so the world tick cost stops
+# scaling 1:1 with the bot pool. Needs the 012-bot-ai-tick-divisor patch.
+AI_BOT_AI_TICK_DIVISOR="${AI_BOT_AI_TICK_DIVISOR:-1}"
+
+# Continents (Kalimdor/Eastern Kingdoms) update their active cells and unit
+# motion on per-map pools. Upstream ships both at 1, which leaves zero extra
+# workers, so every marked cell and every moving unit in a continent is
+# processed on one thread; at random-bot scale that pushes the world tick to
+# hundreds of milliseconds or seconds. See README "World tick budget".
+MAPUPDATE_MTCELLS_THREADS="${MAPUPDATE_MTCELLS_THREADS:-6}"
+MAPUPDATE_MOTIONUPDATE_THREADS="${MAPUPDATE_MOTIONUPDATE_THREADS:-1}"
 
 DB_INFO() {
   local db="$1"
@@ -93,6 +112,11 @@ set_conf "${ETC}/mangosd.conf" "LogSQL" "${LOG_SQL}"
 set_conf "${ETC}/mangosd.conf" "Database.AutoUpdate.Enabled" "${AUTO_UPDATE}"
 set_conf "${ETC}/mangosd.conf" "Database.AutoUpdate.Path" "\"${SQL_DIR}/database_updates/\""
 
+# Core map-update threading (keys verified against mangosd.conf.dist).
+# MTCells.Threads is a worker count plus the caller: 1 => no worker threads.
+set_conf "${ETC}/mangosd.conf" "MapUpdate.Continents.MTCells.Threads" "${MAPUPDATE_MTCELLS_THREADS}"
+set_conf "${ETC}/mangosd.conf" "Continents.MotionUpdate.Threads" "${MAPUPDATE_MOTIONUPDATE_THREADS}"
+
 # realmd (note: key name has no dots between LoginDatabase and Info)
 set_conf "${ETC}/realmd.conf" "LoginDatabaseInfo" "\"$(DB_INFO "${DB_LOGIN}")\""
 set_conf "${ETC}/realmd.conf" "RealmServerPort" "${REALM_PORT}"
@@ -115,6 +139,8 @@ set_conf "${AI_CONF}" "AiPlayerbot.RandomBotLoginWithPlayer" "${AI_RANDOM_BOT_LO
 set_conf "${AI_CONF}" "AiPlayerbot.EnableRandomTeleports" "${AI_ENABLE_RANDOM_TELEPORTS}"
 set_conf "${AI_CONF}" "AiPlayerbot.RandomBotLftEnabled" "${AI_RANDOM_BOT_LFT_ENABLED}"
 set_conf "${AI_CONF}" "AiPlayerbot.AhMarketEnabled" "${AI_AH_MARKET_ENABLED}"
+set_conf "${AI_CONF}" "AiPlayerbot.DisableActivityPriorities" "${AI_DISABLE_ACTIVITY_PRIORITIES}"
+set_conf "${AI_CONF}" "AiPlayerbot.BotAiTickDivisor" "${AI_BOT_AI_TICK_DIVISOR}"
 set_conf "${AI_CONF}" "AiPlayerbot.ForceRebuffOnReadyCheck" "${AI_FORCE_REBUFF_ON_READY_CHECK}"
 set_conf "${AI_CONF}" "AiPlayerbot.FailedActionRetryBase" "${AI_FAILED_ACTION_RETRY_BASE}"
 set_conf "${AI_CONF}" "AiPlayerbot.FailedActionRetryMax" "${AI_FAILED_ACTION_RETRY_MAX}"

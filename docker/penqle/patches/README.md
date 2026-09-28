@@ -13,7 +13,8 @@ The series is generated from the local `TortoiseBots` `bot-helpers` branch as
 the difference against `BOTS_COMMIT`, so applying all patches in numeric order
 reproduces that branch's source tree. Several features the series used to carry
 were merged upstream in the meantime and are now upstream's own code rather
-than a patch (see the notes under 008). Patch 011 was dropped for that reason.
+than a patch (see the notes under 008). Patch 011 was dropped for that reason;
+numbering continues at 012.
 
 ### Regenerating after a pin bump
 
@@ -378,3 +379,34 @@ The AI context extension seam the dungeon-clear port needs
 (`ai/playerbot/AiContextAugment.h`) is also upstream now, under the names
 `RegisterAiContextAugmenter` / `ApplyAiContextAugmenters` (applied from
 `AiFactory::createAiObjectContext`). The patch no longer adds it.
+
+## 012-bot-ai-tick-divisor.patch
+
+Activity stagger for the bot AI loop, added after measuring the world tick
+budget on the pinned core (see `docs/SPEC.md` §3.5). Every bot in
+`BotManager::UpdateBots` gets a full AI tick on every world tick, so the tick
+cost scales 1:1 with the pool: with 1000 random bots the core's own tick split
+showed the world loop at ~0.5-0.6 s per tick with the whole cost in the bot AI,
+while the (already parallel) continent cell path was ~10 % of it. Upstream's
+own optimization path (`DisableActivityPriorities = 0` plus the activity
+brackets) measured *slower* here: the priority chain costs per-bot work
+(nearby-player scan, guild-order value) on every tick, which outweighs the work
+it withholds.
+
+The patch adds `AiPlayerbot.BotAiTickDivisor` (1-60, default 1 = previous
+behavior). With a divisor > 1 an *eligible* bot's AI is updated once every that
+many world ticks, rotating by character guid: eligible means a random bot with
+no owner/master, no group, not in combat, and no network-transport player
+within `AiPlayerbot.ReactDistance` of it. Everything a player owns, groups,
+fights beside, or can see keeps a full update rate, and a skipped bot is handed
+the skipped milliseconds on its next run (`BotRecord::aiSkippedMs`) so its own
+timers stay wall-clock correct. Teleport acknowledgement still runs every tick.
+
+Touches: `runtime/BotManager.{h,cpp}` (the stagger gate, the rotating tick
+counter, `BotRecord::aiSkippedMs`), `ai/playerbot/PlayerbotAIConfig.{h,cpp}`
+(new `botAiTickDivisor`, clamped 1-60), `ai/playerbot/aiplayerbot.conf.dist.in`
+(documented key). Exposed as `AI_BOT_AI_TICK_DIVISOR` in the image (rendered
+config, `.env.example.penqle`, compose, README table). Status: applies cleanly
+to `BOTS_COMMIT` and reproduces the local `bot-helpers` tree (verified
+2026-09-25); **not compile-verified** — the module builds only inside the core
+image, so the first `docker build -f Dockerfile.penqle` is the compile check.
