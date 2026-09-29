@@ -41,14 +41,14 @@ index 37c6233..c891378 100644
  {
      Player* trader = bot->GetTrader();
 diff --git a/ai/playerbot/strategy/actions/TradeStatusAction.h b/ai/playerbot/strategy/actions/TradeStatusAction.h
-index e2489f6..04f040e 100644
+index e2489f6..b23460f 100644
 --- a/ai/playerbot/strategy/actions/TradeStatusAction.h
 +++ b/ai/playerbot/strategy/actions/TradeStatusAction.h
-@@ -12,6 +12,7 @@ namespace ai
- 
+@@ -13,6 +13,7 @@ namespace ai
      private:
          void BeginTrade();
-+        void CancelTrade();
          void AutoShareConjured(Player* trader);
++        void CancelTrade();
          bool CheckTrade();
          int32 CalculateCost(Player *player, bool sell);
+     };

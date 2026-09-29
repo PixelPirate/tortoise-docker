@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/TravelMgr.cpp b/ai/playerbot/TravelMgr.cpp
-index 297c95a..f25c7f9 100644
+index 936b099..4de0d39 100644
 --- a/ai/playerbot/TravelMgr.cpp
 +++ b/ai/playerbot/TravelMgr.cpp
-@@ -476,6 +476,12 @@ bool RpgTravelDestination::IsActive(Player* bot, const PlayerTravelInfo& info) c
+@@ -494,6 +494,12 @@ bool RpgTravelDestination::IsActive(Player* bot, const PlayerTravelInfo& info) c
      if (!IsPossible(info))
          return false;
  
@@ -160,97 +160,97 @@ index a0efbb1..cb816e8 100644
      }
  
      if(MEM_AI_VALUE(WorldPosition, "current position")->LastChangeDelay() < 60)
+diff --git a/ai/playerbot/strategy/actions/MovementActions.cpp b/ai/playerbot/strategy/actions/MovementActions.cpp
+index 429b148..876679e 100644
+--- a/ai/playerbot/strategy/actions/MovementActions.cpp
++++ b/ai/playerbot/strategy/actions/MovementActions.cpp
+@@ -112,7 +112,7 @@ bool MovementAction::FlyDirect(const WorldPosition &startPosition, const WorldPo
+     return false;
+ }
+ 
+-bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
++bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc, Creature* sourceNpc)
+ {
+     AiObjectContext* context = ai->GetAiObjectContext();
+     Player* bot = ai->GetBot();
+@@ -122,24 +122,44 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
+     if (!tEntry)
+         return false;
+ 
+-    Creature* unit = nullptr;
++    Creature* unit = sourceNpc;
+ 
+-    if (needNpc)
++    // Fail closed on flight eligibility: a bot without the taxi cheat may only
++    // board flight paths it has actually learned. The core re-validates this in
++    // ActivateTaxiPathTo, but deciding here keeps the surrounding travel logic
++    // from planning legs a real player at this level/discovery state could not
++    // fly.
++    if (!bot->IsTaxiCheater() && !bot->GetTaxi().IsTaximaskNodeKnown(tEntry->to))
++        return false;
++
++    if (needNpc || (!bot->IsTaxiCheater() && !bot->GetTaxi().IsTaximaskNodeKnown(tEntry->from)))
+     {
+-        std::list<ObjectGuid> npcs = AI_VALUE(std::list<ObjectGuid>, "nearest npcs");
+-        for (std::list<ObjectGuid>::iterator i = npcs.begin(); i != npcs.end(); i++)
++        // An established interaction result (e.g. the RPG flight master) wins;
++        // only fall back to resolving a nearby interactable flight master when
++        // the caller did not provide one.
++        if (unit && sObjectMgr.GetNearestTaxiNode(unit->GetPositionX(), unit->GetPositionY(),
++            unit->GetPositionZ(), unit->GetMapId(), bot->GetTeam()) != tEntry->from)
++            unit = nullptr;
++
++        if (!unit)
+         {
+-            unit = bot->GetNPCIfCanInteractWith(*i, UNIT_NPC_FLAG_FLIGHTMASTER);
+-            if (unit)
+-                break;
++            std::list<ObjectGuid> npcs = AI_VALUE(std::list<ObjectGuid>, "nearest npcs");
++            for (std::list<ObjectGuid>::iterator i = npcs.begin(); i != npcs.end(); i++)
++            {
++                unit = bot->GetNPCIfCanInteractWith(*i, UNIT_NPC_FLAG_FLIGHTMASTER);
++                if (unit)
++                    break;
++            }
++
++            if (unit && sObjectMgr.GetNearestTaxiNode(unit->GetPositionX(), unit->GetPositionY(),
++                unit->GetPositionZ(), unit->GetMapId(), bot->GetTeam()) != tEntry->from)
++                unit = nullptr;
+         }
+ 
+         if (!unit)
+-        {
+             return false;
+-        }
+ 
+-        if (unit && !bot->GetTaxi().IsTaximaskNodeKnown(tEntry->from))
++        if (!bot->GetTaxi().IsTaximaskNodeKnown(tEntry->from))
+         {
+             bot->GetSession()->SendLearnNewTaxiNode(unit);
+ 
+@@ -147,6 +167,9 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
+         }
+     }
+ 
++    if (!bot->IsTaxiCheater() && !bot->GetTaxi().IsTaximaskNodeKnown(tEntry->from))
++        return false;
++
+     uint32 botMoney = bot->GetMoney();
+     if (ai->HasCheat(BotCheatMask::gold) || ai->HasCheat(BotCheatMask::taxi))
+     {
 diff --git a/ai/playerbot/strategy/actions/MovementActions.h b/ai/playerbot/strategy/actions/MovementActions.h
-index 11a4fbd..d475e94 100644
+index 7087a26..767b385 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.h
 +++ b/ai/playerbot/strategy/actions/MovementActions.h
-@@ -9,6 +9,19 @@
- #include "playerbot/strategy/values/HazardsValue.h"
- #include "playerbot/strategy/values/LastMovementValue.h"
- 
-+// Move priorities, for code ported from mod-playerbots, which arbitrates
-+// moves by them. Nothing in this tree arbitrates: MoveTo takes the move and
-+// issues it. The type exists so ported call sites keep their shape, and every
-+// place that drops the value says so (same shape the donor host gave its own
-+// MovementAction).
-+enum class MovementPriority : uint8
-+{
-+    MOVEMENT_IDLE   = 0,
-+    MOVEMENT_NORMAL = 1,
-+    MOVEMENT_COMBAT = 2,
-+    MOVEMENT_FORCED = 3
-+};
-+
- namespace ai
- {
-     class MovementAction : public Action
-@@ -31,7 +44,12 @@ namespace ai
+@@ -31,7 +31,7 @@ namespace ai
             return MoveTo(location.mapId, location.x, location.y, location.z, idle, react, noPath, ignoreEnemyTargets);
          }
  
 -        static bool UseTaxi(PlayerbotAI* ai, uint32 entry = 0, bool needNpc = true);
-+    public:
-+        // Static taxi adapter shared with the RPG actions (which are not
-+        // MovementAction subclasses).
 +        static bool UseTaxi(PlayerbotAI* ai, uint32 entry = 0, bool needNpc = true, Creature* sourceNpc = nullptr);
-+
-+    protected:
  
  
          bool WaitForTransport();
-@@ -85,10 +103,51 @@ namespace ai
-         bool ShouldReactionInterruptCast() const override { return true; }
-         bool ShouldReactionInterruptMovement() const override { return true; }
- 
--    private:
-+    protected: // the dungeon-clear port's dropping overloads are used by subclasses
-         bool IsValidPosition(const WorldPosition& position, const WorldPosition& visibleFromPosition);
-         bool IsHazardNearPosition(const WorldPosition& position, HazardPosition* outHazard = nullptr);
-         bool GeneratePathAvoidingHazards(std::vector<WorldPosition>& movePath);
-+
-+        // --- dungeon-clear port: mod-playerbots movement surface ------------
-+        // MoveTo overload dropping the mod-playerbots movement arguments
-+        // (see MovementPriority above and the donor host's MovementAction).
-+
-+        // mod-playerbots carries four more arguments on this call. Three are
-+        // accepted and dropped - exact_waypoint, lessDelay and backwards have
-+        // no counterpart in this generator - and the priority goes the way
-+        // every other priority here goes. normal_only maps onto noPath, which
-+        // is the same request: do not route, go straight.
-+        bool MoveTo(uint32 mapId, float x, float y, float z, bool idle, bool react,
-+                    bool normal_only, bool /*exact_waypoint*/,
-+                    MovementPriority /*priority*/, bool /*lessDelay*/ = false,
-+                    bool /*backwards*/ = false)
-+        { return MoveTo(mapId, x, y, z, idle, react, normal_only); }
-+
-+        // mod-playerbots refuses a move to a spot the bot was just sent to.
-+        // Nothing here records that, so nothing is a duplicate. False keeps
-+        // the move flowing, which is the safe direction - see
-+        // IsWaitingForLastMove.
-+        bool IsDuplicateMove(float /*x*/, float /*y*/, float /*z*/) const { return false; }
-+
-+        // mod-playerbots spelling: jump the bot to a point. Sits on
-+        // MotionMaster::MoveJump. The mapId is accepted and ignored - a jump
-+        // never leaves the map, and ported callers pass it because their
-+        // MoveTo takes one. The priority is dropped.
-+        bool JumpTo(uint32 /*mapId*/, float x, float y, float z,
-+                    MovementPriority /*priority*/ = MovementPriority::MOVEMENT_NORMAL);
-+
-+        // mod-playerbots records a wait sized to the last leg and refuses a
-+        // later move whose priority is not strictly greater. This tree
-+        // records no such wait - LastMovement carries no timestamp and no
-+        // priority - so there is nothing to answer from and this says "not
-+        // waiting". False is the safe answer, not merely the convenient one:
-+        // the failure it avoids is a leftover wait silently refusing the
-+        // NEXT leg, leaving the tank standing in the pack it just pulled.
-+        bool IsWaitingForLastMove(MovementPriority /*priority*/ = MovementPriority::MOVEMENT_NORMAL) const { return false; }
-+
-+        // No-argument form: may the bot start moving from where it stands.
-+        bool IsMovingAllowed();
-+        // --------------------------------------------------------------------
-     };
- 
-     class FleeAction : public MovementAction
 diff --git a/ai/playerbot/strategy/actions/RpgAction.cpp b/ai/playerbot/strategy/actions/RpgAction.cpp
 index fac0da4..091f0d7 100644
 --- a/ai/playerbot/strategy/actions/RpgAction.cpp

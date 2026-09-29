@@ -1,5 +1,5 @@
 diff --git a/TortoiseBots.cmake b/TortoiseBots.cmake
-index fb183e6..2ba08c8 100644
+index c14eb96..8a8580e 100644
 --- a/TortoiseBots.cmake
 +++ b/TortoiseBots.cmake
 @@ -8,6 +8,16 @@
@@ -19,7 +19,7 @@ index fb183e6..2ba08c8 100644
    # Make source selection observable. The Penqle development builder mounts
    # this checkout over the core's optional module path; a direct core build
    # must not silently fall back to an unrelated stale copy.
-@@ -51,6 +61,14 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
+@@ -66,6 +76,14 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
      COPYONLY)
    CopyModuleConfig("${CMAKE_CURRENT_BINARY_DIR}/tortoise_bots.conf")
  
@@ -34,7 +34,7 @@ index fb183e6..2ba08c8 100644
    # Optional module migrations are installed only with the module. The core
    # AutoUpdater applies them on startup without making bots a core dependency.
    # AutoUpdater's module contract is case-sensitive on Linux. Penqle's
-@@ -166,6 +184,28 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
+@@ -184,6 +202,28 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
    file(GLOB TORTOISEBOTS_ACTION_SRC CONFIGURE_DEPENDS
      "${TORTOISEBOTS_ROOT}/ai/playerbot/strategy/actions/*.cpp")
  
@@ -63,7 +63,7 @@ index fb183e6..2ba08c8 100644
    set(TORTOISEBOTS_SOURCES
      ${TORTOISEBOTS_HOST_SRC}
      ${TORTOISEBOTS_AI_SRC}
-@@ -176,6 +216,8 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
+@@ -194,6 +234,8 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
      ${TORTOISEBOTS_TRIGGER_SRC}
      ${TORTOISEBOTS_ACTION_SRC})
    list(REMOVE_DUPLICATES TORTOISEBOTS_SOURCES)
@@ -72,7 +72,7 @@ index fb183e6..2ba08c8 100644
  
    foreach(TORTOISEBOTS_SOURCE IN LISTS TORTOISEBOTS_SOURCES)
      if(NOT EXISTS "${TORTOISEBOTS_SOURCE}")
-@@ -255,5 +297,91 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "POST_TARGETS")
+@@ -285,5 +327,91 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "POST_TARGETS")
            "-include" "${TORTOISEBOTS_PCH_HEADER}")
        endif()
      endif()
@@ -69225,141 +69225,6 @@ index 0000000..767b5bf
 +}
 +
 +#endif
-diff --git a/ai/dungeonclear/CLAUDE.upstream.md b/ai/dungeonclear/CLAUDE.upstream.md
-new file mode 100644
-index 0000000..13a6d23
---- /dev/null
-+++ b/ai/dungeonclear/CLAUDE.upstream.md
-@@ -0,0 +1,129 @@
-+> Upstream file from jrad7/mod-dungeon-clear, kept for reference. Its workflow
-+> rules applied to that repository, NOT to this tree - renamed so no tooling
-+> picks it up as live instructions.
-+
-+# mod-dungeon-clear — development workflow
-+
-+These rules exist because uncommitted work was getting orphaned across sessions
-+and feature branches got stacked on each other, forcing painful cherry-pick
-+untangling. Follow them exactly.
-+
-+## The five rules
-+
-+1. **Always branch from `master`, never from another feature branch.**
-+   `git switch -c feat/<name> master`. Stacking a feature on top of another
-+   unmerged feature is what forced the ZF / Sunken-Temple cherry-pick rewrite.
-+   Only branch off another feature branch when the dependency is deliberate and
-+   stated.
-+
-+2. **Never use git worktrees.** Work only in the main checkout, switching
-+   branches with `git switch`. Worktrees were tried and retired: they
-+   accumulated unmanaged, half-forgotten trees whose branches drifted hundreds
-+   of commits behind master, and work went stale in directories nobody
-+   revisited. `tools/dc-feature.sh` is retired — do not run it. Rule 3 is what
-+   keeps concurrent features from mixing: commit before you switch, so there
-+   are never loose files to collide.
-+
-+   **Two worktrees are permanent and must never be removed** — they are live
-+   running copies, not feature work:
-+   - `.claude/worktrees/ac-command-deck` (`feat/ac-command-deck`) — AC Command
-+     Deck, served on :8788 from its `dashboard/` subdir.
-+   - `.claude/worktrees/testdeck` (`feat/testdeck-clean`) — Test Deck, served
-+     on :8790 from its `testdeck/` subdir.
-+
-+   Before removing any worktree, run `git status --ignored`: `git worktree
-+   remove` deletes gitignored files without warning and without needing
-+   `--force`. That is how the site-local `ac-dashboard.toml` and
-+   `testdeck.toml` were lost. Their contents now survive that — see
-+   *Site-local config lives outside the repo* below.
-+
-+3. **A session boundary is a commit boundary — never stop on a dirty tree.**
-+   Before ending a session, commit, even if the feature is half-done:
-+   `git commit -m "wip: <what is done / what remains>"` on the feature branch.
-+   A half-finished feature is a *named branch with a wip commit*, never loose
-+   files in the working tree.
-+
-+4. **Stamp commits with the originating session id** as a trailer, so any change
-+   can be traced back to the session that produced it:
-+   ```
-+   Session: S557
-+   ```
-+
-+5. **Delete a feature branch the moment it merges.**
-+   `git merge --no-ff feat/<name> && git branch -d feat/<name>`. Keep the branch
-+   list to *only things in flight*. Periodically sweep:
-+   `git branch --merged master | grep -vE '^\*|master$' | xargs -r git branch -d`.
-+
-+## Site-local config lives outside the repo
-+
-+`streamcast.toml`, `testdeck.toml` and `ac-dashboard.toml` are site-local: not
-+in git, no backup. The real files live in `deployment-files/site-config/`, and
-+the checkouts hold **relative symlinks** to them. Losing a link is now a
-+nuisance, not data loss — restore every link with:
-+
-+```
-+bash deployment-files/site-config/link-site-configs.sh
-+```
-+
-+Two rules keep this working:
-+
-+- **Add a new site-local config's ignore rule to `master`'s `.gitignore`, never
-+  only to the feature branch that introduces it.** A rule on a feature branch
-+  protects the file *only while you stand on that branch*; off it the file is
-+  plain untracked and the next `git clean -fd` / `git stash -u` /
-+  `git worktree remove` deletes it. That is exactly how `streamcast.toml`
-+  vanished. `.git/info/exclude` carries the same paths as a branch-proof
-+  backstop (it is shared with the linked worktrees).
-+- **Never replace one of these symlinks with a regular file.** Writers must
-+  open-and-truncate (`Path.write_text`, which `testdeck setup` uses) so the
-+  write passes through to the real file; a temp-file-plus-rename would silently
-+  break the link.
-+
-+## Branch naming
-+`feat/` `fix/` `refactor/` `tune/` `perf/` `test/` `diag/` — prefix matches the
-+nature of the change.
-+
-+## Intentionally-preserved unmerged branches
-+These diverge from master on purpose; do **not** delete them:
-+- `feat/cinematic-camera` — abandoned approach, history kept for reference.
-+- `fix/pause-leader-follow-hold`, `fix/pause-toggle-autopause-race` — reverted
-+  off master, preserved for re-diagnosis if the pause bug resurfaces.
-+- `refactor/consolidate-party-combat-state` — genuine WIP.
-+
-+## Session start / end safety net
-+A `SessionStart` hook prints this module's git state (dirty tree + in-flight
-+branches) at the top of every session; a `Stop` hook warns if you try to end a
-+session with a dirty tree. They are reminders, not a substitute for the rules.
-+
-+## Build & test
-+The user always builds and deploys — do not build or inspect the binary.
-+Run the gtest suite from this module root: `sudo bash t/run_tests.sh`.
-+Plan / design / review docs live in `deployment-files/docs/`, never committed
-+to this repo.
-+
-+## Investigating a test run — always start here
-+When a task begins with a test-run id (`tr-20260801-174432-3`, or a plan id
-+`tp-…`, or a whole batch prefix `tr-20260801-174432`), run:
-+
-+```
-+python3 tools/dc_test_run.py <id>
-+```
-+
-+That is the first command, before any grepping. It gathers, in one pass, what is
-+otherwise scattered across five files: the run record from `dc_testruns.jsonl`
-+(comp, result, fail reason, boss/status/pull timelines, deaths, pauses, watchdog
-+budgets), the teardown **DcDiag snapshot** (target, route, pull FSM, per-member
-+party state, objective roster — usually where the answer is), the plan and its
-+sibling runs, live state for a run still in flight, and every `*.log` line that
-+belongs to that run. Log lines carry no run id, so it correlates on the run's own
-+bot names inside the run's time window, then reports a SIGNALS section counting
-+the known diagnostic shapes (stalls, resnaps, stranded recovery, pull release,
-+door blocks, wipes).
-+
-+Drill down with `--grep RE`, `--logs pull`, `--level info`, `--dump DIR` (writes
-+the per-run slice to a file), `--json`. `--list` shows recent run ids.
-+
-+Do not hand-grep `DungeonClear.log` for a run id — it only appears on the START
-+line. And note the appenders open with mode `w`: a worldserver restart wipes the
-+logs, so for an older run the record plus the diag snapshot are all that survive.
-+The tool says so explicitly when that has happened.
 diff --git a/ai/dungeonclear/DcStrategyGate.cpp b/ai/dungeonclear/DcStrategyGate.cpp
 new file mode 100644
 index 0000000..04a7a9f
@@ -71971,205 +71836,6 @@ index 0000000..0ae0efe
 +{
 +    new LiveMapTickerScript();
 +}
-diff --git a/ai/dungeonclear/README.md b/ai/dungeonclear/README.md
-new file mode 100644
-index 0000000..a2f5dbe
---- /dev/null
-+++ b/ai/dungeonclear/README.md
-@@ -0,0 +1,193 @@
-+# mod-dungeon-clear
-+
-+Autonomous dungeon-clearing mode for **mod-playerbots** tank bots, packaged as a
-+drop-in AzerothCore module. A tank bot drives the party from boss to boss,
-+clearing trash, pathing the layout, pausing for loot, resting between fights, and
-+handling doors and scripted events along the way. You deal damage and let the
-+tank run the dungeon.
-+
-+Routes are generated on the fly from the live navigation mesh, with no waypoints
-+or hardcoded paths, so the clear works in any instance — the hand-built data the
-+module does carry is for scripted events and known navmesh breaks, not for
-+routing. It runs against a **stock, unmodified mod-playerbots** checkout with no
-+playerbots source edits.
-+
-+> ## Use the companion addon
-+>
-+> [**mod-dungeon-clear-addon**](https://github.com/jrad7/mod-dungeon-clear-addon)
-+> is the recommended way to drive a clear: a movable in-game panel with On, Off,
-+> Skip, and Pause buttons, a live status readout, a per-boss list, and a settings
-+> panel for live tuning. The `dc` chat keywords and `.dc` commands still work, but
-+> the addon is easier to use.
-+>
-+> **On a 1.12 / Turtle WoW client the upstream addon does not load** — it is
-+> written for WotLK (`## Interface: 30300`, Lua 5.1) and the 1.12 client's Lua
-+> 5.0 stops at the first `%`. Use the port in
-+> [`addon/DungeonClear-1.12/`](addon/DungeonClear-1.12/) instead; same protocol,
-+> same panel, every Lua-5.1-ism resolved. Its README lists what changed.
-+
-+## What it does
-+
-+While enabled, the tank bot handles a run end to end:
-+
-+- **Routing** from boss to boss over the live navmesh, including long corridors,
-+  doors, and multi-wing maps.
-+- **Pulling trash** on the way to each boss, with selectable pull styles (see
-+  [Pull modes](#pull-modes)).
-+- **Scripted events** that gate progress in many classic and Burning Crusade
-+  dungeons: levers, altars, gongs, freed prisoners, escorts, wave set-pieces,
-+  and off-mesh drops (see [Scripted dungeon events](#scripted-dungeon-events)).
-+- **Looting** finished corpses, with a quality floor and skip logic so the party
-+  does not camp on corpses with nothing worth taking.
-+- **Resting** between fights, tracking playerbots' own eat and drink thresholds.
-+- **Party support**: followers stay with the tank, healers reposition to keep the
-+  tank in line of sight, and the group regroups after a fight pulls it apart.
-+- **Death recovery**: when a member dies and a living Priest, Paladin, Shaman, or
-+  Druid remains, the run holds while they resurrect the fallen and resumes once
-+  everyone is back up, instead of ending on the first death (`DungeonClear.PostCombatRez`).
-+  The run still ends on a full wipe, with no living resurrector, or on timeout.
-+
-+**Heroic difficulty** is supported: the tank pulls more carefully, several
-+settings carry their own heroic values, and a few events fire only on heroic.
-+See [Configuration](#configuration).
-+
-+## Requirements
-+
-+- **mod-playerbots** installed and enabled. This module is an extension of the
-+  playerbots AI engine. It subclasses playerbots' strategy, action, trigger, and
-+  value classes and links against them. It is not standalone.
-+
-+## Install
-+
-+1. Clone into `modules/mod-dungeon-clear/`.
-+2. Re-run CMake and rebuild the worldserver (`-DMODULES=static`).
-+3. Optionally copy `conf/mod_dungeon_clear.conf.dist` to
-+   `mod_dungeon_clear.conf`.
-+
-+## Usage
-+
-+Both input methods control the same behaviour and act on the group's **tank**
-+bot. They must come from a real player in the bot's group, and `.dc on` requires
-+being inside a dungeon. (`.dc spectate` is the exception — it acts on your own
-+session, so it needs no group.)
-+
-+| Slash command | In-party chat keyword | What it does |
-+|---|---|---|
-+| `.dc on` | `dc on` / `dungeon clear on` | Start the clear. |
-+| `.dc off` | `dc off` / `dungeon clear off` | Stop and return bots to the player. |
-+| `.dc pause` | `dc pause` / `dungeon clear pause` | Soft-stop in place; resume with the same command. |
-+| `.dc skip` | `dc skip` | Skip the current objective if the tank is stalled. |
-+| `.dc pull` | `dc pull` / `dungeon clear pull` | Cycle the pull mode. |
-+| `.dc status` | `dc status` | Print the current run status. |
-+| `.dc bosses` | `dc bosses` | List the dungeon's bosses and kill state. |
-+| `.dc go <boss>` | | Route directly to a named boss. |
-+| `.dc config` | | Print the effective `DungeonClear.*` values for the current run, marking addon overrides and heroic defaults. |
-+| `.dc spectate` | | Toggle the free-fly spectator camera. `.dc spectate follow [name]` rides a bot instead. |
-+
-+There is also `.dc test`, a GM-only automated test harness — see
-+[Automated test runs](#automated-test-runs), below.
-+
-+Non-tank party bots follow the tank only while it has dungeon clear enabled, then
-+revert to the player automatically.
-+
-+## Pull modes
-+
-+How the tank takes trash packs on the way to each boss. Choose from the addon's
-+pull control or the `dc pull` toggle.
-+
-+| Mode | Behaviour | Speed | Risk |
-+|---|---|---|---|
-+| **Dynamic** *(recommended)* | Decide per pack: Leeroy a lone pack, camp-pull a clustered or oversized one. | Middle | Middle |
-+| **Leeroy** | Walk straight into each pack and fight in place. | Fastest | Highest |
-+| **Advanced** | Pull every pack back to a held camp before fighting. | Slowest | Lowest |
-+
-+**Dynamic suits most content.** It Leeroys easy packs at full speed and only pays
-+the careful camp-pull cost on dangerous ones, estimating how many mobs would
-+actually aggro and comparing that to a tunable ceiling
-+(`DungeonClear.PullDynamicMaxLeeroyMobs`). Use **Leeroy** in content you can
-+out-gear, or **Advanced** in harder content where every pull matters.
-+
-+See the [Pull modes](https://github.com/jrad7/mod-dungeon-clear/wiki/Pull-Modes)
-+wiki page for how each mode works in detail and how to tune Dynamic.
-+
-+## Scripted dungeon events
-+
-+Many instances gate progress behind a scripted step the party must perform: pull
-+a lever, click a panel, ring a gong, free a prisoner, escort an NPC, survive a
-+wave set-piece, or cross a break in the navmesh. mod-dungeon-clear performs
-+these automatically as part of the normal boss route, with no player input.
-+
-+Event support currently covers, in classic: Deadmines, Shadowfang Keep, Wailing
-+Caverns, Uldaman, Sunken Temple, Razorfen Downs, Scarlet Monastery, Zul'Farrak,
-+Blackrock Depths, Scholomance, Stratholme, and Dire Maul; and in Burning
-+Crusade: Hellfire Ramparts, Blood Furnace, Shattered Halls, Slave Pens,
-+Underbog, Steamvault, Sethekk Halls, Mechanar, Arcatraz, Black Morass, Old
-+Hillsbrad, and Magisters' Terrace. Coverage continues to expand.
-+
-+Faction-specific events run only for the relevant side, and heroic-only events
-+never fire on a normal run. If an event cannot complete (for example, a scripted
-+NPC the party let die), the run either stalls for the player or skips the step,
-+depending on whether the step is required.
-+
-+The full per-dungeon list is on the
-+[Scripted Dungeon Events](https://github.com/jrad7/mod-dungeon-clear/wiki/Scripted-Dungeon-Events)
-+wiki page.
-+
-+## You cannot play *as* the tank with dungeon clear on
-+
-+Dungeon clear drives the **tank bot's** AI, so the tank must be a bot. If you
-+personally control the tank, the AI and you fight over the same character. The
-+exception is **self-bot mode**: turn your own character into a self-bot
-+(`.playerbots bot self`) and let the AI drive. If you want hands on the keyboard,
-+play a follower instead.
-+
-+## Configuration
-+
-+All `DungeonClear.*` options live in `conf/mod_dungeon_clear.conf.dist`, and most
-+are overridable live, per run, from the companion addon's Settings panel. Common
-+ones: loot quality floor, rest health and mana targets, and the Dynamic pull
-+tuning. See the
-+[Configuration reference](https://github.com/jrad7/mod-dungeon-clear/wiki/Configuration)
-+wiki page.
-+
-+Any setting can be given a **heroic-difficulty value** by appending `.Heroic` to
-+its name (`DungeonClear.PullDynamicMaxLeeroyMobs.Heroic = 2`), which applies
-+while the run is inside a dungeon at heroic difficulty. Several options ship
-+with a heroic default that differs from the normal one; the conf lists them, and
-+`.dc config` marks them with an `H`. Resolution order is per-run override →
-+`<key>.Heroic` → `<key>` → built-in default.
-+
-+A few mod-playerbots ranges also affect runs (`LootDistance`, `ReactDistance`,
-+`SightDistance`, `FollowDistance`). The rest gate tracks playerbots' own eat and
-+drink thresholds automatically, so no playerbots config change is required.
-+
-+## How it integrates
-+
-+mod-playerbots exposes no extension API, so this module appends its context
-+factories into the engine's shared registries on the first world tick, and
-+registers a `.dc` command plus a login hook for the `dungeon clear` strategy. It
-+touches **no** playerbots file. Details:
-+[How it integrates](https://github.com/jrad7/mod-dungeon-clear/wiki/How-It-Integrates).
-+
-+## Automated test runs
-+
-+`.dc test` is a **GM-only** harness, not part of normal play. One command rolls
-+a random 5-bot party (tank, healer, three DPS on five different classes), levels
-+and gears it, sends it to a dungeon entrance and lets it clear the place on its
-+own. You stay out of the party and watch, or `.dc test watch` the camera along.
-+Every run records its seed, so a run that hits a bug can be replayed with the
-+exact same party, and `.dc test plan` runs the same dungeon N times to give you
-+a success *rate* rather than an anecdote.
-+
-+**[Test Runs](https://github.com/jrad7/mod-dungeon-clear/wiki/Test-Runs)** —
-+the full command reference, gear and party options, plans, watching, the
-+headless test-driver character, and where the results are written.
-+
-+**[Test Deck](https://github.com/jrad7/mod-dungeon-clear/wiki/Test-Deck)** — the
-+web frontend for those runs, shipped in `testdeck/`. Log in with a game GM
-+account, pick a dungeon from a grid, and watch the party live; built to be
-+handed to testers without shell access.
-+
-+## License
-+
-+AGPL-3.0-or-later (inherited from mod-playerbots). See `LICENSE`.
 diff --git a/ai/dungeonclear/Routes/RecordedRoutes.cpp b/ai/dungeonclear/Routes/RecordedRoutes.cpp
 new file mode 100644
 index 0000000..e5cf071
@@ -98122,82 +97788,6 @@ index 0000000..0e92697
 +General Public License v3.0. It is therefore distributed under the same
 +AGPL-3.0-or-later terms. The full license text is available at
 +<https://www.gnu.org/licenses/agpl-3.0.txt>.
-diff --git a/ai/dungeonclear/addon/DungeonClear-1.12/README.md b/ai/dungeonclear/addon/DungeonClear-1.12/README.md
-new file mode 100644
-index 0000000..c0524d9
---- /dev/null
-+++ b/ai/dungeonclear/addon/DungeonClear-1.12/README.md
-@@ -0,0 +1,70 @@
-+# DungeonClear addon — 1.12 / Turtle WoW build
-+
-+A port of [jrad7/mod-dungeon-clear-addon](https://github.com/jrad7/mod-dungeon-clear-addon)
-+(v3.6, AGPL-3.0-or-later, Copyright Jared Wright and contributors) to the
-+**1.12 client** that Turtle WoW ships. The upstream addon declares
-+`## Interface: 30300` and is written for WotLK's Lua 5.1; a 1.12 client runs
-+Lua 5.0 and refuses the file outright:
-+
-+    DungeonClear.lua:878: unexpected symbol near '%'
-+
-+That is the modulo operator, which Lua 5.0 does not have — and it is only the
-+first of several differences. This folder carries the same addon with every one
-+of them resolved. The server side (`DungeonClearAddonHook.cpp`, prefix `DC`)
-+is unchanged; both variants speak the same protocol.
-+
-+## Install
-+
-+Copy the folder `DungeonClear-1.12` into `Interface\AddOns\` of the client and
-+rename it to `DungeonClear`. Then `/dc` in game, or use the panel.
-+
-+## What was changed, and why
-+
-+| Upstream (Lua 5.1 / 3.3.5)              | Here (Lua 5.0 / 1.12)                                    |
-+|-----------------------------------------|----------------------------------------------------------|
-+| `a % b`                                 | `math.mod(a, b)`                                         |
-+| `#tbl`                                  | `table.getn(tbl)`                                        |
-+| `string.gmatch`                         | `string.gfind`                                           |
-+| `str:match(pat)`                        | `string.find(str, pat)` with captures                    |
-+| handlers `function(self, event, ...)`   | `function()` reading `this`, `event`, `arg1..`           |
-+| named handler `OnUpdateHandler(self, elap)` | same rule - the first parameter is always the frame  |
-+| `SendAddonMessage(..., "WHISPER", me)`  | removed - 1.12 knows PARTY/RAID/GUILD/BG only            |
-+| `frame:SetSize(w, h)` (3.0)             | `SetWidth(w); SetHeight(h)` - replaced in the text       |
-+| `SetNormalFontObject` (2.x)             | `SetTextFontObject`                                      |
-+| `SetWordWrap`, `GetStringHeight`        | guarded / fall back to `GetHeight`                       |
-+| `SetPoint("TOPLEFT")`                   | the five-argument form; 1.12 accepts no other            |
-+| `UIDropDownMenu_SetWidth(frame, w)`     | `(w, frame)` - and `SetText` is `(text, frame)`          |
-+| dropdown init/click callbacks `(self, level)` | no arguments; `this`, `UIDROPDOWNMENU_MENU_LEVEL`  |
-+| `RegisterEvent("GROUP_ROSTER_UPDATE")`  | `PARTY_MEMBERS_CHANGED` + `RAID_ROSTER_UPDATE`           |
-+| `local inInstance, instanceType = IsInInstance()` | one return value on 1.12; type assumed "party" |
-+| `InterfaceOptions_AddCategory` (2.4)    | guarded; settings stay reachable via `/dc`               |
-+| `strtrim`                               | fallback defined if the client lacks it                  |
-+
-+In 1.12 a `SetScript` handler receives **no arguments**: the frame is the global
-+`this`, the event name is `event`, event payload is `arg1`..`arg9`. Every
-+handler - inline or named - was rewritten to read those; their bodies are
-+untouched.
-+
-+One lesson cost a whole evening and is worth stating on its own: **do not
-+create throwaway frames to probe widget metatables.** An earlier build did, to
-+add `SetSize` and friends to the shared metatable the way pfUI does. It did not
-+take on this client, and one of the probes was an `EditBox` - which on 1.12
-+auto-focuses by default and swallowed every keystroke: no movement, no chat,
-+for as long as the addon was loaded. The missing methods are replaced in the
-+text instead.
-+
-+## Verification
-+
-+Live on a Turtle WoW 1.18 client, 2026-09-04, in Razorfen Kraul with an LFT
-+party: `/dc on`, status ON, pull mode Dynamic, live state ("Clearing Path
-+(Trash) - Fighting Razorfen Handler"), next boss, and the four-boss list with
-+Alive/Go controls, all pushed by the server and rendered. That is the complete
-+round trip - addon message, `DungeonClearAddonHook`, tank bot, status push,
-+panel. Eight client-side iterations got here; each error the client reported
-+was a 2.x convenience at a single site (the table above), and the parser check
-+under a real Lua 5.0.3 (`luac -p`) caught none of them - it only sees syntax.
-+
-+Not yet exercised: the Spectate camera buttons and the Settings panel's
-+sliders and dropdowns beyond their creation.
-+
-+`port-1.12.diff` next to this file is the complete change against upstream v3.6.
 diff --git a/ai/dungeonclear/addon/DungeonClear-1.12/port-1.12.diff b/ai/dungeonclear/addon/DungeonClear-1.12/port-1.12.diff
 new file mode 100644
 index 0000000..8956f79
@@ -121466,85 +121056,6 @@ index 0000000..f5b9e82
 +*
 +!.gitignore
 +!README.md
-diff --git a/ai/dungeonclear/t/fixtures/mapdata/README.md b/ai/dungeonclear/t/fixtures/mapdata/README.md
-new file mode 100644
-index 0000000..0a18fc6
---- /dev/null
-+++ b/ai/dungeonclear/t/fixtures/mapdata/README.md
-@@ -0,0 +1,32 @@
-+# mapdata — navmesh slices for the Tier-2 nav geometry suite
-+
-+This directory holds **client-derived (Blizzard) navmesh data** sliced out of a
-+full server `mmaps/` extract. It is **gitignored and never committed** (see
-+`.gitignore`). The Tier-2 suite (`t/TestNavGeometry.cpp`) loads from here and
-+`GTEST_SKIP`s when it is empty, so a clean checkout still builds and passes.
-+
-+## Layout
-+
-+```
-+mapdata/
-+  mmaps/
-+    189.mmap          # navmesh params for map 189 (Scarlet Monastery)
-+    1893232.mmtile    # one tile
-+    ...
-+```
-+
-+## Producing a slice
-+
-+```bash
-+# from the module root
-+tools/slice_mapdata.py --datadir ~/azeroth-server/data --map 189
-+```
-+
-+`--datadir` points at the server data dir that contains the extracted `mmaps/`.
-+For an instanced dungeon map the default copies all of its (few) tiles.
-+
-+## CI
-+
-+CI restores this dir from a **private cached artifact** (not the repo). When the
-+cache is absent the nav suite skips; Tier 1 always runs. Do not wire a step that
-+commits these files.
-diff --git a/ai/dungeonclear/t/fixtures/nav/README.md b/ai/dungeonclear/t/fixtures/nav/README.md
-new file mode 100644
-index 0000000..c5477a1
---- /dev/null
-+++ b/ai/dungeonclear/t/fixtures/nav/README.md
-@@ -0,0 +1,35 @@
-+# nav — Tier-2 routing scenarios
-+
-+Each `*.json` file holds one or more **flat JSON objects, one per line** (shared
-+`DcDecisionJson` format; `#` lines and blanks are ignored). Each object is a
-+frozen routing problem replayed against a real sliced navmesh by
-+`t/TestNavGeometry.cpp`. The suite `GTEST_SKIP`s unless the matching map slice
-+exists under `../mapdata/mmaps/` (see `tools/slice_mapdata.py`).
-+
-+## Schema
-+
-+| key               | type  | required | meaning                                            |
-+|-------------------|-------|----------|----------------------------------------------------|
-+| `name`            | str   | no       | label for assertion messages                       |
-+| `map`             | uint  | yes      | map id (e.g. 189 = Scarlet Monastery)              |
-+| `sx`,`sy`,`sz`    | float | yes      | start world coords                                 |
-+| `tx`,`ty`,`tz`    | float | yes      | goal world coords                                  |
-+| `expectReachable` | bool  | no (true)| whether a route should exist                       |
-+| `expectComplete`  | bool  | no       | if set, assert the route reaches the goal poly     |
-+| `maxStepZ`        | float | no       | if set, assert no vertical pop between points > it (catches under-map / ledge seams) |
-+| `minPoints`       | uint  | no       | if set, assert the polyline has at least this many points |
-+
-+## Example line
-+
-+```
-+{"name":"cathedral entry to nave","map":189,"sx":1690.1,"sy":1053.4,"sz":18.6,"tx":1660.0,"ty":1110.0,"tz":18.6,"expectReachable":true,"expectComplete":true,"maxStepZ":3.0}
-+```
-+
-+## Authoring from a real bug
-+
-+1. Slice the map: `tools/slice_mapdata.py --datadir <data> --map <id>`.
-+2. Get the start/goal coords from the live repro (the DungeonClear log prints
-+   them, or `.gps` in-game at each spot).
-+3. Add a line with the expected outcome. A below-ledge target that must NOT be
-+   routable is `"expectReachable":false`; an under-map seam is caught with a
-+   tight `"maxStepZ"`.
 diff --git a/ai/dungeonclear/t/fixtures/nav/example.json b/ai/dungeonclear/t/fixtures/nav/example.json
 new file mode 100644
 index 0000000..3db547a
@@ -122099,50 +121610,6 @@ index 0000000..0662c13
 +echo "----------------------------------------------------------"
 +echo "Tests completed successfully!"
 +echo "=========================================================="
-diff --git a/ai/dungeonclear/tools/README.md b/ai/dungeonclear/tools/README.md
-new file mode 100644
-index 0000000..a01c781
---- /dev/null
-+++ b/ai/dungeonclear/tools/README.md
-@@ -0,0 +1,38 @@
-+# tools/ — offline developer utilities
-+
-+**None of this directory is part of the running module.** These scripts are not
-+compiled in (`tools/` is deliberately excluded from the CMake source GLOB — see
-+`CMakeLists.txt`), are not invoked by any hook, tick, command or config option,
-+and are never executed by worldserver. Nothing here can affect a running server
-+or a connected client. They are run by hand, by a developer, from a shell.
-+
-+The DB-backed ones open a read-only `mysql` CLI session against `acore_world`
-+and issue `SELECT`s only — they write nothing, to the DB or to disk.
-+
-+| script | what it does | reads |
-+|---|---|---|
-+| `room_aggro_scan.py` | finds bosses sitting in a dense room of static trash (candidates for pre-clear) | `acore_world` |
-+| `room_aggro_audit.py` | diffs `RoomAggroRegistry` against SmartAI actions 38/39 + C++ idioms | `acore_world`, `src/` |
-+| `dungeon_model.py` | ASCII top-down spatial model of a dungeon; DC ring / dead-band report | `acore_world` |
-+| `probe_navmesh.py` | dumps Detour navmesh verts/polys near a point | `mmaps/` |
-+| `slice_mapdata.py` | slices navmesh test fixtures for the headless sim | `mmaps/` |
-+| `dc_test_run.py` | **everything known about one test run, by its id** — record, plan, live state, and the log lines sliced down to that run | run logs, `*.log` |
-+| `dc_analytics.py` | ingests test-run JSONL logs into a queryable SQLite db | run logs |
-+| `check_config_reads.py` | build guard: every tunable must be read via `DcSettings` | `src/` |
-+| `check_determinism.sh` | determinism guard for the decision cores | build output |
-+| `dc-feature.sh` | starts a feature in an isolated git worktree | git |
-+
-+`check_config_reads.py` and `check_determinism.sh` are CI/build-time guards, not
-+runtime code either.
-+
-+`dc_test_run.py` is the entry point for "look at run tr-…": it resolves the
-+record out of `dc_testruns.jsonl` (or `dc_testrun_live.json` if the run is still
-+in flight), pulls in the plan and its sibling runs, prints the teardown DcDiag
-+snapshot, and then slices every `*.log` in the data dir down to the lines that
-+belong to that one run — correlating on the run's own bot names inside the run's
-+time window, because no log line carries a run id. See `--help` for the
-+drill-down flags (`--logs`, `--grep`, `--dump`, `--json`).
-+
-+The spawn-table tools handle both `creature.id1` and the newer `creature.id`
-+spelling by probing `information_schema`, so they work across the upstream
-+rename.
 diff --git a/ai/dungeonclear/tools/check_config_reads.py b/ai/dungeonclear/tools/check_config_reads.py
 new file mode 100644
 index 0000000..1eaa7be
@@ -126552,6 +126019,39 @@ index 0000000..76f71a1
 +
 +if __name__ == "__main__":
 +    main()
+diff --git a/ai/playerbot/PlayerbotAI.h b/ai/playerbot/PlayerbotAI.h
+index f57b57d..eac87f0 100644
+--- a/ai/playerbot/PlayerbotAI.h
++++ b/ai/playerbot/PlayerbotAI.h
+@@ -342,6 +342,13 @@ public:
+     virtual void UpdateAI(uint32 elapsed, bool minimal = false);
+ 
+     void HandleCommands();
++    // Dungeon-clear port (donor host parity): while a dungeon-clear run drives
++    // the bot, the chat-keyword areatrigger relay must not port it out mid-run
++    // (the donor's live "leader tank vanished" bug). The strategy gate sets
++    // this on run install and clears it on teardown; AreaTriggerAction reads
++    // it and stands down.
++    void SetSuppressAreaTriggerRelay(bool on) { m_suppressAreaTriggerRelay = on; }
++    bool IsAreaTriggerRelaySuppressed() const { return m_suppressAreaTriggerRelay; }
+ private:
+     void UpdateAIInternal(uint32 elapsed, bool minimal = false) override;
+ public:
+@@ -871,9 +878,14 @@ public:
+     std::vector<std::string> GetRecordedMessages() { m_recordMessages = false; m_recordIncommingMessages= false; auto msgs = m_recordedMessages; m_recordedMessages.clear(); return msgs; }
+     void ClearRecordedMessages() { m_recordedMessages.clear(); m_recordMessages = false; m_recordIncommingMessages = false;}
+ 
++    Engine* GetEngine(BotState type) { return engines[(uint8)type]; }
++
+ #ifdef BUILD_ELUNA
+     MaNGOS::unique_weak_ptr<PlayerbotAI> m_weakRef;
+ #endif
++
++private:
++    bool m_suppressAreaTriggerRelay = false;
+ };
+ 
+ template<typename T>
 diff --git a/ai/playerbot/PlayerbotAIBase.h b/ai/playerbot/PlayerbotAIBase.h
 index 79ebea8..63cdb7b 100644
 --- a/ai/playerbot/PlayerbotAIBase.h
@@ -126571,11 +126071,30 @@ index 79ebea8..63cdb7b 100644
      void ResetAIInternalUpdateDelay() { aiInternalUpdateDelay = 0U; }
      void IncreaseAIInternalUpdateDelay(uint32 delay);
      void YieldAIInternalThread(bool minimal = false);
+diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
+index 85cb150..a2b6129 100644
+--- a/ai/playerbot/PlayerbotAIConfig.h
++++ b/ai/playerbot/PlayerbotAIConfig.h
+@@ -97,6 +97,14 @@ public:
+ 	bool IsInPvpProhibitedZone(uint32 id);
+ 
+     bool enabled;
++    // The donor host caps how many bots one account may .add; the
++    // dungeon-clear test runner reads it to size its parties. Zero keeps that
++    // gate open, the same default the donor ships (never loaded from config).
++    uint32 maxAddedBots = 0;
++    // Donor-host gear ceilings for auto-equip; 0 is the shipped default and
++    // means unlimited. The dungeon-clear test sidecar reads them.
++    uint32 autoGearScoreLimit = 0;
++    uint32 autoGearQualityLimit = 0;
+     bool allowGuildBots;
+     bool allowMultiAccountAltBots;
+     uint32 globalCoolDown, reactDelay, maxWaitForMove, expireActionTime, dispelAuraDuration, passiveDelay, repeatDelay,
 diff --git a/ai/playerbot/TravelMgr.h b/ai/playerbot/TravelMgr.h
-index f6e2157..c75765d 100644
+index 09e1fe4..43c6643 100644
 --- a/ai/playerbot/TravelMgr.h
 +++ b/ai/playerbot/TravelMgr.h
-@@ -189,7 +189,7 @@ namespace ai
+@@ -194,7 +194,7 @@ namespace ai
  		virtual GameObjectInfo const* GetGoInfo() const { return goInfo; }
  		virtual CreatureInfo const* GetCreatureInfo() const { return creatureInfo; }
  		virtual TravelDestinationPurpose GetPurpose() const override { return purpose; }
@@ -126609,6 +126128,19 @@ index 90e47ac..0eac4f1 100644
 +#include "Guild/GuildMgr.h"
 +
  // Implemented inline by the Tortoise action header.
+diff --git a/ai/playerbot/strategy/actions/AcceptInvitationAction.h b/ai/playerbot/strategy/actions/AcceptInvitationAction.h
+index 64446ff..22c532e 100644
+--- a/ai/playerbot/strategy/actions/AcceptInvitationAction.h
++++ b/ai/playerbot/strategy/actions/AcceptInvitationAction.h
+@@ -7,6 +7,8 @@
+ #include "playerbot/strategy/Action.h"
+ #include "UseMeetingStoneAction.h"
+ 
++#include "Guild/GuildMgr.h"
++
+ namespace ai
+ {
+     class AcceptInvitationAction : public Action
 diff --git a/ai/playerbot/strategy/actions/AreaTriggerAction.cpp b/ai/playerbot/strategy/actions/AreaTriggerAction.cpp
 index 42335ba..a966afc 100644
 --- a/ai/playerbot/strategy/actions/AreaTriggerAction.cpp
@@ -126626,6 +126158,314 @@ index 42335ba..a966afc 100644
      LastMovement& movement = context->GetValue<LastMovement&>("last area trigger")->Get();
  
      uint32 triggerId = movement.lastAreaTrigger;
+diff --git a/ai/playerbot/strategy/actions/MovementActions.cpp b/ai/playerbot/strategy/actions/MovementActions.cpp
+index 876679e..cfe166c 100644
+--- a/ai/playerbot/strategy/actions/MovementActions.cpp
++++ b/ai/playerbot/strategy/actions/MovementActions.cpp
+@@ -1173,6 +1173,26 @@ float MovementAction::GetFollowAngle()
+     return 0;
+ }
+ 
++// No-argument form (dungeon-clear port, donor host parity): may the bot
++// start moving from where it stands.
++bool MovementAction::IsMovingAllowed()
++{
++    if (!bot)
++        return false;
++
++    return IsMovingAllowed(bot->GetMapId(), bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ());
++}
++
++// mod-playerbots spelling: jump the bot to a point, on MotionMaster::MoveJump.
++bool MovementAction::JumpTo(uint32 /*mapId*/, float x, float y, float z, MovementPriority /*priority*/)
++{
++    if (!bot)
++        return false;
++
++    bot->GetMotionMaster()->MoveJump(x, y, z, 10.0f, 5.0f);
++    return true;
++}
++
+ bool MovementAction::IsMovingAllowed(Unit* target)
+ {
+     if (!target)
+diff --git a/ai/playerbot/strategy/actions/MovementActions.h b/ai/playerbot/strategy/actions/MovementActions.h
+index 767b385..c8a5cb2 100644
+--- a/ai/playerbot/strategy/actions/MovementActions.h
++++ b/ai/playerbot/strategy/actions/MovementActions.h
+@@ -9,6 +9,19 @@
+ #include "playerbot/strategy/values/HazardsValue.h"
+ #include "playerbot/strategy/values/LastMovementValue.h"
+ 
++// Move priorities, for code ported from mod-playerbots, which arbitrates
++// moves by them. Nothing in this tree arbitrates: MoveTo takes the move and
++// issues it. The type exists so ported call sites keep their shape, and every
++// place that drops the value says so (same shape the donor host gave its own
++// MovementAction).
++enum class MovementPriority : uint8
++{
++    MOVEMENT_IDLE   = 0,
++    MOVEMENT_NORMAL = 1,
++    MOVEMENT_COMBAT = 2,
++    MOVEMENT_FORCED = 3
++};
++
+ namespace ai
+ {
+     class MovementAction : public Action
+@@ -31,8 +44,13 @@ namespace ai
+            return MoveTo(location.mapId, location.x, location.y, location.z, idle, react, noPath, ignoreEnemyTargets);
+         }
+ 
++    public:
++        // Static taxi adapter shared with the RPG actions (which are not
++        // MovementAction subclasses).
+         static bool UseTaxi(PlayerbotAI* ai, uint32 entry = 0, bool needNpc = true, Creature* sourceNpc = nullptr);
+ 
++    protected:
++
+ 
+         bool WaitForTransport();
+ 
+@@ -85,10 +103,51 @@ namespace ai
+         bool ShouldReactionInterruptCast() const override { return true; }
+         bool ShouldReactionInterruptMovement() const override { return true; }
+ 
+-    private:
++    protected: // the dungeon-clear port's dropping overloads are used by subclasses
+         bool IsValidPosition(const WorldPosition& position, const WorldPosition& visibleFromPosition);
+         bool IsHazardNearPosition(const WorldPosition& position, HazardPosition* outHazard = nullptr);
+         bool GeneratePathAvoidingHazards(std::vector<WorldPosition>& movePath);
++
++        // --- dungeon-clear port: mod-playerbots movement surface ------------
++        // MoveTo overload dropping the mod-playerbots movement arguments
++        // (see MovementPriority above and the donor host's MovementAction).
++
++        // mod-playerbots carries four more arguments on this call. Three are
++        // accepted and dropped - exact_waypoint, lessDelay and backwards have
++        // no counterpart in this generator - and the priority goes the way
++        // every other priority here goes. normal_only maps onto noPath, which
++        // is the same request: do not route, go straight.
++        bool MoveTo(uint32 mapId, float x, float y, float z, bool idle, bool react,
++                    bool normal_only, bool /*exact_waypoint*/,
++                    MovementPriority /*priority*/, bool /*lessDelay*/ = false,
++                    bool /*backwards*/ = false)
++        { return MoveTo(mapId, x, y, z, idle, react, normal_only); }
++
++        // mod-playerbots refuses a move to a spot the bot was just sent to.
++        // Nothing here records that, so nothing is a duplicate. False keeps
++        // the move flowing, which is the safe direction - see
++        // IsWaitingForLastMove.
++        bool IsDuplicateMove(float /*x*/, float /*y*/, float /*z*/) const { return false; }
++
++        // mod-playerbots spelling: jump the bot to a point. Sits on
++        // MotionMaster::MoveJump. The mapId is accepted and ignored - a jump
++        // never leaves the map, and ported callers pass it because their
++        // MoveTo takes one. The priority is dropped.
++        bool JumpTo(uint32 /*mapId*/, float x, float y, float z,
++                    MovementPriority /*priority*/ = MovementPriority::MOVEMENT_NORMAL);
++
++        // mod-playerbots records a wait sized to the last leg and refuses a
++        // later move whose priority is not strictly greater. This tree
++        // records no such wait - LastMovement carries no timestamp and no
++        // priority - so there is nothing to answer from and this says "not
++        // waiting". False is the safe answer, not merely the convenient one:
++        // the failure it avoids is a leftover wait silently refusing the
++        // NEXT leg, leaving the tank standing in the pack it just pulled.
++        bool IsWaitingForLastMove(MovementPriority /*priority*/ = MovementPriority::MOVEMENT_NORMAL) const { return false; }
++
++        // No-argument form: may the bot start moving from where it stands.
++        bool IsMovingAllowed();
++        // --------------------------------------------------------------------
+     };
+ 
+     class FleeAction : public MovementAction
+diff --git a/ai/playerbot/strategy/druid/GenericDruidStrategy.h b/ai/playerbot/strategy/druid/GenericDruidStrategy.h
+index 506a360..130730f 100644
+--- a/ai/playerbot/strategy/druid/GenericDruidStrategy.h
++++ b/ai/playerbot/strategy/druid/GenericDruidStrategy.h
+@@ -8,6 +8,13 @@
+ #ifndef PLAYERBOTS_GENERICDRUIDSTRATEGY_H
+ #define PLAYERBOTS_GENERICDRUIDSTRATEGY_H
+ 
++
++// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
++namespace ai
++{
++    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
++}
++
+ #include "CombatStrategy.h"
+ 
+ class PlayerbotAI;
+diff --git a/ai/playerbot/strategy/generic/ForceRebuff.cpp b/ai/playerbot/strategy/generic/ForceRebuff.cpp
+index dfa4a2d..f69f45f 100644
+--- a/ai/playerbot/strategy/generic/ForceRebuff.cpp
++++ b/ai/playerbot/strategy/generic/ForceRebuff.cpp
+@@ -35,7 +35,9 @@ bool ForceRebuffState::IsPending() const
+ 
+ bool ForceRebuffState::IsOnGlobalCooldown() const
+ {
+-    return bot && lastGcdSpell && bot->HasGlobalCooldown(lastGcdSpell);
++    // Unit carries the global-cooldown state on this core.
++    return bot && lastGcdSpell &&
++           bot->GetGlobalCooldownMgr().HasGlobalCooldown(lastGcdSpell);
+ }
+ 
+ void ForceRebuffState::NoteBuffWork()
+@@ -101,7 +103,9 @@ public:
+ 
+ void ForceRebuffStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
+ {
+-    triggers.push_back(new TriggerNode("force rebuff pending", { new NextAction("ready reply", 6.0f) }));
++    triggers.push_back(new TriggerNode(
++        "force rebuff pending",
++        NextAction::array(0, new NextAction("ready reply", 6.0f), NULL)));
+ }
+ 
+ void ForceRebuffStrategy::InitMultipliers(std::vector<Multiplier*>& multipliers)
+diff --git a/ai/playerbot/strategy/hunter/GenericHunterStrategy.h b/ai/playerbot/strategy/hunter/GenericHunterStrategy.h
+index 901a05f..e88cd24 100644
+--- a/ai/playerbot/strategy/hunter/GenericHunterStrategy.h
++++ b/ai/playerbot/strategy/hunter/GenericHunterStrategy.h
+@@ -8,6 +8,13 @@
+ #ifndef PLAYERBOTS_GENERICHUNTERSTRATEGY_H
+ #define PLAYERBOTS_GENERICHUNTERSTRATEGY_H
+ 
++
++// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
++namespace ai
++{
++    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
++}
++
+ #include "CombatStrategy.h"
+ #include "Strategy.h"
+ 
+diff --git a/ai/playerbot/strategy/mage/GenericMageStrategy.h b/ai/playerbot/strategy/mage/GenericMageStrategy.h
+index 7b10897..6ccda3d 100644
+--- a/ai/playerbot/strategy/mage/GenericMageStrategy.h
++++ b/ai/playerbot/strategy/mage/GenericMageStrategy.h
+@@ -8,6 +8,13 @@
+ #ifndef PLAYERBOTS_GENERICMAGESTRATEGY_H
+ #define PLAYERBOTS_GENERICMAGESTRATEGY_H
+ 
++
++// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
++namespace ai
++{
++    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
++}
++
+ #include "CombatStrategy.h"
+ #include "RangedCombatStrategy.h"
+ 
+diff --git a/ai/playerbot/strategy/paladin/GenericPaladinStrategy.h b/ai/playerbot/strategy/paladin/GenericPaladinStrategy.h
+index 59cbca9..fad342d 100644
+--- a/ai/playerbot/strategy/paladin/GenericPaladinStrategy.h
++++ b/ai/playerbot/strategy/paladin/GenericPaladinStrategy.h
+@@ -8,6 +8,13 @@
+ #ifndef PLAYERBOTS_GENERICPALADINSTRATEGY_H
+ #define PLAYERBOTS_GENERICPALADINSTRATEGY_H
+ 
++
++// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
++namespace ai
++{
++    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
++}
++
+ #include "CombatStrategy.h"
+ 
+ class PlayerbotAI;
+diff --git a/ai/playerbot/strategy/priest/GenericPriestStrategy.h b/ai/playerbot/strategy/priest/GenericPriestStrategy.h
+index 6e7b160..288b85b 100644
+--- a/ai/playerbot/strategy/priest/GenericPriestStrategy.h
++++ b/ai/playerbot/strategy/priest/GenericPriestStrategy.h
+@@ -8,6 +8,13 @@
+ #ifndef PLAYERBOTS_GENERICPRIESTSTRATEGY_H
+ #define PLAYERBOTS_GENERICPRIESTSTRATEGY_H
+ 
++
++// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
++namespace ai
++{
++    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
++}
++
+ #include "CombatStrategy.h"
+ #include "RangedCombatStrategy.h"
+ 
+diff --git a/ai/playerbot/strategy/rogue/DpsRogueStrategy.h b/ai/playerbot/strategy/rogue/DpsRogueStrategy.h
+index 26fd5bc..97ff3d3 100644
+--- a/ai/playerbot/strategy/rogue/DpsRogueStrategy.h
++++ b/ai/playerbot/strategy/rogue/DpsRogueStrategy.h
+@@ -8,6 +8,13 @@
+ #ifndef PLAYERBOTS_DPSROGUESTRATEGY_H
+ #define PLAYERBOTS_DPSROGUESTRATEGY_H
+ 
++
++// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
++namespace ai
++{
++    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
++}
++
+ #include "CombatStrategy.h"
+ #include "MeleeCombatStrategy.h"
+ 
+diff --git a/ai/playerbot/strategy/triggers/DungeonTriggers.cpp b/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
+index b60b1e0..0eedda2 100644
+--- a/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
++++ b/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
+@@ -59,7 +59,8 @@ bool StartBossFightTrigger::IsActive()
+         if (bot->IsInWorld() && !bot->IsBeingTeleported())
+         {
+             AiObjectContext* context = ai->GetAiObjectContext();
+-            const std::list<ObjectGuid> attackers = AI_VALUE(std::list<ObjectGuid>, "attackers");
++            const std::list<ObjectGuid> attackers =
++        ai->GetAiObjectContext()->GetValue<std::list<ObjectGuid>>("attackers")->Get();
+             for (const ObjectGuid& attackerGuid : attackers)
+             {
+                 Unit* attacker = ai->GetUnit(attackerGuid);
+@@ -86,9 +87,10 @@ bool EndBossFightTrigger::IsActive()
+     return false;
+ }
+ 
+-Unit* FindDungeonBoss(PlayerbotAI* ai, uint32 entry)
++Unit* ai::FindDungeonBoss(PlayerbotAI* ai, uint32 entry)
+ {
+-    const std::list<ObjectGuid> attackers = AI_VALUE(std::list<ObjectGuid>, "attackers");
++    const std::list<ObjectGuid> attackers =
++        ai->GetAiObjectContext()->GetValue<std::list<ObjectGuid>>("attackers")->Get();
+     for (const ObjectGuid& guid : attackers)
+     {
+         Unit* unit = ai->GetUnit(guid);
+@@ -96,7 +98,8 @@ Unit* FindDungeonBoss(PlayerbotAI* ai, uint32 entry)
+             return unit;
+     }
+ 
+-    const std::list<ObjectGuid> possible = AI_VALUE(std::list<ObjectGuid>, "possible targets");
++    const std::list<ObjectGuid> possible =
++        ai->GetAiObjectContext()->GetValue<std::list<ObjectGuid>>("possible targets")->Get();
+     for (const ObjectGuid& guid : possible)
+     {
+         Unit* unit = ai->GetUnit(guid);
+diff --git a/ai/playerbot/strategy/triggers/GenericTriggers.cpp b/ai/playerbot/strategy/triggers/GenericTriggers.cpp
+index 72900ec..3fbcdae 100644
+--- a/ai/playerbot/strategy/triggers/GenericTriggers.cpp
++++ b/ai/playerbot/strategy/triggers/GenericTriggers.cpp
+@@ -220,7 +220,9 @@ bool BuffTrigger::IsActive()
+     if (!target || !target->IsAlive())
+         return false;
+ 
+-    Aura* aura = ai->GetAura(spell, target, false, checkIsOwner);
++    // This tree's GetAura drops the owner-check to the member flag path
++    // (same overload family, no fourth argument).
++    Aura* aura = ai->GetAura(spell, target, checkIsOwner);
+     if (!aura)
+         return true;
+ 
 diff --git a/ai/playerbot/strategy/values/AttackersValue.h b/ai/playerbot/strategy/values/AttackersValue.h
 index fb1b913..b64fab4 100644
 --- a/ai/playerbot/strategy/values/AttackersValue.h
@@ -126642,6 +126482,24 @@ index fb1b913..b64fab4 100644
          static bool IgnoreTarget(Unit* target, Player* playerToCheckAgainst);
          virtual std::string Format() override;
  
+diff --git a/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h b/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h
+index 0fe1803..a59f6dc 100644
+--- a/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h
++++ b/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h
+@@ -8,6 +8,13 @@
+ #ifndef PLAYERBOTS_GENERICWARLOCKSTRATEGY_H
+ #define PLAYERBOTS_GENERICWARLOCKSTRATEGY_H
+ 
++
++// Generic CC suppression gate (defined in generic/ClassStrategy.cpp).
++namespace ai
++{
++    bool IsGenericCcSuppressedInDungeon(PlayerbotAI* ai);
++}
++
+ #include "CombatStrategy.h"
+ 
+ class PlayerbotAI;
 diff --git a/conf/mod_dungeon_clear.conf.dist b/conf/mod_dungeon_clear.conf.dist
 new file mode 100644
 index 0000000..df0d24b

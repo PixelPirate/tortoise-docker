@@ -1,8 +1,8 @@
 diff --git a/runtime/BattlegroundQueueService.cpp b/runtime/BattlegroundQueueService.cpp
-index 70ab83d..ff8a8e5 100644
+index 9e45fd1..f0df5c5 100644
 --- a/runtime/BattlegroundQueueService.cpp
 +++ b/runtime/BattlegroundQueueService.cpp
-@@ -120,6 +120,29 @@ BattlegroundQueueService& BattlegroundQueueService::Instance()
+@@ -121,6 +121,29 @@ BattlegroundQueueService& BattlegroundQueueService::Instance()
      return instance;
  }
  
@@ -32,7 +32,7 @@ index 70ab83d..ff8a8e5 100644
  void BattlegroundQueueService::Initialize()
  {
      if (m_initialized)
-@@ -127,6 +150,8 @@ void BattlegroundQueueService::Initialize()
+@@ -128,6 +151,8 @@ void BattlegroundQueueService::Initialize()
      m_initialized = true;
      m_elapsedMs = 0;
  
@@ -42,7 +42,7 @@ index 70ab83d..ff8a8e5 100644
      {
          TB_LOG_BASIC("TortoiseBots: BG auto-queue disabled (ai %u bg %u)",
 diff --git a/runtime/BattlegroundQueueService.h b/runtime/BattlegroundQueueService.h
-index b731110..aa3aab1 100644
+index 6a198c1..92164c6 100644
 --- a/runtime/BattlegroundQueueService.h
 +++ b/runtime/BattlegroundQueueService.h
 @@ -40,6 +40,7 @@ private:
@@ -54,10 +54,10 @@ index b731110..aa3aab1 100644
      bool m_initialized = false;
      uint32_t m_elapsedMs = 0;
 diff --git a/runtime/LftBotFillService.cpp b/runtime/LftBotFillService.cpp
-index 7e2e9ea..8d7120d 100644
+index 9d3c6f4..f56a927 100644
 --- a/runtime/LftBotFillService.cpp
 +++ b/runtime/LftBotFillService.cpp
-@@ -129,6 +129,28 @@ LftBotFillService& LftBotFillService::Instance()
+@@ -131,6 +131,28 @@ LftBotFillService& LftBotFillService::Instance()
      return instance;
  }
  
@@ -86,7 +86,7 @@ index 7e2e9ea..8d7120d 100644
  void LftBotFillService::Initialize()
  {
      if (m_initialized)
-@@ -137,6 +159,8 @@ void LftBotFillService::Initialize()
+@@ -139,6 +161,8 @@ void LftBotFillService::Initialize()
      m_elapsedMs = 0;
      m_pending.clear();
  
@@ -94,16 +94,16 @@ index 7e2e9ea..8d7120d 100644
 +
      if (!sPlayerbotAIConfig.enabled || !sPlayerbotAIConfig.randomBotLftEnabled)
      {
-         TB_LOG_BASIC("TortoiseBots: LFT fill disabled (ai %u lft %u)", sPlayerbotAIConfig.enabled, sPlayerbotAIConfig.randomBotLftEnabled);
+         TB_LOG_BASIC("TortoiseBots: LFT random fill disabled (ai %u lft %u); own-party offer acceptance stays on",
 diff --git a/runtime/LftBotFillService.h b/runtime/LftBotFillService.h
-index ce06127..f4cef6f 100644
+index 2e882a5..e94920a 100644
 --- a/runtime/LftBotFillService.h
 +++ b/runtime/LftBotFillService.h
-@@ -44,6 +44,7 @@ private:
-     void ReconcilePending(bool cancelAll, std::vector<std::string> const* activeInstances = nullptr);
-     void AcceptPendingOffers();
-     void ClearForcedRole(uint32 guidLow);
-+    void DrainStaleLftQueue();
-     // Issue #189 Phase 4: natural-role eligibility (no borrowing by default)
-     // plus best-shield-from-bags equip for shield-class tanks. Returns the
+@@ -57,6 +57,7 @@ private:
      // skip reason when the bot must not fill the role, empty when it may.
+     std::string RoleMismatchReason(Player* bot, uint8 needRole) const;
+     bool EquipBestShieldFromBags(Player* bot) const;
++    void DrainStaleLftQueue();
+ 
+     bool m_initialized = false;
+     uint32_t m_elapsedMs = 0;

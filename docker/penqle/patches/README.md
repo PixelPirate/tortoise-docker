@@ -6,10 +6,10 @@ Pins these patches are written against (see `Dockerfile.penqle`):
 CORE_REPO   https://github.com/tortoise-wow/tortoise-wow.git
 CORE_REF    1181dev
 CORE_COMMIT 010cdb6d513ae3c29ab685e2ff708fb18d8295c8
-BOTS_COMMIT 76a0a13d9bfce850e51f2e5df085019521caf386
+BOTS_COMMIT b268267267dd367e6e36344ff73ea2a313240712
 ```
 
-The series is generated from the local `TortoiseBots` `bot-helpers` branch as
+The series is generated from the local `TortoiseBots` `enhancements` branch as
 the difference against `BOTS_COMMIT`, so applying all patches in numeric order
 reproduces that branch's source tree. Several features the series used to carry
 were merged upstream in the meantime and are now upstream's own code rather
@@ -22,16 +22,18 @@ The upstream module takes commits several times a day, so re-pinning is routine.
 The procedure that produced the current series:
 
 1. In the local `TortoiseBots` checkout: `git fetch origin main`, fast-forward
-   `main`, then `git merge main` on the `bot-helpers` branch (resolve
+   `main`, then `git merge main` on the `enhancements` branch (resolve
    conflicts there, not in the patches).
 2. Bump `BOTS_COMMIT` in `Dockerfile.penqle` to the new `origin/main` tip.
-3. Regenerate each patch as the diff of its own file set between the new
-   `BOTS_COMMIT` and `bot-helpers`, in numeric order, applying each patch's
-   file set to a scratch checkout of `BOTS_COMMIT` before generating the next
-   one. A file belongs to the first patch that names it, so the series stays a
-   linear stack and each patch still applies on top of the previous.
+3. Regenerate each patch as the incremental diff of its own feature, between
+   consecutive feature boundaries on the rebased `enhancements` branch, in
+   numeric order (each patch applies on top of the previous). A file may appear
+   in more than one patch when a later feature edits it again. When a feature
+   was split across several commits, or a follow-up commit fixes up an earlier
+   one (e.g. the `ClaimIdleBot` removal folded back into 008), squash them into
+   the feature's boundary so no patch carries a transient add-then-remove.
 4. Verify: apply the whole series in order to a scratch checkout of
-   `BOTS_COMMIT` and confirm the result equals `bot-helpers` (docs excluded),
+   `BOTS_COMMIT` and confirm the result equals `enhancements` (docs excluded),
    then rebuild the image. The acceptance check is:
 
    ```bash
@@ -39,7 +41,7 @@ The procedure that produced the current series:
    cd /tmp/bots-verify
    for p in <patches>/*.patch; do git apply --check "$p" && git apply "$p"; done
    git add -A
-   git diff --cached bot-helpers -- . ':(exclude)docs/' ':(exclude)*.md'   # empty
+   git diff --cached enhancements -- . ':(exclude)docs/' ':(exclude)*.md'   # empty
    ```
 
 Documentation files (`docs/`, `*.md`) are deliberately excluded: the patches
@@ -407,6 +409,6 @@ counter, `BotRecord::aiSkippedMs`), `ai/playerbot/PlayerbotAIConfig.{h,cpp}`
 (new `botAiTickDivisor`, clamped 1-60), `ai/playerbot/aiplayerbot.conf.dist.in`
 (documented key). Exposed as `AI_BOT_AI_TICK_DIVISOR` in the image (rendered
 config, `.env.example.penqle`, compose, README table). Status: applies cleanly
-to `BOTS_COMMIT` and reproduces the local `bot-helpers` tree (verified
+to `BOTS_COMMIT` and reproduces the local `enhancements` tree (verified
 2026-09-25); **not compile-verified** — the module builds only inside the core
 image, so the first `docker build -f Dockerfile.penqle` is the compile check.

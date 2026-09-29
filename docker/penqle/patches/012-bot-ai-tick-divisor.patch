@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/PlayerbotAIConfig.cpp b/ai/playerbot/PlayerbotAIConfig.cpp
-index 9abeeab..60cd6b3 100644
+index 1ee6086..98bb22b 100644
 --- a/ai/playerbot/PlayerbotAIConfig.cpp
 +++ b/ai/playerbot/PlayerbotAIConfig.cpp
-@@ -625,6 +625,11 @@ bool PlayerbotAIConfig::Initialize()
+@@ -651,6 +651,11 @@ bool PlayerbotAIConfig::Initialize()
      limitCombatActivity = config.GetBoolDefault("AiPlayerbot.LimitCombatActivity", false);
      guildOrderAlwaysActive = config.GetBoolDefault("AiPlayerbot.GuildOrderAlwaysActive", true);
      botActiveAlone = config.GetIntDefault("AiPlayerbot.botActiveAlone", 10);
@@ -15,10 +15,10 @@ index 9abeeab..60cd6b3 100644
      diffEmpty = config.GetIntDefault("AiPlayerbot.DiffEmpty", 200);
      RandombotsWalkingRPG = config.GetBoolDefault("AiPlayerbot.RandombotsWalkingRPG", false);
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index 7977039..6dd0f1a 100644
+index a2b6129..0cb091e 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
-@@ -345,6 +345,10 @@ public:
+@@ -385,6 +385,10 @@ public:
      bool limitCombatActivity;
      bool guildOrderAlwaysActive;
      uint32 botActiveAlone;
@@ -30,11 +30,11 @@ index 7977039..6dd0f1a 100644
      uint32 diffEmpty;
      uint32 minEnchantingBotLevel;
 diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index 5f3bfa3..d097c26 100644
+index c63ce57..1ee9102 100644
 --- a/ai/playerbot/aiplayerbot.conf.dist.in
 +++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -249,6 +249,19 @@ AiPlayerbot.DisableActivityPriorities = 1
- # Percentage of fully active bots. Default is 10, higher numbers may affect performance
+@@ -336,6 +336,19 @@ AiPlayerbot.DisableActivityPriorities = 1
+ # Default is 10, higher numbers may affect performance
  # AiPlayerbot.botActiveAlone = 10
  
 +# Update every eligible bot's AI once every this many world ticks (1-60,
@@ -54,10 +54,10 @@ index 5f3bfa3..d097c26 100644
  # When enabled, bot alts will level up one level at a time to match their master's level
  # AiPlayerbot.SyncAltLevelToMaster = 0
 diff --git a/runtime/BotManager.cpp b/runtime/BotManager.cpp
-index dd5f48f..307ceba 100644
+index 13a942c..90a69b2 100644
 --- a/runtime/BotManager.cpp
 +++ b/runtime/BotManager.cpp
-@@ -1284,10 +1284,25 @@ void BotManager::UpdateBots(uint32_t diff)
+@@ -1379,7 +1379,20 @@ void BotManager::UpdateBots(uint32_t diff)
  
          if (entry.aiAdapter && entry.aiAdapter->IsUsable())
          {
@@ -77,14 +77,18 @@ index dd5f48f..307ceba 100644
 +            entry.record.aiSkippedMs = 0;
 +            entry.aiAdapter->Update(elapsed);
          }
-     }
+     };
+ 
+@@ -1406,6 +1419,8 @@ void BotManager::UpdateBots(uint32_t diff)
+         },
+         updateOneBot, budgetHit);
  
 +    ++m_aiTickCounter;
 +
      m_inBotUpdate = false;
  
      if (!m_pendingBotRemovals.empty())
-@@ -1299,6 +1314,55 @@ void BotManager::UpdateBots(uint32_t diff)
+@@ -1440,6 +1455,55 @@ void BotManager::UpdateBots(uint32_t diff)
      }
  }
  
@@ -141,10 +145,10 @@ index dd5f48f..307ceba 100644
  {
      // Core owns Headless session lifecycle (queue, LoginPlayer dispatch, reclaim).
 diff --git a/runtime/BotManager.h b/runtime/BotManager.h
-index e0b20c2..5ca2757 100644
+index 50d693f..e44bf1d 100644
 --- a/runtime/BotManager.h
 +++ b/runtime/BotManager.h
-@@ -51,6 +51,9 @@ struct BotRecord
+@@ -52,6 +52,9 @@ struct BotRecord
      // retains the historical accountId fallback for diagnostics.
      uint32_t ownerAccountId = 0;
      uint32_t ticksInWorld = 0;
@@ -154,7 +158,7 @@ index e0b20c2..5ca2757 100644
      bool enteredWorld = false;
      bool random = false;
      bool syncedInWorld = false;
-@@ -218,6 +221,13 @@ private:
+@@ -228,6 +231,13 @@ private:
      ObjectGuid m_packetTestBotGuid;
      uint32_t m_packetTestTicks = 0;
      void SweepStrandedBots(uint32_t diff);
