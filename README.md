@@ -2,7 +2,7 @@
 
 Run a private [Turtle WoW](https://turtle-wow.org/) server with Docker, built
 from the canonical [tortoise-wow/tortoise-wow](https://github.com/tortoise-wow/tortoise-wow)
-core (`1181dev` branch, formerly `Penqle/tortoise-wow`) with the
+core (`main` branch, formerly `Penqle/tortoise-wow`) with the
 [Sagiroth/TortoiseBots](https://github.com/Sagiroth/TortoiseBots) playerbot
 module compiled in.
 

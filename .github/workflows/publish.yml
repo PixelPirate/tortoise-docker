@@ -9,13 +9,13 @@ on:
   workflow_dispatch:
     inputs:
       core_commit:
-        description: "Commit SHA of tortoise-wow (1181dev) to build"
+        description: "Commit SHA of tortoise-wow (main) to build"
         required: false
-        default: "010cdb6d513ae3c29ab685e2ff708fb18d8295c8"
+        default: "d94947b0db60c33e7248523ad0ba7f58af97fd09"
       bots_commit:
         description: "Commit SHA of Sagiroth/TortoiseBots to build"
         required: false
-        default: "76a0a13d9bfce850e51f2e5df085019521caf386"
+        default: "959fc5795b1002997a834d3d8078efae599dd892"
 
 permissions:
   contents: read
@@ -42,8 +42,8 @@ jobs:
       - name: Resolve source commits
         id: source
         run: |
-          CORE_SHA="${{ github.event.inputs.core_commit || '010cdb6d513ae3c29ab685e2ff708fb18d8295c8' }}"
-          BOTS_SHA="${{ github.event.inputs.bots_commit || '76a0a13d9bfce850e51f2e5df085019521caf386' }}"
+          CORE_SHA="${{ github.event.inputs.core_commit || 'd94947b0db60c33e7248523ad0ba7f58af97fd09' }}"
+          BOTS_SHA="${{ github.event.inputs.bots_commit || '959fc5795b1002997a834d3d8078efae599dd892' }}"
           echo "Core pin: ${CORE_SHA}"
           echo "Bots pin: ${BOTS_SHA}"
           echo "core_sha=${CORE_SHA}" >> "$GITHUB_OUTPUT"

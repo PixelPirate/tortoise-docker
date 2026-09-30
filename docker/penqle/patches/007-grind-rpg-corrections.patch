@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/TravelMgr.cpp b/ai/playerbot/TravelMgr.cpp
-index 936b099..4de0d39 100644
+index dc4bced..4d0c730 100644
 --- a/ai/playerbot/TravelMgr.cpp
 +++ b/ai/playerbot/TravelMgr.cpp
-@@ -494,6 +494,12 @@ bool RpgTravelDestination::IsActive(Player* bot, const PlayerTravelInfo& info) c
+@@ -509,6 +509,12 @@ bool RpgTravelDestination::IsActive(Player* bot, const PlayerTravelInfo& info) c
      if (!IsPossible(info))
          return false;
  

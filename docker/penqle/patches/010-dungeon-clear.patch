@@ -126019,10 +126019,10 @@ index 0000000..76f71a1
 +if __name__ == "__main__":
 +    main()
 diff --git a/ai/playerbot/PlayerbotAI.h b/ai/playerbot/PlayerbotAI.h
-index f57b57d..eac87f0 100644
+index 552a884..6bcc923 100644
 --- a/ai/playerbot/PlayerbotAI.h
 +++ b/ai/playerbot/PlayerbotAI.h
-@@ -342,6 +342,13 @@ public:
+@@ -343,6 +343,13 @@ public:
      virtual void UpdateAI(uint32 elapsed, bool minimal = false);
  
      void HandleCommands();
@@ -126036,7 +126036,7 @@ index f57b57d..eac87f0 100644
  private:
      void UpdateAIInternal(uint32 elapsed, bool minimal = false) override;
  public:
-@@ -871,9 +878,14 @@ public:
+@@ -879,9 +886,14 @@ public:
      std::vector<std::string> GetRecordedMessages() { m_recordMessages = false; m_recordIncommingMessages= false; auto msgs = m_recordedMessages; m_recordedMessages.clear(); return msgs; }
      void ClearRecordedMessages() { m_recordedMessages.clear(); m_recordMessages = false; m_recordIncommingMessages = false;}
  
@@ -126071,7 +126071,7 @@ index 79ebea8..63cdb7b 100644
      void IncreaseAIInternalUpdateDelay(uint32 delay);
      void YieldAIInternalThread(bool minimal = false);
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index 85cb150..a2b6129 100644
+index 10b9ea1..bf378ef 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
 @@ -97,6 +97,14 @@ public:
@@ -126128,7 +126128,7 @@ index 90e47ac..0eac4f1 100644
 +
  // Implemented inline by the Tortoise action header.
 diff --git a/ai/playerbot/strategy/actions/AcceptInvitationAction.h b/ai/playerbot/strategy/actions/AcceptInvitationAction.h
-index 64446ff..22c532e 100644
+index 8f61f9c..355db0b 100644
 --- a/ai/playerbot/strategy/actions/AcceptInvitationAction.h
 +++ b/ai/playerbot/strategy/actions/AcceptInvitationAction.h
 @@ -7,6 +7,8 @@

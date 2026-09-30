@@ -8,7 +8,7 @@ This repo contains **no application source code**. It is a Docker packaging
 project: `Dockerfile.penqle` builds a Turtle WoW private-server image by
 cloning and compiling two external C++ projects at pinned commit SHAs:
 
-- **Core**: [tortoise-wow/tortoise-wow](https://github.com/tortoise-wow/tortoise-wow), branch `1181dev`
+- **Core**: [tortoise-wow/tortoise-wow](https://github.com/tortoise-wow/tortoise-wow), branch `main`
 - **Bot module**: [Sagiroth/TortoiseBots](https://github.com/Sagiroth/TortoiseBots), cloned into the core as `modules/TortoiseBots`
 
 Everything else is Compose orchestration, shell scripts run inside the image,
@@ -53,6 +53,8 @@ Bot-behavior changes are delivered as **build-time patches**, not forks:
 - When bumping `BOTS_COMMIT`, re-verify every patch and rebase as needed.
 - Mirror the same change in the local TortoiseBots checkout for reference;
   delete a patch from here once upstream includes it in the pin.
+- The full refresh procedure (rebase, regenerate the series, re-pin, rebuild)
+  is `docs/bot-patch-refresh.md`; run it whenever a pin moves.
 - New agent-authored feature work comes from `docs/gap-prompts/` —
   self-contained prompts whose shared context (house rules: vanilla 1.12 IDs
   only, fail-closed, no silent no-ops, ledger row updates in

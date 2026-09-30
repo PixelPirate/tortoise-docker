@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/PlayerbotAIConfig.cpp b/ai/playerbot/PlayerbotAIConfig.cpp
-index 1ee6086..98bb22b 100644
+index 3f67cbb..4240089 100644
 --- a/ai/playerbot/PlayerbotAIConfig.cpp
 +++ b/ai/playerbot/PlayerbotAIConfig.cpp
-@@ -651,6 +651,11 @@ bool PlayerbotAIConfig::Initialize()
+@@ -659,6 +659,11 @@ bool PlayerbotAIConfig::Initialize()
      limitCombatActivity = config.GetBoolDefault("AiPlayerbot.LimitCombatActivity", false);
      guildOrderAlwaysActive = config.GetBoolDefault("AiPlayerbot.GuildOrderAlwaysActive", true);
      botActiveAlone = config.GetIntDefault("AiPlayerbot.botActiveAlone", 10);
@@ -15,10 +15,10 @@ index 1ee6086..98bb22b 100644
      diffEmpty = config.GetIntDefault("AiPlayerbot.DiffEmpty", 200);
      RandombotsWalkingRPG = config.GetBoolDefault("AiPlayerbot.RandombotsWalkingRPG", false);
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index a2b6129..0cb091e 100644
+index bf378ef..05d0655 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
-@@ -385,6 +385,10 @@ public:
+@@ -409,6 +409,10 @@ public:
      bool limitCombatActivity;
      bool guildOrderAlwaysActive;
      uint32 botActiveAlone;
@@ -30,10 +30,10 @@ index a2b6129..0cb091e 100644
      uint32 diffEmpty;
      uint32 minEnchantingBotLevel;
 diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index c63ce57..1ee9102 100644
+index 61ec05f..6528d0b 100644
 --- a/ai/playerbot/aiplayerbot.conf.dist.in
 +++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -336,6 +336,19 @@ AiPlayerbot.DisableActivityPriorities = 1
+@@ -364,6 +364,19 @@ AiPlayerbot.DisableActivityPriorities = 1
  # Default is 10, higher numbers may affect performance
  # AiPlayerbot.botActiveAlone = 10
  
@@ -54,10 +54,10 @@ index c63ce57..1ee9102 100644
  # When enabled, bot alts will level up one level at a time to match their master's level
  # AiPlayerbot.SyncAltLevelToMaster = 0
 diff --git a/runtime/BotManager.cpp b/runtime/BotManager.cpp
-index 13a942c..90a69b2 100644
+index f7143c1..c5bb66e 100644
 --- a/runtime/BotManager.cpp
 +++ b/runtime/BotManager.cpp
-@@ -1379,7 +1379,20 @@ void BotManager::UpdateBots(uint32_t diff)
+@@ -1442,7 +1442,20 @@ void BotManager::UpdateBots(uint32_t diff)
  
          if (entry.aiAdapter && entry.aiAdapter->IsUsable())
          {
@@ -79,7 +79,7 @@ index 13a942c..90a69b2 100644
          }
      };
  
-@@ -1406,6 +1419,8 @@ void BotManager::UpdateBots(uint32_t diff)
+@@ -1469,6 +1482,8 @@ void BotManager::UpdateBots(uint32_t diff)
          },
          updateOneBot, budgetHit);
  
@@ -88,7 +88,7 @@ index 13a942c..90a69b2 100644
      m_inBotUpdate = false;
  
      if (!m_pendingBotRemovals.empty())
-@@ -1440,6 +1455,55 @@ void BotManager::UpdateBots(uint32_t diff)
+@@ -1503,6 +1518,55 @@ void BotManager::UpdateBots(uint32_t diff)
      }
  }
  

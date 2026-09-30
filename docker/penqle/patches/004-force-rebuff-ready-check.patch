@@ -27,7 +27,7 @@ index 1b521e1..3e209ef 100644
          nonCombatEngine->removeStrategy("travel");
          nonCombatEngine->removeStrategy("tfish");
 diff --git a/ai/playerbot/PlayerbotAI.cpp b/ai/playerbot/PlayerbotAI.cpp
-index e91104c..64196d3 100644
+index 09f39f8..3feacc8 100644
 --- a/ai/playerbot/PlayerbotAI.cpp
 +++ b/ai/playerbot/PlayerbotAI.cpp
 @@ -181,7 +181,7 @@ PlayerbotAI::PlayerbotAI() : PlayerbotAIBase(), bot(NULL), aiObjectContext(NULL)
@@ -39,7 +39,7 @@ index e91104c..64196d3 100644
  {
      this->bot = bot;
      if (!bot->IsTaxiCheater() && HasCheat(BotCheatMask::taxi))
-@@ -5139,6 +5139,8 @@ bool PlayerbotAI::CastSpell(uint32 spellId, Unit* target, Item* itemTarget, bool
+@@ -5151,6 +5151,8 @@ bool PlayerbotAI::CastSpell(uint32 spellId, Unit* target, Item* itemTarget, bool
  
      PlayAttackEmote(6);
  
@@ -49,19 +49,19 @@ index e91104c..64196d3 100644
      {
          WaitForSpellCast(spell);
 diff --git a/ai/playerbot/PlayerbotAI.h b/ai/playerbot/PlayerbotAI.h
-index c361f99..f57b57d 100644
+index 281bf08..552a884 100644
 --- a/ai/playerbot/PlayerbotAI.h
 +++ b/ai/playerbot/PlayerbotAI.h
-@@ -10,6 +10,7 @@
- #include "PlayerTalentSpec.h"
+@@ -11,6 +11,7 @@
  #include <stack>
  #include "strategy/IterateItemsMask.h"
+ #include "BotDiagnostics.h"
 +#include "strategy/generic/ForceRebuff.h"
  #include "../../runtime/BotManager.h"
  
  class Player;
-@@ -860,6 +861,10 @@ protected:
-     bool deathHandled_ = false; // this death was logged and counted; cleared when the bot is seen alive again
+@@ -868,6 +869,10 @@ protected:
+     void UpdateEvadeProbe();
  
  public:
 +    // Force-rebuff window state (mod-playerbots PR #2571): ready-check defer,
@@ -72,7 +72,7 @@ index c361f99..f57b57d 100644
      bool IsRecordingMessages() const { return m_recordMessages; }
      bool IsRecordingIncommingMessages() const { return m_recordIncommingMessages; }
 diff --git a/ai/playerbot/PlayerbotAIConfig.cpp b/ai/playerbot/PlayerbotAIConfig.cpp
-index 6c9e72c..1ee6086 100644
+index 584c5b8..3f67cbb 100644
 --- a/ai/playerbot/PlayerbotAIConfig.cpp
 +++ b/ai/playerbot/PlayerbotAIConfig.cpp
 @@ -392,6 +392,8 @@ bool PlayerbotAIConfig::Initialize()
@@ -85,10 +85,10 @@ index 6c9e72c..1ee6086 100644
      randomBotMaxLevel = config.GetIntDefault("AiPlayerbot.RandomBotMaxLevel", 60);
      randomBotLoginAtStartup = config.GetBoolDefault("AiPlayerbot.RandomBotLoginAtStartup", false);
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index d12108b..85cb150 100644
+index 78d8187..10b9ea1 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
-@@ -325,6 +325,9 @@ public:
+@@ -344,6 +344,9 @@ public:
      // Custom Turtle raid tactics (issue #203): Emerald Sanctum / Lower
      // Karazhan / Karazhan Crypt transition strategies.
      bool enableCustomRaidTactics = true;
@@ -99,10 +99,10 @@ index d12108b..85cb150 100644
      std::string combatStrategies, nonCombatStrategies, reactStrategies, deadStrategies;
      std::string randomBotCombatStrategies, randomBotNonCombatStrategies, randomBotReactStrategies, randomBotDeadStrategies;
 diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index 746c773..c63ce57 100644
+index 35e1116..61ec05f 100644
 --- a/ai/playerbot/aiplayerbot.conf.dist.in
 +++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -1407,6 +1407,24 @@ AiPlayerbot.FleeingEnabled = 1
+@@ -1448,6 +1448,24 @@ AiPlayerbot.FleeingEnabled = 1
  # manual pending playtesting (#237); this gates the transition strategies.
  AiPlayerbot.EnableCustomRaidTactics = 1
  
@@ -241,38 +241,23 @@ index d6b0d3a..e103286 100644
  #ifdef GenerateBotHelp
          virtual std::string GetHelpName() { return "dummy"; } //Must equal iternal name
 diff --git a/ai/playerbot/strategy/actions/GenericSpellActions.cpp b/ai/playerbot/strategy/actions/GenericSpellActions.cpp
-index 7d89198..85804f0 100644
+index 8877370..85aa2e6 100644
 --- a/ai/playerbot/strategy/actions/GenericSpellActions.cpp
 +++ b/ai/playerbot/strategy/actions/GenericSpellActions.cpp
-@@ -280,6 +280,16 @@ bool CastAuraSpellAction::isUseful()
-     return CastSpellAction::isUseful() && !ai->HasAura(GetSpellName(), GetTarget(), false, isOwner);
+@@ -299,8 +299,13 @@ bool CastBuffSpellAction::isUseful()
+     return CastAuraSpellAction::isUseful();
  }
  
 +// Force-rebuff pass (mod-playerbots PR #2571): every executed buff cast marks
 +// the current engine cycle as buff work, so the ready reply waits for the
 +// pass to drain instead of answering mid-refresh.
-+bool CastBuffSpellAction::Execute(Event& event)
-+{
+ bool CastBuffSpellAction::Execute(Event& event)
+ {
 +    ai->forceRebuff.NoteBuffWork();
 +
-+    return CastAuraSpellAction::Execute(event);
-+}
-+
- bool CastMeleeAoeSpellAction::isUseful()
- {
-     return CastSpellAction::isUseful() && sServerFacade.IsDistanceLessOrEqualThan(AI_VALUE2(float, "distance", GetTargetName()), radius);
-diff --git a/ai/playerbot/strategy/actions/GenericSpellActions.h b/ai/playerbot/strategy/actions/GenericSpellActions.h
-index a782d04..febf62e 100644
---- a/ai/playerbot/strategy/actions/GenericSpellActions.h
-+++ b/ai/playerbot/strategy/actions/GenericSpellActions.h
-@@ -153,6 +153,7 @@ namespace ai
- 	public:
- 		CastBuffSpellAction(PlayerbotAI* ai, std::string spell) : CastAuraSpellAction(ai, spell) { }
-         virtual std::string GetTargetName() override { return "self target"; }
-+        bool Execute(Event& event) override;
- 	};
- 
-     class CastSpellTargetAction : public CastSpellAction
+     // Recorded before the cast so a failed attempt starts the cooldown too -
+     // otherwise the action is retried on every tick (issue #359).
+     if (Unit* target = GetTarget())
 diff --git a/ai/playerbot/strategy/actions/ReadyCheckAction.cpp b/ai/playerbot/strategy/actions/ReadyCheckAction.cpp
 index 26f8be2..75db58a 100644
 --- a/ai/playerbot/strategy/actions/ReadyCheckAction.cpp

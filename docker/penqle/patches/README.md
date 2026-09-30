@@ -4,9 +4,9 @@ Pins these patches are written against (see `Dockerfile.penqle`):
 
 ```text
 CORE_REPO   https://github.com/tortoise-wow/tortoise-wow.git
-CORE_REF    1181dev
-CORE_COMMIT 010cdb6d513ae3c29ab685e2ff708fb18d8295c8
-BOTS_COMMIT b268267267dd367e6e36344ff73ea2a313240712
+CORE_REF    main
+CORE_COMMIT d94947b0db60c33e7248523ad0ba7f58af97fd09
+BOTS_COMMIT 959fc5795b1002997a834d3d8078efae599dd892
 ```
 
 The series is generated from the local `TortoiseBots` `enhancements` branch as
@@ -19,33 +19,21 @@ numbering continues at 012.
 ### Regenerating after a pin bump
 
 The upstream module takes commits several times a day, so re-pinning is routine.
-The procedure that produced the current series:
+The full procedure (rebase `enhancements` onto the new upstream `main`,
+regenerate this series from a cleaned boundary branch, re-pin both sources,
+rebuild and start) lives in `docs/bot-patch-refresh.md`; follow that runbook.
+This folder only defines what a patch is:
 
-1. In the local `TortoiseBots` checkout: `git fetch origin main`, fast-forward
-   `main`, then `git merge main` on the `enhancements` branch (resolve
-   conflicts there, not in the patches).
-2. Bump `BOTS_COMMIT` in `Dockerfile.penqle` to the new `origin/main` tip.
-3. Regenerate each patch as the incremental diff of its own feature, between
-   consecutive feature boundaries on the rebased `enhancements` branch, in
-   numeric order (each patch applies on top of the previous). A file may appear
-   in more than one patch when a later feature edits it again. When a feature
-   was split across several commits, or a follow-up commit fixes up an earlier
-   one (e.g. the `ClaimIdleBot` removal folded back into 008), squash them into
-   the feature's boundary so no patch carries a transient add-then-remove.
-4. Verify: apply the whole series in order to a scratch checkout of
-   `BOTS_COMMIT` and confirm the result equals `enhancements` (docs excluded),
-   then rebuild the image. The acceptance check is:
-
-   ```bash
-   git -C <module> worktree add --detach /tmp/bots-verify <BOTS_COMMIT>
-   cd /tmp/bots-verify
-   for p in <patches>/*.patch; do git apply --check "$p" && git apply "$p"; done
-   git add -A
-   git diff --cached enhancements -- . ':(exclude)docs/' ':(exclude)*.md'   # empty
-   ```
-
-Documentation files (`docs/`, `*.md`) are deliberately excluded: the patches
-carry source changes only, and the image does not need the docs.
+- One feature per patch, numbered `NNN-description.patch`, applied in numeric
+  order so each applies on top of the previous. A file may appear in more than
+  one patch when a later feature edits it again.
+- A patch is the diff between two consecutive feature boundaries on the
+  cleaned `enhancements` branch, with `docs/` and `*.md` excluded (the patches
+  carry source changes only; the image does not need the docs).
+- Every patch must apply cleanly with `git apply --check` against the pinned
+  `BOTS_COMMIT`; the Docker build fails otherwise.
+- When upstream absorbs a feature, delete its patch and record it under
+  "Merged upstream since the last pin" below; leave the numbering gap.
 
 ## 001-summon-when-group.patch
 
@@ -385,6 +373,12 @@ The AI context extension seam the dungeon-clear port needs
 (`ai/playerbot/AiContextAugment.h`) is also upstream now, under the names
 `RegisterAiContextAugmenter` / `ApplyAiContextAugmenters` (applied from
 `AiFactory::createAiObjectContext`). The patch no longer adds it.
+
+At the 2026-09-30 re-pin no patch was retired. The one same-problem overlap was
+`004-force-rebuff-ready-check`: upstream had reworked `CastBuffSpellAction`
+(upkeep-buff retry cooldown plus `SelfBuff` telemetry), so the patch now keeps
+upstream's `Execute`/`isUseful` and prepends only its
+`forceRebuff.NoteBuffWork()` hook.
 
 ## 012-bot-ai-tick-divisor.patch
 
