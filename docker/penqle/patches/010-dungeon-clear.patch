@@ -88743,10 +88743,10 @@ index 0000000..2c51227
 +#endif  // _PLAYERBOT_DCTESTROSTER_H
 diff --git a/ai/dungeonclear/TestRun/DcTestRunJob.cpp b/ai/dungeonclear/TestRun/DcTestRunJob.cpp
 new file mode 100644
-index 0000000..ec3d0b8
+index 0000000..7f0f451
 --- /dev/null
 +++ b/ai/dungeonclear/TestRun/DcTestRunJob.cpp
-@@ -0,0 +1,2867 @@
+@@ -0,0 +1,2866 @@
 +/*
 + * Copyright (C) 2016+ AzerothCore <www.azerothcore.org>, released under GNU AGPL v3 license, you may redistribute it
 + * and/or modify it under version 3 of the License, or (at your option), any later version.
@@ -89728,12 +89728,12 @@ index 0000000..ec3d0b8
 +    sRandomPlayerbotMgr.SetExternallyManaged(slot.guid.GetCounter(), true);
 +
 +    // FORCE the run's target level, both directions, BEFORE the factory.
-+    // AiPlayerbot.DisableRandomLevels=1 (this server pins rotation levels)
-+    // makes Randomize() skip its GiveLevel entirely, so provisioning kept
-+    // whatever level the claimed bot happened to be - live: level 38-47
-+    // bots breezing through a level-21 race leg (the who-list screenshot).
-+    // Talents above the target are cleared on the way down; the premade
-+    // spec path right below rebuilds them for the new level.
++    // AiPlayerbot.DisableRandomLevels=1 (this server pins rotation levels) means
++    // the factory's provisioning path never applies a level of its own, so
++    // provisioning kept whatever level the claimed bot happened to be - live:
++    // level 38-47 bots breezing through a level-21 race leg (the who-list
++    // screenshot). Talents above the target are cleared on the way down; the
++    // premade spec path right below rebuilds them for the new level.
 +    if (bot->GetLevel() != _level)
 +    {
 +        if (bot->GetLevel() > _level)
@@ -89748,15 +89748,14 @@ index 0000000..ec3d0b8
 +
 +    PlayerbotFactory factory(bot, _level, _gear.quality);
 +
-+    // Strip the equipped set first. Randomize() only wipes items when
-+    // AiPlayerbot.EquipAndSpecPersistence is off (it defaults on), and
-+    // InitEquipment leaves a slot alone when no candidate passes the filters — so
-+    // a pool bot geared by an earlier run under a looser ceiling would keep those
-+    // pieces and the new limit would look ignored. Every test bot starts bare and
-+    // is geared from scratch, which is the `autogear`-on-a-stripped-bot behaviour
-+    // a run needs to be reproducible.
++    // Strip the equipped set first. MakeComplete() gears incrementally and never
++    // wipes items, and InitEquipment leaves a slot alone when no candidate passes
++    // the filters — so a pool bot geared by an earlier run under a looser ceiling
++    // would keep those pieces and the new limit would look ignored. Every test bot
++    // starts bare and is geared from scratch, which is the
++    // `autogear`-on-a-stripped-bot behaviour a run needs to be reproducible.
 +    StripEquipment(bot);
-+    factory.Randomize(false, /*syncWithMaster*/ false);
++    factory.MakeComplete();
 +    if (specNo >= 0)
 +    {
 +        // The factory pipeline's own premade path: pin the spec value, then
@@ -89768,12 +89767,12 @@ index 0000000..ec3d0b8
 +        // (no glyphs on 1.12)
 +
 +        // Gear first, enchants/gems second — the order the `autogear` then
-+        // `maintenance` chat commands run in. Randomize() already ends with an
-+        // ApplyEnchantAndGemsNew() pass, but the spec re-gear above swaps those
-+        // enchanted/gemmed items out for freshly rolled bare ones, so without
++        // `maintenance` chat commands run in. MakeComplete() already ends with an
++        // EnchantEquipment() pass, but the spec re-gear above swaps those
++        // enchanted items out for freshly rolled bare ones, so without
 +        // this second pass every spec-forced bot (i.e. every tank and healer in
 +        // a test run) fights with no enchants and empty sockets. Cheap relative
-+        // to Randomize, and it only touches what is currently equipped.
++        // to MakeComplete, and it only touches what is currently equipped.
 +        if (bot->GetLevel() >= sPlayerbotAIConfig.minEnchantingBotLevel)
 +            factory.EnchantEquipment();
 +    }
@@ -89783,7 +89782,7 @@ index 0000000..ec3d0b8
 +    // AMMO LAST, FOR EVERY CLASS — for the same reason the enchant pass above runs
 +    // last, and it was the same oversight one line further down.
 +    //
-+    // Randomize() ends with its own InitAmmo(), which loads ammo for the ranged
++    // MakeComplete() ends with its own InitAmmo(), which loads ammo for the ranged
 +    // weapon IT rolled. The spec re-gear then replaces that weapon, and a gun and a
 +    // bow do not take the same projectile — so a bot whose random roll gave it a bow
 +    // and whose prot re-gear gave it a gun ends up holding a rifle loaded with
@@ -89806,11 +89805,11 @@ index 0000000..ec3d0b8
 +    factory.InitAmmo();
 +
 +    // PROVISIONS, for the same reason ammo is re-run above: StripEquipment
-+    // empties the bags and the Randomize(false, ...) path never reaches
-+    // InitFood, so every caster entered its run with nothing to drink. A
-+    // level-21 healer then regenerates mana at natural rate - minutes - and
-+    // the party's rest gate holds the WHOLE run there (live: 248s of
-+    // "Waiting on X (low mana)" in front of Mr. Smite, run aborted at 4/8).
++    // empties the bags, and this re-run after the spec re-gear is a cheap,
++    // idempotent guarantee that every caster enters its run with drink. A
++    // level-21 healer with nothing to drink regenerates mana at natural rate -
++    // minutes - and the party's rest gate holds the WHOLE run there (live: 248s
++    // of "Waiting on X (low mana)" in front of Mr. Smite, run aborted at 4/8).
 +    // InitFood is a no-op when the bags already carry food/drink, and skips
 +    // drinks for classes without mana.
 +    factory.AddFood();   // public wrapper for InitFood

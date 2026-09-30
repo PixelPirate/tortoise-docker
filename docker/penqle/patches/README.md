@@ -338,7 +338,11 @@ MANGOSBOT_ZERO`'d out, and the route registry had lost its heroic→normal
 row fallback; the replay/rejoin math and the authored event tables
 (Razorfen Downs' gong, ZulFarrak's pyramid data id, Uldaman's three-clicker
 rituals, BRD's data ids) are now pinned at their vendored values by the
-harness. Still **gameplay-untested**. The pinned module's `<boost/...>`
+harness. Still **gameplay-untested**. The `TestRun` provisioning call was
+ported from the donor's `PlayerbotFactory::Randomize` to the upstream
+replacement `MakeComplete` when upstream removed the full-reset factory path
+(at the current pin), so a test bot is still stripped and re-geared from
+scratch. The pinned module's `<boost/...>`
 includes (algorithm/string, bimap, stacktrace) are satisfied by
 `libboost-dev` + `libboost-stacktrace-dev` in the Dockerfile builder and
 `libboost-stacktrace1.74.0` on the runtime image (the stacktrace link
@@ -409,6 +413,8 @@ counter, `BotRecord::aiSkippedMs`), `ai/playerbot/PlayerbotAIConfig.{h,cpp}`
 (new `botAiTickDivisor`, clamped 1-60), `ai/playerbot/aiplayerbot.conf.dist.in`
 (documented key). Exposed as `AI_BOT_AI_TICK_DIVISOR` in the image (rendered
 config, `.env.example.penqle`, compose, README table). Status: applies cleanly
-to `BOTS_COMMIT` and reproduces the local `enhancements` tree (verified
-2026-09-25); **not compile-verified** — the module builds only inside the core
-image, so the first `docker build -f Dockerfile.penqle` is the compile check.
+to `BOTS_COMMIT` and reproduces the local `enhancements` tree, and is
+compile-verified by `docker build -f Dockerfile.penqle` (2026-09-29). The
+stagger skip exits the per-bot update lambda with `return`, not `continue`;
+the lambda is not a loop, and the first build at this pin rejected the
+`continue`.

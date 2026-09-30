@@ -34,6 +34,18 @@ AI_SUMMON_WHEN_GROUP="${AI_SUMMON_WHEN_GROUP:-1}"
 AI_DISABLE_RANDOM_LEVELS="${AI_DISABLE_RANDOM_LEVELS:-0}"
 AI_RANDOM_BOT_STARTING_LEVEL="${AI_RANDOM_BOT_STARTING_LEVEL:-1}"
 AI_RANDOM_BOT_MAX_LEVEL="${AI_RANDOM_BOT_MAX_LEVEL:-60}"
+# Fresh pool bots get a random level in [MIN, MAX] once, on their first login
+# (played time == 0), then level normally. Upstream default is 1 / 60 (fresh
+# bots spread over every level); 1 / 1 keeps the historic level-1 start.
+AI_RANDOM_BOT_START_LEVEL_MIN="${AI_RANDOM_BOT_START_LEVEL_MIN:-1}"
+AI_RANDOM_BOT_START_LEVEL_MAX="${AI_RANDOM_BOT_START_LEVEL_MAX:-60}"
+# Level ladder: choose the next bot to log in by level band so every band has a
+# share of the online target, instead of round-robin over the whole pool.
+AI_LEVEL_LADDER="${AI_LEVEL_LADDER:-1}"
+# Share of the online target held for level 60 (a hard cap); the rest stay offline.
+AI_LEVEL_LADDER_MAX_LEVEL_SHARE="${AI_LEVEL_LADDER_MAX_LEVEL_SHARE:-10}"
+# Bot XP multiplier (server XP rate * this). Upstream default is 3.
+AI_XPRATE="${AI_XPRATE:-3}"
 AI_RANDOM_BOT_AUTOLOGIN="${AI_RANDOM_BOT_AUTOLOGIN:-0}"
 AI_RANDOM_BOT_AUTO_CREATE="${AI_RANDOM_BOT_AUTO_CREATE:-0}"
 AI_ENABLE_RANDOM_TELEPORTS="${AI_ENABLE_RANDOM_TELEPORTS:-0}"
@@ -156,6 +168,11 @@ DUNGEON_CLEAR_ENABLED="${DUNGEON_CLEAR_ENABLED:-0}"
 set_conf "${DC_CONF}" "DungeonClear.Enabled" "${DUNGEON_CLEAR_ENABLED}"
 set_conf "${AI_CONF}" "AiPlayerbot.randombotStartingLevel" "${AI_RANDOM_BOT_STARTING_LEVEL}"
 set_conf "${AI_CONF}" "AiPlayerbot.RandomBotMaxLevel" "${AI_RANDOM_BOT_MAX_LEVEL}"
+set_conf "${AI_CONF}" "AiPlayerbot.RandomBotStartLevelMin" "${AI_RANDOM_BOT_START_LEVEL_MIN}"
+set_conf "${AI_CONF}" "AiPlayerbot.RandomBotStartLevelMax" "${AI_RANDOM_BOT_START_LEVEL_MAX}"
+set_conf "${AI_CONF}" "AiPlayerbot.LevelLadder" "${AI_LEVEL_LADDER}"
+set_conf "${AI_CONF}" "AiPlayerbot.LevelLadderMaxLevelShare" "${AI_LEVEL_LADDER_MAX_LEVEL_SHARE}"
+set_conf "${AI_CONF}" "AiPlayerbot.XPRate" "${AI_XPRATE}"
 
 mkdir -p "${LOGS_DIR}"
 # Writable for the turtle user (configs may be regenerated each start).

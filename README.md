@@ -134,6 +134,10 @@ you created.
 | `AI_DISABLE_RANDOM_LEVELS` | `0` | `1` = all bots start at `AI_RANDOM_BOT_STARTING_LEVEL` |
 | `AI_RANDOM_BOT_STARTING_LEVEL` | `1` | Starting level when `AI_DISABLE_RANDOM_LEVELS=1` |
 | `AI_RANDOM_BOT_MAX_LEVEL` | `60` | Upper level bound for random-bot gear/tuning |
+| `AI_RANDOM_BOT_START_LEVEL_MIN` / `AI_RANDOM_BOT_START_LEVEL_MAX` | `1` / `60` | Fresh pool bots are seeded with a random level in this range once, on their first login, then level normally. Upstream default `1`/`60` spreads fresh bots over every level; `1`/`1` restores the historic level-1 start. Existing characters are never re-leveled |
+| `AI_LEVEL_LADDER` | `1` | `1` = pick the next bot to log in by level band so every band keeps a share of the online target; `0` = round-robin over the whole pool |
+| `AI_LEVEL_LADDER_MAX_LEVEL_SHARE` | `10` | Percent of the online target held for level 60 (a hard cap; the rest stay offline) |
+| `AI_XPRATE` | `3` | Bot XP multiplier (server XP rate * this) |
 | `AI_FAILED_ACTION_RETRY_BASE` / `AI_FAILED_ACTION_RETRY_MAX` | `250` / `2000` | Failure backoff (ms) for bot background actions: a repeatedly failing action is skipped for base ms, doubling up to max, instead of being retried every tick; `0` disables |
 | `DUNGEON_CLEAR_ENABLED` | `0` | Master switch for the vendored dungeon-clear module (autonomous 5-man dungeon clearing). `1` lets the party tank drive a run: `.dc on` in party chat (or the `dc on` keyword), `.dc status|bosses|skip|pull|off` to control it; requires navmesh data of good quality (see "Dungeon clearing" below) |
 | `MAPUPDATE_MTCELLS_THREADS` | `6` | Workers for the continent cell/object update pass, plus one (so `6` = 5 workers, one per-map pool). Upstream ships `1`, which means no workers at all. Raise with the bot population — see "World tick budget" |
@@ -180,20 +184,33 @@ upstream config key is `AiPlayerbot.SummonWhenGroup` in
 
 ## Bot levels
 
-A bot's level comes from its character — TortoiseBots does not roll a random
-level on creation, so you control the range in one of two ways:
+A bot's level comes from its character; there is no random roll on creation,
+but there is a one-time seed for fresh pool bots. The level range is
+controlled in one of three ways:
 
 1. **Set the level when creating the character** (per-bot control). With a GM
    account, after creating the RNDBOT character: `.character level <name> <n>`
    — or in-game via the TortoiseBotsManager addon.
-2. **Fixed starting level for everyone** (server-wide). Set
-   `AI_DISABLE_RANDOM_LEVELS=1`; every bot is raised to
-   `AI_RANDOM_BOT_STARTING_LEVEL` on first login and levels up through normal
-   gameplay while the realm runs. Keep the starting level at 5+ (bots below
-   level 5 are gated out of some travel behaviors).
+2. **Random starting level for fresh bots** (server-wide, upstream default).
+   `AI_RANDOM_BOT_START_LEVEL_MIN` / `AI_RANDOM_BOT_START_LEVEL_MAX` (default
+   `1`/`60`) seed a fresh pool bot with a random level on its first login
+   (played time 0); it levels normally from there. `1`/`1` keeps the historic
+   level-1 start. Existing characters are never re-leveled, so changing this
+   only affects bots that have not logged in yet.
+3. **Fixed starting level for everyone**. Set `AI_DISABLE_RANDOM_LEVELS=1`;
+   every bot is raised to `AI_RANDOM_BOT_STARTING_LEVEL` on first login and
+   levels up through normal gameplay while the realm runs. Keep the starting
+   level at 5+ (bots below level 5 are gated out of some travel behaviors).
+
+`AI_LEVEL_LADDER` (default `1`) decides *which* bots log in: levels are cut
+into bands and every band keeps a share of the online target (highest level
+first inside a band), so no band sits empty. Level 60 is capped at
+`AI_LEVEL_LADDER_MAX_LEVEL_SHARE` percent of the online target. `0` restores
+round-robin over the whole pool.
 
 Related knobs:
 
+- `AI_XPRATE` (default `3`) — bot XP multiplier (server XP rate * this).
 - `AI_RANDOM_BOT_MAX_LEVEL` (default `60`) — caps the level random bots are
   geared/tuned for. It does **not** de-level existing characters.
 - `AiPlayerbot.SyncLevelWithPlayers = 1` (edit
