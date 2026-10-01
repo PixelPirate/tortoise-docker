@@ -6,7 +6,7 @@ Pins these patches are written against (see `Dockerfile.penqle`):
 CORE_REPO   https://github.com/tortoise-wow/tortoise-wow.git
 CORE_REF    main
 CORE_COMMIT d94947b0db60c33e7248523ad0ba7f58af97fd09
-BOTS_COMMIT 959fc5795b1002997a834d3d8078efae599dd892
+BOTS_COMMIT 153b85c30e5d7c8abee1bd71604169945772e78a
 ```
 
 The series is generated from the local `TortoiseBots` `enhancements` branch as
@@ -402,13 +402,18 @@ fights beside, or can see keeps a full update rate, and a skipped bot is handed
 the skipped milliseconds on its next run (`BotRecord::aiSkippedMs`) so its own
 timers stay wall-clock correct. Teleport acknowledgement still runs every tick.
 
-Touches: `runtime/BotManager.{h,cpp}` (the stagger gate, the rotating tick
-counter, `BotRecord::aiSkippedMs`), `ai/playerbot/PlayerbotAIConfig.{h,cpp}`
-(new `botAiTickDivisor`, clamped 1-60), `ai/playerbot/aiplayerbot.conf.dist.in`
-(documented key). Exposed as `AI_BOT_AI_TICK_DIVISOR` in the image (rendered
-config, `.env.example.penqle`, compose, README table). Status: applies cleanly
-to `BOTS_COMMIT` and reproduces the local `enhancements` tree, and is
-compile-verified by `docker build -f Dockerfile.penqle` (2026-09-29). The
-stagger skip exits the per-bot update lambda with `return`, not `continue`;
-the lambda is not a loop, and the first build at this pin rejected the
-`continue`.
+The gate's "is a real player near this bot" test is batched: `UpdateBots` builds
+the (tiny) real-player set once per pass instead of rescanning the whole session
+map for every eligible pool bot, which was O(pool x sessions) and dominated the
+gate at a thousand bots.
+
+Touches: `runtime/BotManager.{h,cpp}` (the stagger gate, the batched
+real-player set, the rotating tick counter, `BotRecord::aiSkippedMs`),
+`ai/playerbot/PlayerbotAIConfig.{h,cpp}` (new `botAiTickDivisor`, clamped 1-60),
+`ai/playerbot/aiplayerbot.conf.dist.in` (documented key). Exposed as
+`AI_BOT_AI_TICK_DIVISOR` in the image (rendered config, `.env.example.penqle`,
+compose, README table). Status: applies cleanly to `BOTS_COMMIT` and reproduces
+the local `enhancements` tree, and is compile-verified by
+`docker build -f Dockerfile.penqle` (2026-09-29). The stagger skip exits the
+per-bot update lambda with `return`, not `continue`; the lambda is not a loop,
+and the first build at this pin rejected the `continue`.

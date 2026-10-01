@@ -65,6 +65,15 @@ AI_DISABLE_ACTIVITY_PRIORITIES="${AI_DISABLE_ACTIVITY_PRIORITIES:-1}"
 # with (see BotManager::ShouldStaggerAiThisTick) so the world tick cost stops
 # scaling 1:1 with the bot pool. Needs the 012-bot-ai-tick-divisor patch.
 AI_BOT_AI_TICK_DIVISOR="${AI_BOT_AI_TICK_DIVISOR:-1}"
+# Upstream budgets the random-pool AI pass (PoolTickBudgetUs of work per tick,
+# but only once the previous world tick ran longer than
+# PoolBudgetWhenTickOverMs). With the tick divisor above the full staggered pass
+# is already cheap, so upstream's 150 ms gate makes the budget starve the pool
+# for almost no tick gain; the default here raises the gate to 250 ms so a
+# healthy tick always gets the full pass and the budget only caps a genuinely
+# long tick. Set AI_POOL_TICK_BUDGET_US=0 to disable the budget entirely.
+AI_POOL_TICK_BUDGET_US="${AI_POOL_TICK_BUDGET_US:-10000}"
+AI_POOL_BUDGET_WHEN_TICK_OVER_MS="${AI_POOL_BUDGET_WHEN_TICK_OVER_MS:-250}"
 
 # Continents (Kalimdor/Eastern Kingdoms) update their active cells and unit
 # motion on per-map pools. Upstream ships both at 1, which leaves zero extra
@@ -72,7 +81,7 @@ AI_BOT_AI_TICK_DIVISOR="${AI_BOT_AI_TICK_DIVISOR:-1}"
 # processed on one thread; at random-bot scale that pushes the world tick to
 # hundreds of milliseconds or seconds. See README "World tick budget".
 MAPUPDATE_MTCELLS_THREADS="${MAPUPDATE_MTCELLS_THREADS:-6}"
-MAPUPDATE_MOTIONUPDATE_THREADS="${MAPUPDATE_MOTIONUPDATE_THREADS:-1}"
+MAPUPDATE_MOTIONUPDATE_THREADS="${MAPUPDATE_MOTIONUPDATE_THREADS:-4}"
 
 DB_INFO() {
   local db="$1"
@@ -153,6 +162,8 @@ set_conf "${AI_CONF}" "AiPlayerbot.RandomBotLftEnabled" "${AI_RANDOM_BOT_LFT_ENA
 set_conf "${AI_CONF}" "AiPlayerbot.AhMarketEnabled" "${AI_AH_MARKET_ENABLED}"
 set_conf "${AI_CONF}" "AiPlayerbot.DisableActivityPriorities" "${AI_DISABLE_ACTIVITY_PRIORITIES}"
 set_conf "${AI_CONF}" "AiPlayerbot.BotAiTickDivisor" "${AI_BOT_AI_TICK_DIVISOR}"
+set_conf "${AI_CONF}" "AiPlayerbot.PoolTickBudgetUs" "${AI_POOL_TICK_BUDGET_US}"
+set_conf "${AI_CONF}" "AiPlayerbot.PoolBudgetWhenTickOverMs" "${AI_POOL_BUDGET_WHEN_TICK_OVER_MS}"
 set_conf "${AI_CONF}" "AiPlayerbot.ForceRebuffOnReadyCheck" "${AI_FORCE_REBUFF_ON_READY_CHECK}"
 set_conf "${AI_CONF}" "AiPlayerbot.FailedActionRetryBase" "${AI_FAILED_ACTION_RETRY_BASE}"
 set_conf "${AI_CONF}" "AiPlayerbot.FailedActionRetryMax" "${AI_FAILED_ACTION_RETRY_MAX}"

@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/PlayerbotAIConfig.cpp b/ai/playerbot/PlayerbotAIConfig.cpp
-index 3f67cbb..4240089 100644
+index c5c2244..ead07de 100644
 --- a/ai/playerbot/PlayerbotAIConfig.cpp
 +++ b/ai/playerbot/PlayerbotAIConfig.cpp
-@@ -659,6 +659,11 @@ bool PlayerbotAIConfig::Initialize()
+@@ -660,6 +660,11 @@ bool PlayerbotAIConfig::Initialize()
      limitCombatActivity = config.GetBoolDefault("AiPlayerbot.LimitCombatActivity", false);
      guildOrderAlwaysActive = config.GetBoolDefault("AiPlayerbot.GuildOrderAlwaysActive", true);
      botActiveAlone = config.GetIntDefault("AiPlayerbot.botActiveAlone", 10);
@@ -15,10 +15,10 @@ index 3f67cbb..4240089 100644
      diffEmpty = config.GetIntDefault("AiPlayerbot.DiffEmpty", 200);
      RandombotsWalkingRPG = config.GetBoolDefault("AiPlayerbot.RandombotsWalkingRPG", false);
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index bf378ef..05d0655 100644
+index 2fd71f2..239e667 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
-@@ -409,6 +409,10 @@ public:
+@@ -416,6 +416,10 @@ public:
      bool limitCombatActivity;
      bool guildOrderAlwaysActive;
      uint32 botActiveAlone;
@@ -30,10 +30,10 @@ index bf378ef..05d0655 100644
      uint32 diffEmpty;
      uint32 minEnchantingBotLevel;
 diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index 61ec05f..6528d0b 100644
+index 670c636..26b52e8 100644
 --- a/ai/playerbot/aiplayerbot.conf.dist.in
 +++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -364,6 +364,19 @@ AiPlayerbot.DisableActivityPriorities = 1
+@@ -374,6 +374,19 @@ AiPlayerbot.DisableActivityPriorities = 1
  # Default is 10, higher numbers may affect performance
  # AiPlayerbot.botActiveAlone = 10
  
@@ -54,10 +54,10 @@ index 61ec05f..6528d0b 100644
  # When enabled, bot alts will level up one level at a time to match their master's level
  # AiPlayerbot.SyncAltLevelToMaster = 0
 diff --git a/runtime/BotManager.cpp b/runtime/BotManager.cpp
-index f7143c1..c5bb66e 100644
+index d7acaa2..9467a8b 100644
 --- a/runtime/BotManager.cpp
 +++ b/runtime/BotManager.cpp
-@@ -1442,7 +1442,20 @@ void BotManager::UpdateBots(uint32_t diff)
+@@ -1467,10 +1467,27 @@ void BotManager::UpdateBots(uint32_t diff)
  
          if (entry.aiAdapter && entry.aiAdapter->IsUsable())
          {
@@ -79,7 +79,14 @@ index f7143c1..c5bb66e 100644
          }
      };
  
-@@ -1469,6 +1482,8 @@ void BotManager::UpdateBots(uint32_t diff)
++    // Cache the real-player set once for both passes; the stagger gate asks
++    // about every eligible pool bot.
++    RefreshRealPlayers();
++
+     // Pass 1: bots under a real player, always, first, with no budget.
+     for (uint32_t guidLow : playerGuids)
+         updateOneBot(guidLow);
+@@ -1494,6 +1511,8 @@ void BotManager::UpdateBots(uint32_t diff)
          },
          updateOneBot, budgetHit);
  
@@ -88,7 +95,7 @@ index f7143c1..c5bb66e 100644
      m_inBotUpdate = false;
  
      if (!m_pendingBotRemovals.empty())
-@@ -1503,6 +1518,55 @@ void BotManager::UpdateBots(uint32_t diff)
+@@ -1528,6 +1547,72 @@ void BotManager::UpdateBots(uint32_t diff)
      }
  }
  
@@ -118,9 +125,15 @@ index f7143c1..c5bb66e 100644
 +    return ((entry.record.characterGuid.GetCounter() + m_aiTickCounter) % divisor) != 0;
 +}
 +
-+bool BotManager::HasRealPlayerWithin(Player* bot, float range) const
++// Cache the real players (sessions with a network transport) in world once per
++// UpdateBots pass. The stagger gate asks "is a real player near this bot" for
++// every eligible pool bot, so rescanning the whole session map per bot is
++// O(pool x sessions): with a thousand bots that scan is most of the gate cost.
++// Sessions are serviced before the module tick, so the set is stable for the
++// pass.
++void BotManager::RefreshRealPlayers()
 +{
-+    float const rangeSq = range * range;
++    m_realPlayers.clear();
 +    for (auto const& sessionEntry : sWorld.GetAllSessions())
 +    {
 +        WorldSession* session = sessionEntry.second;
@@ -128,9 +141,20 @@ index f7143c1..c5bb66e 100644
 +            continue;
 +
 +        Player* player = session->GetPlayer();
-+        if (!player || player == bot || !player->IsInWorld())
-+            continue;
-+        if (player->GetMapId() != bot->GetMapId())
++        if (player && player->IsInWorld())
++            m_realPlayers.push_back(player);
++    }
++}
++
++bool BotManager::HasRealPlayerWithin(Player* bot, float range) const
++{
++    if (m_realPlayers.empty())
++        return false;
++
++    float const rangeSq = range * range;
++    for (Player* player : m_realPlayers)
++    {
++        if (!player || player == bot || player->GetMapId() != bot->GetMapId())
 +            continue;
 +
 +        float const dx = player->GetPositionX() - bot->GetPositionX();
@@ -145,7 +169,7 @@ index f7143c1..c5bb66e 100644
  {
      // Core owns Headless session lifecycle (queue, LoginPlayer dispatch, reclaim).
 diff --git a/runtime/BotManager.h b/runtime/BotManager.h
-index 50d693f..e44bf1d 100644
+index 50d693f..1ab5546 100644
 --- a/runtime/BotManager.h
 +++ b/runtime/BotManager.h
 @@ -52,6 +52,9 @@ struct BotRecord
@@ -158,7 +182,7 @@ index 50d693f..e44bf1d 100644
      bool enteredWorld = false;
      bool random = false;
      bool syncedInWorld = false;
-@@ -228,6 +231,13 @@ private:
+@@ -228,6 +231,17 @@ private:
      ObjectGuid m_packetTestBotGuid;
      uint32_t m_packetTestTicks = 0;
      void SweepStrandedBots(uint32_t diff);
@@ -168,6 +192,10 @@ index 50d693f..e44bf1d 100644
 +    // a full update rate. See UpdateBots.
 +    bool ShouldStaggerAiThisTick(BotEntry const& entry, Player* player) const;
 +    bool HasRealPlayerWithin(Player* bot, float range) const;
++    // Real players (network-transport sessions) in world, rebuilt once per
++    // UpdateBots pass so the stagger gate does not rescan every session per bot.
++    void RefreshRealPlayers();
++    std::vector<Player*> m_realPlayers;
 +    uint32_t m_aiTickCounter = 0;
      uint32_t m_strandedSweepElapsedMs = 0;
      std::unordered_map<uint32_t, time_t> m_strandedSince; // key = guid counter

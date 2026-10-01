@@ -126071,7 +126071,7 @@ index 79ebea8..63cdb7b 100644
      void IncreaseAIInternalUpdateDelay(uint32 delay);
      void YieldAIInternalThread(bool minimal = false);
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index 10b9ea1..bf378ef 100644
+index 839ec44..2fd71f2 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
 @@ -97,6 +97,14 @@ public:
@@ -126128,7 +126128,7 @@ index 90e47ac..0eac4f1 100644
 +
  // Implemented inline by the Tortoise action header.
 diff --git a/ai/playerbot/strategy/actions/AcceptInvitationAction.h b/ai/playerbot/strategy/actions/AcceptInvitationAction.h
-index 8f61f9c..355db0b 100644
+index 34cea6c..7685901 100644
 --- a/ai/playerbot/strategy/actions/AcceptInvitationAction.h
 +++ b/ai/playerbot/strategy/actions/AcceptInvitationAction.h
 @@ -7,6 +7,8 @@

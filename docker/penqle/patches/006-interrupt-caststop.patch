@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/PlayerbotAI.cpp b/ai/playerbot/PlayerbotAI.cpp
-index 3feacc8..5acf99f 100644
+index 825b99b..79056b4 100644
 --- a/ai/playerbot/PlayerbotAI.cpp
 +++ b/ai/playerbot/PlayerbotAI.cpp
-@@ -807,7 +807,10 @@ bool PlayerbotAI::UpdateAIReaction(uint32 elapsed, bool minimal, bool isStunned)
+@@ -815,7 +815,10 @@ bool PlayerbotAI::UpdateAIReaction(uint32 elapsed, bool minimal, bool isStunned)
          {
              if(reaction->ShouldInterruptCast())
              {
@@ -14,7 +14,7 @@ index 3feacc8..5acf99f 100644
              }
  
              if (reaction->ShouldInterruptMovement())
-@@ -1718,7 +1721,7 @@ void PlayerbotAI::Reset(bool full)
+@@ -1726,7 +1729,7 @@ void PlayerbotAI::Reset(bool full)
          RESET_AI_VALUE2(std::string, "manual string", "future travel purpose");
          RESET_AI_VALUE2(int, "manual int", "future travel relevance");
  
@@ -23,7 +23,7 @@ index 3feacc8..5acf99f 100644
  
          StopMoving();
  
-@@ -2413,7 +2416,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
+@@ -2421,7 +2424,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
          verticalSpeed = -verticalSpeed;
  
          // stop casting
@@ -32,7 +32,7 @@ index 3feacc8..5acf99f 100644
  
          // stop movement
          StopMoving();
-@@ -2806,7 +2809,6 @@ void PlayerbotAI::DoNextAction(bool min, bool forceActivity)
+@@ -2814,7 +2817,6 @@ void PlayerbotAI::DoNextAction(bool min, bool forceActivity)
  
  void PlayerbotAI::ReInitCurrentEngine()
  {

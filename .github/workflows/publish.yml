@@ -15,7 +15,7 @@ on:
       bots_commit:
         description: "Commit SHA of Sagiroth/TortoiseBots to build"
         required: false
-        default: "959fc5795b1002997a834d3d8078efae599dd892"
+        default: "153b85c30e5d7c8abee1bd71604169945772e78a"
 
 permissions:
   contents: read
@@ -43,7 +43,7 @@ jobs:
         id: source
         run: |
           CORE_SHA="${{ github.event.inputs.core_commit || 'd94947b0db60c33e7248523ad0ba7f58af97fd09' }}"
-          BOTS_SHA="${{ github.event.inputs.bots_commit || '959fc5795b1002997a834d3d8078efae599dd892' }}"
+          BOTS_SHA="${{ github.event.inputs.bots_commit || '153b85c30e5d7c8abee1bd71604169945772e78a' }}"
           echo "Core pin: ${CORE_SHA}"
           echo "Bots pin: ${BOTS_SHA}"
           echo "core_sha=${CORE_SHA}" >> "$GITHUB_OUTPUT"

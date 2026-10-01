@@ -184,7 +184,7 @@ patch.
 | 008 | `Engine robustness.` + squash `Drop solo-idle claim registry superseded by the lease manager` |
 | 009 | `Port raid boss tactics for Onyxia, MC, BWL, and Naxx fights.` |
 | 010 | `Dungeon Clear port.` + squash `Make the vendored tree compile against the Penqle core.` + squash `Fix wrong character in config.` + squash `Provision dungeon-clear test bots with MakeComplete after factory refactor.` |
-| 012 | `Improve bot performance.` + squash `Fix tick-divisor stagger skipping via return not continue.` |
+| 012 | `Improve bot performance.` + squash `Fix tick-divisor stagger skipping via return not continue.` + squash `Batch the real-player scan used by the bot AI stagger gate.` |
 
 Doc-only commits are deliberately not replayed: `Record QoL batch ledger
 rows.` and `Record raid boss tactics ledger row.` (the patches ship source

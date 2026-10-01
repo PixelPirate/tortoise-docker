@@ -1,5 +1,5 @@
 diff --git a/ai/playerbot/TravelMgr.cpp b/ai/playerbot/TravelMgr.cpp
-index dc4bced..4d0c730 100644
+index b256f20..8b30507 100644
 --- a/ai/playerbot/TravelMgr.cpp
 +++ b/ai/playerbot/TravelMgr.cpp
 @@ -509,6 +509,12 @@ bool RpgTravelDestination::IsActive(Player* bot, const PlayerTravelInfo& info) c
@@ -270,7 +270,7 @@ index fac0da4..091f0d7 100644
      Action* action = actions.front();
  
 diff --git a/ai/playerbot/strategy/actions/RpgSubActions.cpp b/ai/playerbot/strategy/actions/RpgSubActions.cpp
-index 45ef8f0..7cd70c6 100644
+index db0c8fa..aa8463e 100644
 --- a/ai/playerbot/strategy/actions/RpgSubActions.cpp
 +++ b/ai/playerbot/strategy/actions/RpgSubActions.cpp
 @@ -11,6 +11,7 @@

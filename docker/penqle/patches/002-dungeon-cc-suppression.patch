@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/PlayerbotAI.cpp b/ai/playerbot/PlayerbotAI.cpp
-index ffe5786..09f39f8 100644
+index 8d3a411..c32573d 100644
 --- a/ai/playerbot/PlayerbotAI.cpp
 +++ b/ai/playerbot/PlayerbotAI.cpp
-@@ -918,6 +918,12 @@ bool PlayerbotAI::IsInPve()
+@@ -926,6 +926,12 @@ bool PlayerbotAI::IsInPve()
      return !IsInPvp() && !IsInRaid();
  }
  
@@ -28,10 +28,10 @@ index 29da7a1..281bf08 100644
      void SetMoveToTransport(bool flag = true) { isMovingToTransport = flag; }
      bool GetMoveToTransport() { return isMovingToTransport; }
 diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index 9da4177..35e1116 100644
+index bb55a66..554e074 100644
 --- a/ai/playerbot/aiplayerbot.conf.dist.in
 +++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -349,6 +349,16 @@ AiPlayerbot.DisableActivityPriorities = 1
+@@ -359,6 +359,16 @@ AiPlayerbot.DisableActivityPriorities = 1
  # Limit combat activity for slight performance boost.
  #AiPlayerbot.LimitCombatActivity = 0
  

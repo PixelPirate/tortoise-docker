@@ -27,7 +27,7 @@ index 1b521e1..3e209ef 100644
          nonCombatEngine->removeStrategy("travel");
          nonCombatEngine->removeStrategy("tfish");
 diff --git a/ai/playerbot/PlayerbotAI.cpp b/ai/playerbot/PlayerbotAI.cpp
-index 09f39f8..3feacc8 100644
+index c32573d..825b99b 100644
 --- a/ai/playerbot/PlayerbotAI.cpp
 +++ b/ai/playerbot/PlayerbotAI.cpp
 @@ -181,7 +181,7 @@ PlayerbotAI::PlayerbotAI() : PlayerbotAIBase(), bot(NULL), aiObjectContext(NULL)
@@ -39,7 +39,7 @@ index 09f39f8..3feacc8 100644
  {
      this->bot = bot;
      if (!bot->IsTaxiCheater() && HasCheat(BotCheatMask::taxi))
-@@ -5151,6 +5151,8 @@ bool PlayerbotAI::CastSpell(uint32 spellId, Unit* target, Item* itemTarget, bool
+@@ -5159,6 +5159,8 @@ bool PlayerbotAI::CastSpell(uint32 spellId, Unit* target, Item* itemTarget, bool
  
      PlayAttackEmote(6);
  
@@ -72,7 +72,7 @@ index 281bf08..552a884 100644
      bool IsRecordingMessages() const { return m_recordMessages; }
      bool IsRecordingIncommingMessages() const { return m_recordIncommingMessages; }
 diff --git a/ai/playerbot/PlayerbotAIConfig.cpp b/ai/playerbot/PlayerbotAIConfig.cpp
-index 584c5b8..3f67cbb 100644
+index 9865fdf..c5c2244 100644
 --- a/ai/playerbot/PlayerbotAIConfig.cpp
 +++ b/ai/playerbot/PlayerbotAIConfig.cpp
 @@ -392,6 +392,8 @@ bool PlayerbotAIConfig::Initialize()
@@ -85,10 +85,10 @@ index 584c5b8..3f67cbb 100644
      randomBotMaxLevel = config.GetIntDefault("AiPlayerbot.RandomBotMaxLevel", 60);
      randomBotLoginAtStartup = config.GetBoolDefault("AiPlayerbot.RandomBotLoginAtStartup", false);
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index 78d8187..10b9ea1 100644
+index 4466a6d..839ec44 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
-@@ -344,6 +344,9 @@ public:
+@@ -351,6 +351,9 @@ public:
      // Custom Turtle raid tactics (issue #203): Emerald Sanctum / Lower
      // Karazhan / Karazhan Crypt transition strategies.
      bool enableCustomRaidTactics = true;
@@ -99,10 +99,10 @@ index 78d8187..10b9ea1 100644
      std::string combatStrategies, nonCombatStrategies, reactStrategies, deadStrategies;
      std::string randomBotCombatStrategies, randomBotNonCombatStrategies, randomBotReactStrategies, randomBotDeadStrategies;
 diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index 35e1116..61ec05f 100644
+index 554e074..670c636 100644
 --- a/ai/playerbot/aiplayerbot.conf.dist.in
 +++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -1448,6 +1448,24 @@ AiPlayerbot.FleeingEnabled = 1
+@@ -1462,6 +1462,24 @@ AiPlayerbot.FleeingEnabled = 1
  # manual pending playtesting (#237); this gates the transition strategies.
  AiPlayerbot.EnableCustomRaidTactics = 1
  

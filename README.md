@@ -128,6 +128,8 @@ you created.
 | `AI_AH_MARKET_ENABLED` | `0` | Bots run a native auction-house market |
 | `AI_DISABLE_ACTIVITY_PRIORITIES` | `1` | `1` (upstream) = every bot runs a full AI tick every world tick; `0` = bots away from players share a rotating ~10% activity budget. Measured slower here — prefer `AI_BOT_AI_TICK_DIVISOR` |
 | `AI_BOT_AI_TICK_DIVISOR` | `1` | Bot AI ticks per world tick (1-60, via the `012-bot-ai-tick-divisor` patch). `1` = every eligible bot every tick; `5`-`10` staggers bots no real player owns/groups/fights beside/can see, which is what makes a large pool affordable — see "World tick budget" |
+| `AI_POOL_TICK_BUDGET_US` | `10000` | Upstream's per-tick work budget for the random-pool AI pass. `0` disables it (the pool always gets the full pass). With `AI_BOT_AI_TICK_DIVISOR` set the full staggered pass is already cheap, so `0` costs no tick time and keeps every bot moving — see "World tick budget" |
+| `AI_POOL_BUDGET_WHEN_TICK_OVER_MS` | `250` | The pool budget only engages once the previous world tick ran longer than this (upstream ships `150`). Raised here so a healthy staggered tick always gets the full pass; lower it to cap a long tick harder |
 | `AI_SUMMON_WHEN_GROUP` | `1` | Bot teleports to you when it accepts a group invite |
 | `AI_FORCE_REBUFF_ON_READY_CHECK` | `0` | On a ready check, bots top up missing/expiring buffs before reporting ready (out-of-reagent bots report not-ready) |
 | `AI_RANDOM_BOT_LOGIN_WITH_PLAYER` | `1` | Random bots only online while humans are (login on first human, logout when last leaves) |
@@ -141,7 +143,7 @@ you created.
 | `AI_FAILED_ACTION_RETRY_BASE` / `AI_FAILED_ACTION_RETRY_MAX` | `250` / `2000` | Failure backoff (ms) for bot background actions: a repeatedly failing action is skipped for base ms, doubling up to max, instead of being retried every tick; `0` disables |
 | `DUNGEON_CLEAR_ENABLED` | `0` | Master switch for the vendored dungeon-clear module (autonomous 5-man dungeon clearing). `1` lets the party tank drive a run: `.dc on` in party chat (or the `dc on` keyword), `.dc status|bosses|skip|pull|off` to control it; requires navmesh data of good quality (see "Dungeon clearing" below) |
 | `MAPUPDATE_MTCELLS_THREADS` | `6` | Workers for the continent cell/object update pass, plus one (so `6` = 5 workers, one per-map pool). Upstream ships `1`, which means no workers at all. Raise with the bot population — see "World tick budget" |
-| `MAPUPDATE_MOTIONUPDATE_THREADS` | `1` | Workers for continent unit-motion updates (a plain worker count). Upstream default; raise only if motion shows up in the tick breakdown |
+| `MAPUPDATE_MOTIONUPDATE_THREADS` | `4` | Workers for continent unit-motion updates (a plain worker count). Upstream ships `1`, which leaves the moving-unit pass single-threaded; raise with the bot population |
 
 All bot services ship **off** upstream; the `.env` values opt them in.
 Raise bot counts cautiously — TortoiseBots is young and unsoaked at scale.
@@ -265,6 +267,12 @@ bot gets a full AI tick every world tick, so at 1000 bots the tick settled at
 ~0.5 s with the map side only ~10 % of it. `AI_BOT_AI_TICK_DIVISOR` (patch
 `012-bot-ai-tick-divisor`) staggers the bot AI loop for bots no real player is
 involved with; `1` is the historical behavior.
+
+The same patch batches the real-player scan the stagger gate runs (one
+session-map walk per pass instead of one per bot), and the image raises
+upstream's pool-budget gate (`AI_POOL_BUDGET_WHEN_TICK_OVER_MS`) to `250` so a
+healthy staggered tick gets the full pool pass instead of the budget cutting it
+to a few percent of the bots.
 
 ## Common commands
 
