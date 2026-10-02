@@ -25,10 +25,12 @@ There is no traditional test suite. Verification = a successful
 # Build the image (1–6 hours; compiles the C++ core)
 docker build -f Dockerfile.penqle -t tortoise-docker:penqle-bots .
 
-# Run the stack (always needs -f; there is no default compose file)
-docker compose -f docker-compose.penqle.yml up -d
-docker compose -f docker-compose.penqle.yml logs -f mangosd
-docker compose -f docker-compose.penqle.yml down
+# Run the stack (compose.sh unsets .env keys from the shell so .env wins;
+# plain `docker compose -f docker-compose.penqle.yml ...` lets exported
+# AI_*/DB_* shell variables silently override .env)
+./compose.sh up -d
+./compose.sh logs -f mangosd
+./compose.sh down
 ```
 
 Runtime requires a `.env` (copy from `.env.example.penqle` with strong
@@ -53,6 +55,10 @@ Bot-behavior changes are delivered as **build-time patches**, not forks:
 - When bumping `BOTS_COMMIT`, re-verify every patch and rebase as needed.
 - Mirror the same change in the local TortoiseBots checkout for reference;
   delete a patch from here once upstream includes it in the pin.
+- Core-side changes (things the module cannot reach, e.g. visibility or
+  broadcast code) go in `docker/penqle/core-patches/`, applied to the pinned
+  `CORE_COMMIT` before the module patches, same contract (see that folder's
+  README). Re-verify them whenever `CORE_COMMIT` moves.
 - The full refresh procedure (rebase, regenerate the series, re-pin, rebuild)
   is `docs/bot-patch-refresh.md`; run it whenever a pin moves.
 - New agent-authored feature work comes from `docs/gap-prompts/` —

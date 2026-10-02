@@ -57,6 +57,18 @@ RUN git clone --no-checkout "${CORE_REPO}" tortoise-wow \
     && git -C tortoise-wow/modules/TortoiseBots fetch --depth 1 origin "${BOTS_COMMIT}" \
     && git -C tortoise-wow/modules/TortoiseBots checkout --detach FETCH_HEAD
 
+# Local feature patches on top of the pinned core. Same contract as the module
+# series below: numbered, rebase-able, must apply cleanly or the build fails
+# (see core-patches/README). Applied before the module patches because the
+# module build reads the core tree.
+COPY docker/penqle/core-patches /tmp/tortoise-core-patches
+RUN cd tortoise-wow \
+    && for p in /tmp/tortoise-core-patches/*.patch; do \
+         echo "Applying core patch $(basename "$p")"; \
+         git apply --check "$p" || exit 1; \
+         git apply "$p" || exit 1; \
+       done
+
 # Local feature patches on top of the pinned module. Keep them numbered and
 # rebase-able; each must apply cleanly or the build fails (see patches/README).
 COPY docker/penqle/patches /tmp/tortoisebots-patches

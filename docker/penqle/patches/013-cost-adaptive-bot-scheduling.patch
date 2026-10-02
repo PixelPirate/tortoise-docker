@@ -1,0 +1,165 @@
+Subject: [PATCH] Cost-adaptive bot AI scheduling and heavy-bot diagnostics
+
+The activity stagger (012) removes most of the per-tick pool cost, but it is
+blind to how expensive an individual bot's AI update actually is: one bot
+running a full Detour search or a runaway target scan still stalls the whole
+pass (observed as a multi-second BOTPERF maxUs), and it is never named.
+
+This measures each bot's own AI update, keeps an exponentially weighted mean of
+it, and uses that in two ways, both inside the set that is already eligible for
+the stagger so nothing a player owns/groups/fights/sees is slowed:
+
+- a rate-limited HEAVYBOT log line names the offender (guid, name, map, cost),
+  so the expensive bot is diagnosable instead of showing up only as a spike;
+- the stagger divisor is scaled up for persistently expensive bots, up to
+  AiPlayerbot.BotAdaptiveBackoffMax, which throttles exactly the bots that cost
+  the most (the crowded-zone case) without a spatial scan.
+
+diff --git a/ai/playerbot/PlayerbotAIConfig.cpp b/ai/playerbot/PlayerbotAIConfig.cpp
+index ead07de..992b25f 100644
+--- a/ai/playerbot/PlayerbotAIConfig.cpp
++++ b/ai/playerbot/PlayerbotAIConfig.cpp
+@@ -665,6 +665,16 @@ bool PlayerbotAIConfig::Initialize()
+         botAiTickDivisor = 1;
+     if (botAiTickDivisor > 60)
+         botAiTickDivisor = 60;
++    botUpdateWarnUs = config.GetIntDefault("AiPlayerbot.BotUpdateWarnUs", 20000);
++    if (botUpdateWarnUs < 1000)
++        botUpdateWarnUs = 1000;
++    if (botUpdateWarnUs > 500000)
++        botUpdateWarnUs = 500000;
++    botAdaptiveBackoffMax = config.GetIntDefault("AiPlayerbot.BotAdaptiveBackoffMax", 10);
++    if (botAdaptiveBackoffMax < 1)
++        botAdaptiveBackoffMax = 1;
++    if (botAdaptiveBackoffMax > 60)
++        botAdaptiveBackoffMax = 60;
+     diffWithPlayer = config.GetIntDefault("AiPlayerbot.DiffWithPlayer", 100);
+     diffEmpty = config.GetIntDefault("AiPlayerbot.DiffEmpty", 200);
+     RandombotsWalkingRPG = config.GetBoolDefault("AiPlayerbot.RandombotsWalkingRPG", false);
+diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
+index 239e667..f1d9d7d 100644
+--- a/ai/playerbot/PlayerbotAIConfig.h
++++ b/ai/playerbot/PlayerbotAIConfig.h
+@@ -420,6 +420,12 @@ public:
+     // the donor behavior (a full AI tick per bot per tick); >1 staggers bots
+     // that no real player is grouped/fighting/seeing with. See BotManager.
+     uint32 botAiTickDivisor;
++    // Cost-adaptive scheduling (see BotManager::ShouldStaggerAiThisTick): a bot
++    // whose own AI update costs at least botUpdateWarnUs is staggered up to
++    // botAdaptiveBackoffMax times less often. Both only apply to bots already
++    // eligible for the activity stagger.
++    uint32 botUpdateWarnUs;
++    uint32 botAdaptiveBackoffMax;
+     uint32 diffWithPlayer;
+     uint32 diffEmpty;
+     uint32 minEnchantingBotLevel;
+diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
+index 26b52e8..bfa9ff6 100644
+--- a/ai/playerbot/aiplayerbot.conf.dist.in
++++ b/ai/playerbot/aiplayerbot.conf.dist.in
+@@ -387,6 +387,20 @@ AiPlayerbot.DisableActivityPriorities = 1
+ # hundred bots, 5-10 for a thousand.
+ AiPlayerbot.BotAiTickDivisor = 1
+ 
++# AiPlayerbot.BotUpdateWarnUs. A single bot AI update that costs at least this
++# many microseconds (default 20000 = 20 ms; a healthy pool bot is ~1 ms) is
++# logged as HEAVYBOT (rate-limited to one line per bot per 30 s) and, when
++# BotAdaptiveBackoffMax > BotAiTickDivisor, is staggered up to that many times
++# less often. Set 0 to disable both. Only bots already eligible for the
++# activity stagger are affected, so nothing a player is involved with slows
++# down.
++AiPlayerbot.BotUpdateWarnUs = 20000
++
++# AiPlayerbot.BotAdaptiveBackoffMax. Upper bound (ticks, 1-60) on the
++# cost-adaptive stagger divisor; must be > BotAiTickDivisor to have any
++# effect. Default 10.
++AiPlayerbot.BotAdaptiveBackoffMax = 10
++
+ # Sync non-random bot alt levels to master level automatically
+ # When enabled, bot alts will level up one level at a time to match their master's level
+ # AiPlayerbot.SyncAltLevelToMaster = 0
+diff --git a/runtime/BotManager.cpp b/runtime/BotManager.cpp
+index 9467a8b..92ea735 100644
+--- a/runtime/BotManager.cpp
++++ b/runtime/BotManager.cpp
+@@ -1480,7 +1480,35 @@ void BotManager::UpdateBots(uint32_t diff)
+ 
+             uint32_t const elapsed = diff + entry.record.aiSkippedMs;
+             entry.record.aiSkippedMs = 0;
++
++            // Cost-adaptive scheduling: measure this bot's own AI update so the
++            // stagger gate can back off the expensive ones and so a pathological
++            // bot (a full Detour search, a runaway target scan) names itself in
++            // the log instead of only showing up as a multi-second pass max.
++            auto const botStart = std::chrono::steady_clock::now();
+             entry.aiAdapter->Update(elapsed);
++            uint32_t const costUs = static_cast<uint32_t>(
++                std::chrono::duration_cast<std::chrono::microseconds>(
++                    std::chrono::steady_clock::now() - botStart).count());
++            // EWMA with a ~1/8 weight on the new sample: one slow tick fades,
++            // a persistently slow bot stays visible.
++            entry.record.aiCostUsEwma = (entry.record.aiCostUsEwma * 7 + costUs) / 8;
++
++            if (entry.record.aiHeavyWarnCooldownMs > diff)
++                entry.record.aiHeavyWarnCooldownMs -= diff;
++            else
++                entry.record.aiHeavyWarnCooldownMs = 0;
++
++            uint32_t const warnUs = sPlayerbotAIConfig.botUpdateWarnUs;
++            if (warnUs > 0 && costUs >= warnUs && entry.record.aiHeavyWarnCooldownMs == 0)
++            {
++                entry.record.aiHeavyWarnCooldownMs = 30000;
++                TB_LOG_BASIC("TortoiseBots: HEAVYBOT guid=%u name=%s costUs=%u elapsed=%u map=%u ewmaUs=%u",
++                    entry.record.characterGuid.GetCounter(),
++                    player ? player->GetName() : "?",
++                    costUs, elapsed, player ? player->GetMapId() : 0u,
++                    entry.record.aiCostUsEwma);
++            }
+         }
+     };
+ 
+@@ -1556,7 +1584,7 @@ void BotManager::UpdateBots(uint32_t diff)
+ // could see keeps a full update rate.
+ bool BotManager::ShouldStaggerAiThisTick(BotEntry const& entry, Player* player) const
+ {
+-    uint32_t const divisor = sPlayerbotAIConfig.botAiTickDivisor;
++    uint32_t divisor = sPlayerbotAIConfig.botAiTickDivisor;
+     if (divisor <= 1 || !entry.record.random)
+         return false;
+ 
+@@ -1570,6 +1598,19 @@ bool BotManager::ShouldStaggerAiThisTick(BotEntry const& entry, Player* player)
+     if (HasRealPlayerWithin(player, range))
+         return false;
+ 
++    // Cost-adaptive backoff: inside the eligible set only, a bot whose own AI
++    // update is expensive is served less often, up to the cap. A crowded zone
++    // is where per-bot cost is highest, so this throttles the bots that cost
++    // the most without touching anything a player is involved with.
++    if (sPlayerbotAIConfig.botUpdateWarnUs > 0 &&
++        sPlayerbotAIConfig.botAdaptiveBackoffMax > divisor &&
++        entry.record.aiCostUsEwma > sPlayerbotAIConfig.botUpdateWarnUs)
++    {
++        uint32_t const step = std::max<uint32_t>(sPlayerbotAIConfig.botUpdateWarnUs, 1);
++        uint32_t const scaled = divisor + entry.record.aiCostUsEwma / step;
++        divisor = std::min<uint32_t>(scaled, sPlayerbotAIConfig.botAdaptiveBackoffMax);
++    }
++
+     return ((entry.record.characterGuid.GetCounter() + m_aiTickCounter) % divisor) != 0;
+ }
+ 
+diff --git a/runtime/BotManager.h b/runtime/BotManager.h
+index 1ab5546..16d9c07 100644
+--- a/runtime/BotManager.h
++++ b/runtime/BotManager.h
+@@ -55,6 +55,11 @@ struct BotRecord
+     // World time this bot's AI update was skipped by the activity stagger, owed
+     // back to the AI on its next run so its own timers stay wall-clock correct.
+     uint32_t aiSkippedMs = 0;
++    // Cost-adaptive scheduling (performance): exponentially weighted mean of
++    // this bot's own AI update cost in microseconds, and the countdown before
++    // it may log another "expensive bot" warning. See BotManager::UpdateBots.
++    uint32_t aiCostUsEwma = 0;
++    uint32_t aiHeavyWarnCooldownMs = 0;
+     bool enteredWorld = false;
+     bool random = false;
+     bool syncedInWorld = false;

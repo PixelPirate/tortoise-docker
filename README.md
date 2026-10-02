@@ -70,8 +70,15 @@ data/
 ### 4. Start with Compose
 
 ```bash
-docker compose -f docker-compose.penqle.yml up -d
+./compose.sh up -d
 ```
+
+`compose.sh` is a thin wrapper around `docker compose -f
+docker-compose.penqle.yml` that first unsets every variable defined in `.env`
+from the environment. This matters because Compose prefers the process
+environment over `.env`: a shell that exports bot settings (an `export AI_*`
+in a profile or session) silently overrides your `.env` edits. If you call
+`docker compose` directly, make sure no `.env` key is exported in that shell.
 
 The first start imports the world database (several minutes), then applies
 core schema updates and bot migrations automatically on the first `mangosd`
@@ -129,6 +136,8 @@ you created.
 | `AI_DISABLE_ACTIVITY_PRIORITIES` | `1` | `1` (upstream) = every bot runs a full AI tick every world tick; `0` = bots away from players share a rotating ~10% activity budget. Measured slower here — prefer `AI_BOT_AI_TICK_DIVISOR` |
 | `AI_BOT_AI_TICK_DIVISOR` | `1` | Bot AI ticks per world tick (1-60, via the `012-bot-ai-tick-divisor` patch). `1` = every eligible bot every tick; `5`-`10` staggers bots no real player owns/groups/fights beside/can see, which is what makes a large pool affordable — see "World tick budget" |
 | `AI_POOL_TICK_BUDGET_US` | `10000` | Upstream's per-tick work budget for the random-pool AI pass. `0` disables it (the pool always gets the full pass). With `AI_BOT_AI_TICK_DIVISOR` set the full staggered pass is already cheap, so `0` costs no tick time and keeps every bot moving — see "World tick budget" |
+| `AI_BOT_UPDATE_WARN_US` | `20000` | A single bot AI update costing at least this many microseconds logs a `HEAVYBOT` line (guid, name, map, cost), rate-limited to one per bot per 30 s. `0` disables the log and the cost-adaptive backoff — see "World tick budget" |
+| `AI_BOT_ADAPTIVE_BACKOFF_MAX` | `10` | Upper bound (1-60) on the cost-adaptive stagger divisor: a bot that keeps costing ≥ `AI_BOT_UPDATE_WARN_US` runs at most once every this many ticks. Must be above `AI_BOT_AI_TICK_DIVISOR`. Only bots already eligible for the stagger are affected |
 | `AI_POOL_BUDGET_WHEN_TICK_OVER_MS` | `250` | The pool budget only engages once the previous world tick ran longer than this (upstream ships `150`). Raised here so a healthy staggered tick always gets the full pass; lower it to cap a long tick harder |
 | `AI_SUMMON_WHEN_GROUP` | `1` | Bot teleports to you when it accepts a group invite |
 | `AI_FORCE_REBUFF_ON_READY_CHECK` | `0` | On a ready check, bots top up missing/expiring buffs before reporting ready (out-of-reagent bots report not-ready) |
@@ -144,6 +153,7 @@ you created.
 | `DUNGEON_CLEAR_ENABLED` | `0` | Master switch for the vendored dungeon-clear module (autonomous 5-man dungeon clearing). `1` lets the party tank drive a run: `.dc on` in party chat (or the `dc on` keyword), `.dc status|bosses|skip|pull|off` to control it; requires navmesh data of good quality (see "Dungeon clearing" below) |
 | `MAPUPDATE_MTCELLS_THREADS` | `6` | Workers for the continent cell/object update pass, plus one (so `6` = 5 workers, one per-map pool). Upstream ships `1`, which means no workers at all. Raise with the bot population — see "World tick budget" |
 | `MAPUPDATE_MOTIONUPDATE_THREADS` | `4` | Workers for continent unit-motion updates (a plain worker count). Upstream ships `1`, which leaves the moving-unit pass single-threaded; raise with the bot population |
+| `HEADLESS_BOT_VISIBILITY_ELISION` | `1` | Core patch `001`: skip create/out-of-range blocks and movement-broadcast subscriptions between two bot sessions. Bots have no client, so those packets are dropped at the send path anyway; in a crowded zone the per-(bot,bot) pair cost grows with the square of the local population. Real players keep full visibility both ways. `0` reverts to upstream behavior; restart to change |
 
 All bot services ship **off** upstream; the `.env` values opt them in.
 Raise bot counts cautiously — TortoiseBots is young and unsoaked at scale.

@@ -1,0 +1,155 @@
+Subject: [PATCH] Skip visibility and movement-broadcast work between bot sessions
+
+Random bots run as headless Player sessions: a world presence with a
+broadcaster but no socket. Anything the server builds for a bot's "view" is
+therefore dropped at the end of the send path, after the per-packet script
+hook dispatch in WorldSession::SendPacket. In a crowded zone that is O(players
+squared) wasted work - a create/out-of-range block per (bot, bot) pair plus a
+movement-broadcast listener per pair.
+
+This adds Headless.BotVisibilityElision (default on): a headless viewer skips
+the block building and the broadcast subscription for headless targets. The
+cheap visible-GUID bookkeeping is kept, so group updates, stealth detection
+(Unit::IsVisibleForInState) and emote/text targeting keep working, and real
+players keep full visibility in both directions. Bot AI never reads these
+lists (it targets through grid searchers).
+
+diff --git a/src/game/Objects/Player.cpp b/src/game/Objects/Player.cpp
+--- a/src/game/Objects/Player.cpp
++++ b/src/game/Objects/Player.cpp
+@@ -20786,6 +20786,43 @@
+ }
+ 
++// Bot-to-bot visibility elision ("crowd culling").
++//
++// Every random bot runs as a headless Player session: a world presence with a
++// broadcaster but no socket, so anything the server builds for its "view" is
++// dropped at the end of the send path. In a crowded zone that means O(players^2)
++// wasted work: a create/out-of-range block per (bot, bot) pair, and a
++// movement-broadcast listener per pair whose packets are dispatched through the
++// script hook in WorldSession::SendPacket before the null-socket early-out.
++//
++// With Headless.BotVisibilityElision on, a headless viewer skips the block
++// building and the broadcast subscription for headless targets. The cheap
++// visible-GUID bookkeeping is kept: group updates, stealth detection
++// (Unit::IsVisibleForInState) and emote/text targeting read it. Real players
++// keep full visibility in both directions, so nothing leaves a client, and bot
++// AI never reads these lists (it targets through grid searchers).
++static bool IsHeadlessPlayerObject(WorldObject* target)
++{
++    Player* player = target ? target->ToPlayer() : nullptr;
++    if (!player)
++        return false;
++
++    WorldSession* session = player->GetSession();
++    return session && session->IsHeadless();
++}
++
++static bool ShouldElideHeadlessVisibility(Player* viewer, WorldObject* target)
++{
++    // Read once: this sits on a per-(viewer, target) path.
++    static bool const enabled = sConfig.GetBoolDefault("Headless.BotVisibilityElision", true);
++    if (!enabled || !viewer)
++        return false;
++
++    WorldSession* session = viewer->GetSession();
++    return session && session->IsHeadless() && IsHeadlessPlayerObject(target);
++}
++
+ void Player::UpdateVisibilityOf(WorldObject const* viewPoint, WorldObject* target)
+ {
+     bool inVisibleList = IsInVisibleList(target);
++    bool const elideHeadless = ShouldElideHeadlessVisibility(this, target);
+     if (inVisibleList)
+@@ -20794,14 +20831,16 @@
+         {
+             ObjectGuid t_guid = target->GetObjectGuid();
+ 
+-            target->DestroyForPlayer(this);
++            if (!elideHeadless)
++                target->DestroyForPlayer(this);
+             std::unique_lock<std::shared_mutex> lock(m_visibleGUIDs_lock);
+             m_visibleGUIDs.erase(t_guid);
+             lock.unlock();
+ 
+-            if (Player* plTarget = target->ToPlayer())
+-                if (plTarget->m_broadcaster)
+-                    plTarget->m_broadcaster->RemoveListener(this);
++            if (!elideHeadless)
++                if (Player* plTarget = target->ToPlayer())
++                    if (plTarget->m_broadcaster)
++                        plTarget->m_broadcaster->RemoveListener(this);
+ 
+             DEBUG_FILTER_LOG(LOG_FILTER_VISIBILITY_CHANGES, "%s out of range for player %u. Distance = %f", t_guid.GetString().c_str(), GetGUIDLow(), GetDistance(target));
+         }
+@@ -20813,11 +20852,13 @@
+-            target->SendCreateUpdateToPlayer(this);
++            if (!elideHeadless)
++                target->SendCreateUpdateToPlayer(this);
+             if (target->GetTypeId() != TYPEID_GAMEOBJECT || !((GameObject*)target)->IsTransport())
+             {
+                 std::unique_lock<std::shared_mutex> lock(m_visibleGUIDs_lock);
+                 m_visibleGUIDs.insert(target->GetObjectGuid());
+                 lock.unlock();
+ 
+-                if (Player* plTarget = target->ToPlayer())
+-                    if (plTarget->m_broadcaster)
+-                        plTarget->m_broadcaster->AddListener(this);
++                if (!elideHeadless)
++                    if (Player* plTarget = target->ToPlayer())
++                        if (plTarget->m_broadcaster)
++                            plTarget->m_broadcaster->AddListener(this);
+             }
+@@ -20871,5 +20912,6 @@
+ template<class T>
+ void Player::UpdateVisibilityOf(WorldObject const* viewPoint, T* target, UpdateData& data, std::set<WorldObject*>& visibleNow)
+ {
+     bool inVisibleList = IsInVisibleList(target);
++    bool const elideHeadless = ShouldElideHeadlessVisibility(this, target);
+     if (inVisibleList)
+@@ -20885,7 +20927,9 @@
+-            target->BuildOutOfRangeUpdateBlock(&data);
++            if (!elideHeadless)
++                target->BuildOutOfRangeUpdateBlock(&data);
+             std::unique_lock<std::shared_mutex> lock(m_visibleGUIDs_lock);
+             m_visibleGUIDs.erase(t_guid);
+             lock.unlock();
+ 
+-            RemoveBroadcastListener(target, this);
++            if (!elideHeadless)
++                RemoveBroadcastListener(target, this);
+             DEBUG_FILTER_LOG(LOG_FILTER_VISIBILITY_CHANGES, "%s is out of range for %s. Distance = %f", t_guid.GetString().c_str(), GetGuidStr().c_str(), GetDistance(target));
+@@ -20898,8 +20942,10 @@
+             visibleNow.insert(target);
+-            target->BuildCreateUpdateBlockForPlayer(&data, this);
++            if (!elideHeadless)
++                target->BuildCreateUpdateBlockForPlayer(&data, this);
+             std::unique_lock<std::shared_mutex> lock(m_visibleGUIDs_lock);
+             UpdateVisibilityOf_helper(m_visibleGUIDs, target);
+             lock.unlock();
+ 
+-            AddBroadcastListener(target, this);
++            if (!elideHeadless)
++                AddBroadcastListener(target, this);
+             DEBUG_FILTER_LOG(LOG_FILTER_VISIBILITY_CHANGES, "%s is visible now for %s. Distance = %f", target->GetGuidStr().c_str(), GetGuidStr().c_str(), GetDistance(target));
+diff --git a/src/mangosd/mangosd.conf.dist.in b/src/mangosd/mangosd.conf.dist.in
+--- a/src/mangosd/mangosd.conf.dist.in
++++ b/src/mangosd/mangosd.conf.dist.in
+@@ -273,6 +273,17 @@
+ MapUpdate.VisibilityUpdate.MaxThreads = 1
+ MapUpdate.VisibilityUpdate.Timeout = 100
+ 
++# Headless.BotVisibilityElision. Skip create/out-of-range object blocks and
++# movement-broadcast subscriptions between two headless (bot) sessions.
++# Bots have no client, so those packets are dropped at the send path anyway;
++# in a crowded zone skipping them removes the per-(bot,bot) pair cost that
++# grows with the square of the local population. Real players keep full
++# visibility in both directions, so the crowd still renders for players, and
++# the visible-GUID bookkeeping is kept for group/stealth/emote logic.
++# Read once at startup; changing it needs a restart.
++
++Headless.BotVisibilityElision = 1
++
+ # Hardcode multithreading options.
+ 
+ MapUpdate.UpdatePacketsDiff = 40

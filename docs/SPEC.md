@@ -292,6 +292,18 @@ real-player set once per pass instead of rescanning every session per bot
 (O(pool x sessions) -> O(sessions)), and the image raises the budget gate to
 250 ms so a healthy staggered tick gets the full pool pass.
 
+### 3.8 Regression on module pin 153b85c (measured 2026-10-01)
+
+The `959fc579 -> 153b85c` re-pin (commit dbb8890) regressed the live tick at
+the same 1000-bot pool and divisor: mean tick 144 ms -> 1.3-1.8 s, module pass
+avg 65 ms -> 176-210 ms with 1.1-4.2 s spikes, and map cell passes back over
+200 ms on both continents. Prime suspects are upstream #375 (main-thread
+`canPathTo` per grind pick), #373 (even start-zone spread, compiled-default
+on) and #374 (more target churn during walks); ~1 s/tick remains
+un-instrumented in `World::Update`. Full analysis, hypothesis ranking,
+mitigations and the phased improvement plan:
+`docs/perf-analysis-2026-10-01.md`.
+
 ## 4. Implementation plan
 
 ### 4.1 `Dockerfile.penqle`

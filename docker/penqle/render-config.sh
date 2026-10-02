@@ -65,6 +65,15 @@ AI_DISABLE_ACTIVITY_PRIORITIES="${AI_DISABLE_ACTIVITY_PRIORITIES:-1}"
 # with (see BotManager::ShouldStaggerAiThisTick) so the world tick cost stops
 # scaling 1:1 with the bot pool. Needs the 012-bot-ai-tick-divisor patch.
 AI_BOT_AI_TICK_DIVISOR="${AI_BOT_AI_TICK_DIVISOR:-1}"
+# Cost-adaptive scheduling (needs the 013 patch in the image): a single bot AI
+# update that costs at least this many microseconds is logged as HEAVYBOT
+# (rate-limited to one line per bot per 30 s) and, when
+# AI_BOT_ADAPTIVE_BACKOFF_MAX is above AI_BOT_AI_TICK_DIVISOR, is staggered
+# more often. 0 disables both. See README "World tick budget".
+AI_BOT_UPDATE_WARN_US="${AI_BOT_UPDATE_WARN_US:-20000}"
+# Upper bound (1-60) on the cost-adaptive stagger divisor for persistently
+# expensive bots. Must be above AI_BOT_AI_TICK_DIVISOR to have any effect.
+AI_BOT_ADAPTIVE_BACKOFF_MAX="${AI_BOT_ADAPTIVE_BACKOFF_MAX:-10}"
 # Upstream budgets the random-pool AI pass (PoolTickBudgetUs of work per tick,
 # but only once the previous world tick ran longer than
 # PoolBudgetWhenTickOverMs). With the tick divisor above the full staggered pass
@@ -82,6 +91,13 @@ AI_POOL_BUDGET_WHEN_TICK_OVER_MS="${AI_POOL_BUDGET_WHEN_TICK_OVER_MS:-250}"
 # hundreds of milliseconds or seconds. See README "World tick budget".
 MAPUPDATE_MTCELLS_THREADS="${MAPUPDATE_MTCELLS_THREADS:-6}"
 MAPUPDATE_MOTIONUPDATE_THREADS="${MAPUPDATE_MOTIONUPDATE_THREADS:-4}"
+# Core patch 001 (headless-bot-visibility-elision): skip create/out-of-range
+# blocks and movement-broadcast subscriptions between two bot sessions. Bots
+# have no client, so those packets are dropped at the send path anyway; in a
+# crowded zone the per-(bot,bot) pair cost grows with the square of the local
+# population. Real players keep full visibility in both directions. 0 reverts
+# to upstream behavior. Needs the patch in the image; restart to change.
+HEADLESS_BOT_VISIBILITY_ELISION="${HEADLESS_BOT_VISIBILITY_ELISION:-1}"
 
 DB_INFO() {
   local db="$1"
@@ -137,6 +153,7 @@ set_conf "${ETC}/mangosd.conf" "Database.AutoUpdate.Path" "\"${SQL_DIR}/database
 # MTCells.Threads is a worker count plus the caller: 1 => no worker threads.
 set_conf "${ETC}/mangosd.conf" "MapUpdate.Continents.MTCells.Threads" "${MAPUPDATE_MTCELLS_THREADS}"
 set_conf "${ETC}/mangosd.conf" "Continents.MotionUpdate.Threads" "${MAPUPDATE_MOTIONUPDATE_THREADS}"
+set_conf "${ETC}/mangosd.conf" "Headless.BotVisibilityElision" "${HEADLESS_BOT_VISIBILITY_ELISION}"
 
 # realmd (note: key name has no dots between LoginDatabase and Info)
 set_conf "${ETC}/realmd.conf" "LoginDatabaseInfo" "\"$(DB_INFO "${DB_LOGIN}")\""
@@ -162,6 +179,8 @@ set_conf "${AI_CONF}" "AiPlayerbot.RandomBotLftEnabled" "${AI_RANDOM_BOT_LFT_ENA
 set_conf "${AI_CONF}" "AiPlayerbot.AhMarketEnabled" "${AI_AH_MARKET_ENABLED}"
 set_conf "${AI_CONF}" "AiPlayerbot.DisableActivityPriorities" "${AI_DISABLE_ACTIVITY_PRIORITIES}"
 set_conf "${AI_CONF}" "AiPlayerbot.BotAiTickDivisor" "${AI_BOT_AI_TICK_DIVISOR}"
+set_conf "${AI_CONF}" "AiPlayerbot.BotUpdateWarnUs" "${AI_BOT_UPDATE_WARN_US}"
+set_conf "${AI_CONF}" "AiPlayerbot.BotAdaptiveBackoffMax" "${AI_BOT_ADAPTIVE_BACKOFF_MAX}"
 set_conf "${AI_CONF}" "AiPlayerbot.PoolTickBudgetUs" "${AI_POOL_TICK_BUDGET_US}"
 set_conf "${AI_CONF}" "AiPlayerbot.PoolBudgetWhenTickOverMs" "${AI_POOL_BUDGET_WHEN_TICK_OVER_MS}"
 set_conf "${AI_CONF}" "AiPlayerbot.ForceRebuffOnReadyCheck" "${AI_FORCE_REBUFF_ON_READY_CHECK}"
