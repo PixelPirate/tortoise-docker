@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/strategy/actions/TradeStatusAction.cpp b/ai/playerbot/strategy/actions/TradeStatusAction.cpp
-index 37c6233..c891378 100644
+index 9346f98..4fdf804 100644
 --- a/ai/playerbot/strategy/actions/TradeStatusAction.cpp
 +++ b/ai/playerbot/strategy/actions/TradeStatusAction.cpp
-@@ -15,6 +15,12 @@ using namespace ai;
+@@ -17,6 +17,12 @@ using namespace ai;
  
  bool TradeStatusAction::Execute(Event& event)
  {
@@ -15,7 +15,7 @@ index 37c6233..c891378 100644
      Player* trader = bot->GetTrader();
      Player* master = GetMaster();
      if (!trader)
-@@ -32,10 +38,7 @@ bool TradeStatusAction::Execute(Event& event)
+@@ -61,10 +67,7 @@ bool TradeStatusAction::Execute(Event& event)
  
      if (!shouldTrade)
      {
@@ -27,7 +27,7 @@ index 37c6233..c891378 100644
          return false;
      }
  
-@@ -204,6 +207,12 @@ void TradeStatusAction::AutoShareConjured(Player* trader)
+@@ -234,6 +237,12 @@ void TradeStatusAction::AutoShareConjured(Player* trader)
      (void)placed;
  }
  
@@ -41,11 +41,11 @@ index 37c6233..c891378 100644
  {
      Player* trader = bot->GetTrader();
 diff --git a/ai/playerbot/strategy/actions/TradeStatusAction.h b/ai/playerbot/strategy/actions/TradeStatusAction.h
-index e2489f6..b23460f 100644
+index 017d4d2..e168a3c 100644
 --- a/ai/playerbot/strategy/actions/TradeStatusAction.h
 +++ b/ai/playerbot/strategy/actions/TradeStatusAction.h
-@@ -13,6 +13,7 @@ namespace ai
-     private:
+@@ -17,6 +17,7 @@ namespace ai
+         bool PoolBotMayTradeWith(Player* trader);
          void BeginTrade();
          void AutoShareConjured(Player* trader);
 +        void CancelTrade();

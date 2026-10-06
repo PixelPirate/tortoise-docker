@@ -1,8 +1,8 @@
 diff --git a/TortoiseBots.cmake b/TortoiseBots.cmake
-index c14eb96..8a8580e 100644
+index b7c7737..6c2d6b8 100644
 --- a/TortoiseBots.cmake
 +++ b/TortoiseBots.cmake
-@@ -8,6 +8,16 @@
+@@ -40,6 +40,16 @@ endfunction()
  if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
    set(TORTOISEBOTS_ROOT "${CMAKE_CURRENT_LIST_DIR}")
  
@@ -19,7 +19,7 @@ index c14eb96..8a8580e 100644
    # Make source selection observable. The Penqle development builder mounts
    # this checkout over the core's optional module path; a direct core build
    # must not silently fall back to an unrelated stale copy.
-@@ -66,6 +76,14 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
+@@ -105,6 +115,14 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
      COPYONLY)
    CopyModuleConfig("${CMAKE_CURRENT_BINARY_DIR}/tortoise_bots.conf")
  
@@ -34,7 +34,7 @@ index c14eb96..8a8580e 100644
    # Optional module migrations are installed only with the module. The core
    # AutoUpdater applies them on startup without making bots a core dependency.
    # AutoUpdater's module contract is case-sensitive on Linux. Penqle's
-@@ -184,6 +202,28 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
+@@ -227,6 +245,28 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
    file(GLOB TORTOISEBOTS_ACTION_SRC CONFIGURE_DEPENDS
      "${TORTOISEBOTS_ROOT}/ai/playerbot/strategy/actions/*.cpp")
  
@@ -63,7 +63,7 @@ index c14eb96..8a8580e 100644
    set(TORTOISEBOTS_SOURCES
      ${TORTOISEBOTS_HOST_SRC}
      ${TORTOISEBOTS_AI_SRC}
-@@ -194,6 +234,8 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
+@@ -237,6 +277,8 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
      ${TORTOISEBOTS_TRIGGER_SRC}
      ${TORTOISEBOTS_ACTION_SRC})
    list(REMOVE_DUPLICATES TORTOISEBOTS_SOURCES)
@@ -72,7 +72,7 @@ index c14eb96..8a8580e 100644
  
    foreach(TORTOISEBOTS_SOURCE IN LISTS TORTOISEBOTS_SOURCES)
      if(NOT EXISTS "${TORTOISEBOTS_SOURCE}")
-@@ -285,5 +327,91 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "POST_TARGETS")
+@@ -334,5 +376,91 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "POST_TARGETS")
            "-include" "${TORTOISEBOTS_PCH_HEADER}")
        endif()
      endif()
@@ -126019,10 +126019,10 @@ index 0000000..76f71a1
 +if __name__ == "__main__":
 +    main()
 diff --git a/ai/playerbot/PlayerbotAI.h b/ai/playerbot/PlayerbotAI.h
-index 552a884..6bcc923 100644
+index 46afe14..15f0c25 100644
 --- a/ai/playerbot/PlayerbotAI.h
 +++ b/ai/playerbot/PlayerbotAI.h
-@@ -343,6 +343,13 @@ public:
+@@ -349,6 +349,13 @@ public:
      virtual void UpdateAI(uint32 elapsed, bool minimal = false);
  
      void HandleCommands();
@@ -126036,7 +126036,7 @@ index 552a884..6bcc923 100644
  private:
      void UpdateAIInternal(uint32 elapsed, bool minimal = false) override;
  public:
-@@ -879,9 +886,14 @@ public:
+@@ -937,9 +944,14 @@ public:
      std::vector<std::string> GetRecordedMessages() { m_recordMessages = false; m_recordIncommingMessages= false; auto msgs = m_recordedMessages; m_recordedMessages.clear(); return msgs; }
      void ClearRecordedMessages() { m_recordedMessages.clear(); m_recordMessages = false; m_recordIncommingMessages = false;}
  
@@ -126071,7 +126071,7 @@ index 79ebea8..63cdb7b 100644
      void IncreaseAIInternalUpdateDelay(uint32 delay);
      void YieldAIInternalThread(bool minimal = false);
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index 839ec44..2fd71f2 100644
+index 947e301..fb24132 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
 @@ -97,6 +97,14 @@ public:
@@ -126090,10 +126090,10 @@ index 839ec44..2fd71f2 100644
      bool allowMultiAccountAltBots;
      uint32 globalCoolDown, reactDelay, maxWaitForMove, expireActionTime, dispelAuraDuration, passiveDelay, repeatDelay,
 diff --git a/ai/playerbot/TravelMgr.h b/ai/playerbot/TravelMgr.h
-index 09e1fe4..43c6643 100644
+index 2577977..533550c 100644
 --- a/ai/playerbot/TravelMgr.h
 +++ b/ai/playerbot/TravelMgr.h
-@@ -194,7 +194,7 @@ namespace ai
+@@ -196,7 +196,7 @@ namespace ai
  		virtual GameObjectInfo const* GetGoInfo() const { return goInfo; }
  		virtual CreatureInfo const* GetCreatureInfo() const { return creatureInfo; }
  		virtual TravelDestinationPurpose GetPurpose() const override { return purpose; }
@@ -126128,11 +126128,11 @@ index 90e47ac..0eac4f1 100644
 +
  // Implemented inline by the Tortoise action header.
 diff --git a/ai/playerbot/strategy/actions/AcceptInvitationAction.h b/ai/playerbot/strategy/actions/AcceptInvitationAction.h
-index 34cea6c..7685901 100644
+index 71961a8..49cb822 100644
 --- a/ai/playerbot/strategy/actions/AcceptInvitationAction.h
 +++ b/ai/playerbot/strategy/actions/AcceptInvitationAction.h
-@@ -7,6 +7,8 @@
- #include "playerbot/strategy/Action.h"
+@@ -9,6 +9,8 @@
+ #include "behavior/PlayerConvenience.h"
  #include "UseMeetingStoneAction.h"
  
 +#include "Guild/GuildMgr.h"
@@ -126158,10 +126158,10 @@ index 42335ba..a966afc 100644
  
      uint32 triggerId = movement.lastAreaTrigger;
 diff --git a/ai/playerbot/strategy/actions/MovementActions.cpp b/ai/playerbot/strategy/actions/MovementActions.cpp
-index 876679e..cfe166c 100644
+index 372b1eb..2b88d13 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.cpp
 +++ b/ai/playerbot/strategy/actions/MovementActions.cpp
-@@ -1173,6 +1173,26 @@ float MovementAction::GetFollowAngle()
+@@ -1297,6 +1297,26 @@ float MovementAction::GetFollowAngle()
      return 0;
  }
  
@@ -126189,7 +126189,7 @@ index 876679e..cfe166c 100644
  {
      if (!target)
 diff --git a/ai/playerbot/strategy/actions/MovementActions.h b/ai/playerbot/strategy/actions/MovementActions.h
-index 767b385..c8a5cb2 100644
+index 78e2a5a..e5a7dee 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.h
 +++ b/ai/playerbot/strategy/actions/MovementActions.h
 @@ -9,6 +9,19 @@
@@ -126226,13 +126226,12 @@ index 767b385..c8a5cb2 100644
  
          bool WaitForTransport();
  
-@@ -85,10 +103,51 @@ namespace ai
+@@ -89,9 +107,50 @@ namespace ai
          bool ShouldReactionInterruptCast() const override { return true; }
          bool ShouldReactionInterruptMovement() const override { return true; }
  
 -    private:
 +    protected: // the dungeon-clear port's dropping overloads are used by subclasses
-         bool IsValidPosition(const WorldPosition& position, const WorldPosition& visibleFromPosition);
          bool IsHazardNearPosition(const WorldPosition& position, HazardPosition* outHazard = nullptr);
          bool GeneratePathAvoidingHazards(std::vector<WorldPosition>& movePath);
 +
@@ -126414,10 +126413,10 @@ index 26fd5bc..97ff3d3 100644
  #include "MeleeCombatStrategy.h"
  
 diff --git a/ai/playerbot/strategy/triggers/DungeonTriggers.cpp b/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
-index b60b1e0..0eedda2 100644
+index 51e9679..d97f14a 100644
 --- a/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
 +++ b/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
-@@ -59,7 +59,8 @@ bool StartBossFightTrigger::IsActive()
+@@ -60,7 +60,8 @@ bool StartBossFightTrigger::IsActive()
          if (bot->IsInWorld() && !bot->IsBeingTeleported())
          {
              AiObjectContext* context = ai->GetAiObjectContext();
@@ -126427,7 +126426,7 @@ index b60b1e0..0eedda2 100644
              for (const ObjectGuid& attackerGuid : attackers)
              {
                  Unit* attacker = ai->GetUnit(attackerGuid);
-@@ -86,9 +87,10 @@ bool EndBossFightTrigger::IsActive()
+@@ -87,9 +88,10 @@ bool EndBossFightTrigger::IsActive()
      return false;
  }
  
@@ -126440,7 +126439,7 @@ index b60b1e0..0eedda2 100644
      for (const ObjectGuid& guid : attackers)
      {
          Unit* unit = ai->GetUnit(guid);
-@@ -96,7 +98,8 @@ Unit* FindDungeonBoss(PlayerbotAI* ai, uint32 entry)
+@@ -97,7 +99,8 @@ Unit* FindDungeonBoss(PlayerbotAI* ai, uint32 entry)
              return unit;
      }
  
@@ -126450,21 +126449,6 @@ index b60b1e0..0eedda2 100644
      for (const ObjectGuid& guid : possible)
      {
          Unit* unit = ai->GetUnit(guid);
-diff --git a/ai/playerbot/strategy/triggers/GenericTriggers.cpp b/ai/playerbot/strategy/triggers/GenericTriggers.cpp
-index 72900ec..3fbcdae 100644
---- a/ai/playerbot/strategy/triggers/GenericTriggers.cpp
-+++ b/ai/playerbot/strategy/triggers/GenericTriggers.cpp
-@@ -220,7 +220,9 @@ bool BuffTrigger::IsActive()
-     if (!target || !target->IsAlive())
-         return false;
- 
--    Aura* aura = ai->GetAura(spell, target, false, checkIsOwner);
-+    // This tree's GetAura drops the owner-check to the member flag path
-+    // (same overload family, no fourth argument).
-+    Aura* aura = ai->GetAura(spell, target, checkIsOwner);
-     if (!aura)
-         return true;
- 
 diff --git a/ai/playerbot/strategy/values/AttackersValue.h b/ai/playerbot/strategy/values/AttackersValue.h
 index fb1b913..b64fab4 100644
 --- a/ai/playerbot/strategy/values/AttackersValue.h

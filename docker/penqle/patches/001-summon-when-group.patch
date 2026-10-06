@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/PlayerbotAIConfig.cpp b/ai/playerbot/PlayerbotAIConfig.cpp
-index 2cc0462..9865fdf 100644
+index 31f6147..4e4fa3f 100644
 --- a/ai/playerbot/PlayerbotAIConfig.cpp
 +++ b/ai/playerbot/PlayerbotAIConfig.cpp
-@@ -775,6 +775,7 @@ bool PlayerbotAIConfig::Initialize()
+@@ -831,6 +831,7 @@ bool PlayerbotAIConfig::Initialize()
      shareTargets = config.GetBoolDefault("AiPlayerbot.ShareTargets", true);
      globalSoundEffects = config.GetBoolDefault("AiPlayerbot.GlobalSoundEffects", false);
      nonGmFreeSummon = config.GetBoolDefault("AiPlayerbot.NonGmFreeSummon", false);
@@ -11,10 +11,10 @@ index 2cc0462..9865fdf 100644
      //SPP automation
      autoPickReward = config.GetStringDefault("AiPlayerbot.AutoPickReward", "yes");
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index c4a6ba3..4466a6d 100644
+index 855d557..827be29 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
-@@ -510,6 +510,7 @@ public:
+@@ -566,6 +566,7 @@ public:
  
      bool talentsInPublicNote;
      bool nonGmFreeSummon;
@@ -23,10 +23,10 @@ index c4a6ba3..4466a6d 100644
      BotSelfBotLevel selfBotLevel;
      uint32 iterationsPerTick;
 diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index 014464e..bb55a66 100644
+index 297e275..dfa9429 100644
 --- a/ai/playerbot/aiplayerbot.conf.dist.in
 +++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -576,6 +576,11 @@ AiPlayerbot.BotLogFile =
+@@ -632,6 +632,11 @@ AiPlayerbot.BotLogFile =
  # the bot walks or uses a meeting stone or innkeeper. .bot summon is not affected.
  # AiPlayerbot.NonGmFreeSummon = 0
  
@@ -39,10 +39,10 @@ index 014464e..bb55a66 100644
  # AiPlayerbot.TalentsInPublicNote = 0
  
 diff --git a/ai/playerbot/strategy/actions/AcceptInvitationAction.h b/ai/playerbot/strategy/actions/AcceptInvitationAction.h
-index 9f93bee..34cea6c 100644
+index 39a2afc..71961a8 100644
 --- a/ai/playerbot/strategy/actions/AcceptInvitationAction.h
 +++ b/ai/playerbot/strategy/actions/AcceptInvitationAction.h
-@@ -1,9 +1,11 @@
+@@ -1,11 +1,13 @@
  #pragma once
  #include "playerbot/PlayerbotAI.h"
 +#include "playerbot/PlayerbotAIConfig.h"
@@ -50,11 +50,13 @@ index 9f93bee..34cea6c 100644
  #include "playerbot/strategy/values/Formations.h"
  
  #include "playerbot/strategy/Action.h"
+ #include "runtime/HireLifecycle.h"
+ #include "behavior/PlayerConvenience.h"
 +#include "UseMeetingStoneAction.h"
  
  namespace ai
  {
-@@ -74,6 +76,30 @@ namespace ai
+@@ -76,6 +78,30 @@ namespace ai
              if (!bot->GetGroup() || !bot->GetGroup()->IsMember(inviter->getObjectGuid()))
                  return false;
  

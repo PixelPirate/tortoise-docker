@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/PlayerbotAI.cpp b/ai/playerbot/PlayerbotAI.cpp
-index 8d3a411..c32573d 100644
+index 6b6bb40..9aea2da 100644
 --- a/ai/playerbot/PlayerbotAI.cpp
 +++ b/ai/playerbot/PlayerbotAI.cpp
-@@ -926,6 +926,12 @@ bool PlayerbotAI::IsInPve()
+@@ -1030,6 +1030,12 @@ bool PlayerbotAI::IsInPve()
      return !IsInPvp() && !IsInRaid();
  }
  
@@ -16,10 +16,10 @@ index 8d3a411..c32573d 100644
  {
      if (IsSafe(bot))
 diff --git a/ai/playerbot/PlayerbotAI.h b/ai/playerbot/PlayerbotAI.h
-index 29da7a1..281bf08 100644
+index be444db..e2e63cb 100644
 --- a/ai/playerbot/PlayerbotAI.h
 +++ b/ai/playerbot/PlayerbotAI.h
-@@ -765,6 +765,7 @@ public:
+@@ -817,6 +817,7 @@ public:
      bool IsInPve();
      bool IsInPvp();
      bool IsInRaid();
@@ -28,10 +28,10 @@ index 29da7a1..281bf08 100644
      void SetMoveToTransport(bool flag = true) { isMovingToTransport = flag; }
      bool GetMoveToTransport() { return isMovingToTransport; }
 diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index bb55a66..554e074 100644
+index dfa9429..a989298 100644
 --- a/ai/playerbot/aiplayerbot.conf.dist.in
 +++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -359,6 +359,16 @@ AiPlayerbot.DisableActivityPriorities = 1
+@@ -415,6 +415,16 @@ AiPlayerbot.DisableActivityPriorities = 1
  # Limit combat activity for slight performance boost.
  #AiPlayerbot.LimitCombatActivity = 0
  
