@@ -1,5 +1,5 @@
 diff --git a/ai/playerbot/TravelMgr.cpp b/ai/playerbot/TravelMgr.cpp
-index 3a0d933..097a82b 100644
+index fbc1c56..10de6e3 100644
 --- a/ai/playerbot/TravelMgr.cpp
 +++ b/ai/playerbot/TravelMgr.cpp
 @@ -583,6 +583,12 @@ bool RpgTravelDestination::IsActive(Player* bot, const PlayerTravelInfo& info) c
@@ -16,7 +16,7 @@ index 3a0d933..097a82b 100644
      std::set<ObjectGuid>& ignoreList = AI_VALUE(std::set<ObjectGuid>&,"ignore rpg target");
  
 diff --git a/ai/playerbot/strategy/actions/ChooseRpgTargetAction.cpp b/ai/playerbot/strategy/actions/ChooseRpgTargetAction.cpp
-index 2409cc2..9322663 100644
+index bc83f59..76bdc37 100644
 --- a/ai/playerbot/strategy/actions/ChooseRpgTargetAction.cpp
 +++ b/ai/playerbot/strategy/actions/ChooseRpgTargetAction.cpp
 @@ -15,12 +15,12 @@
@@ -120,7 +120,7 @@ index e67f3de..4ee073c 100644
          std::unordered_map <ObjectGuid, std::string> rgpActionReason;
      };
 diff --git a/ai/playerbot/strategy/actions/MoveToRpgTargetAction.cpp b/ai/playerbot/strategy/actions/MoveToRpgTargetAction.cpp
-index a0efbb1..cb816e8 100644
+index dabdd87..309de17 100644
 --- a/ai/playerbot/strategy/actions/MoveToRpgTargetAction.cpp
 +++ b/ai/playerbot/strategy/actions/MoveToRpgTargetAction.cpp
 @@ -26,7 +26,12 @@ bool MoveToRpgTargetAction::Execute(Event& event)
@@ -161,10 +161,10 @@ index a0efbb1..cb816e8 100644
  
      if(MEM_AI_VALUE(WorldPosition, "current position")->LastChangeDelay() < 60)
 diff --git a/ai/playerbot/strategy/actions/MovementActions.cpp b/ai/playerbot/strategy/actions/MovementActions.cpp
-index 844c1c8..372b1eb 100644
+index 5ecdf84..eaca6b3 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.cpp
 +++ b/ai/playerbot/strategy/actions/MovementActions.cpp
-@@ -113,7 +113,7 @@ bool MovementAction::FlyDirect(const WorldPosition &startPosition, const WorldPo
+@@ -114,7 +114,7 @@ bool MovementAction::FlyDirect(const WorldPosition &startPosition, const WorldPo
      return false;
  }
  
@@ -173,7 +173,7 @@ index 844c1c8..372b1eb 100644
  {
      AiObjectContext* context = ai->GetAiObjectContext();
      Player* bot = ai->GetBot();
-@@ -123,24 +123,44 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
+@@ -124,24 +124,44 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
      if (!tEntry)
          return false;
  
@@ -228,7 +228,7 @@ index 844c1c8..372b1eb 100644
          {
              bot->GetSession()->SendLearnNewTaxiNode(unit);
  
-@@ -148,6 +168,9 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
+@@ -149,6 +169,9 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
          }
      }
  
@@ -270,7 +270,7 @@ index fac0da4..091f0d7 100644
      Action* action = actions.front();
  
 diff --git a/ai/playerbot/strategy/actions/RpgSubActions.cpp b/ai/playerbot/strategy/actions/RpgSubActions.cpp
-index b149c71..46962d7 100644
+index 6020da4..a338978 100644
 --- a/ai/playerbot/strategy/actions/RpgSubActions.cpp
 +++ b/ai/playerbot/strategy/actions/RpgSubActions.cpp
 @@ -13,6 +13,7 @@

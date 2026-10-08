@@ -1429,7 +1429,7 @@ index 237fa2e..51e9679 100644
  {
      // If the bot is ready
 diff --git a/ai/playerbot/strategy/triggers/DungeonTriggers.h b/ai/playerbot/strategy/triggers/DungeonTriggers.h
-index 3218ecf..f6c24e0 100644
+index 7a9e572..175d7f1 100644
 --- a/ai/playerbot/strategy/triggers/DungeonTriggers.h
 +++ b/ai/playerbot/strategy/triggers/DungeonTriggers.h
 @@ -1,5 +1,6 @@

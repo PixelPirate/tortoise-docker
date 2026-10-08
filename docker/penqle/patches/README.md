@@ -4,9 +4,9 @@ Pins these patches are written against (see `Dockerfile.penqle`):
 
 ```text
 CORE_REPO   https://github.com/tortoise-wow/tortoise-wow.git
-CORE_REF    main
-CORE_COMMIT d94947b0db60c33e7248523ad0ba7f58af97fd09
-BOTS_COMMIT fff90cc369f19f02cede8bcbe20197e96fcbe7a6
+CORE_REF    1181dev
+CORE_COMMIT ff260364986282e7d16957699b539f18e2757e88
+BOTS_COMMIT 845cf177f3e6af4f47e98f5bcd104cd288285b45
 ```
 
 The series is generated from the local `TortoiseBots` `enhancements` branch as
@@ -380,6 +380,17 @@ At the 2026-09-30 re-pin no patch was retired. The one same-problem overlap was
 upstream's `Execute`/`isUseful` and prepends only its
 `forceRebuff.NoteBuffWork()` hook.
 
+At the 2026-10-08 re-pin, upstream had independently reworked the bot-update
+elapsed-time slot that `012-bot-ai-tick-divisor` also touched: it now hands the
+AI the time since *that* bot's own last update (`BotRecord::lastAiUpdateMs`,
+capped by `kMaxAiElapsedMs`) and logs a rate-limited `SLOWBOT` line. Upstream's
+version wins, so the patch keeps only its activity-stagger gate and rides
+upstream's elapsed mechanism; the patch's own skip-time accumulator
+(`BotRecord::aiSkippedMs`) and the `continue` -> `return` fixup commit that
+only existed to fix it are gone. The stagger's `return` still precedes the
+update, so a skipped bot simply keeps its `lastAiUpdateMs` and gets the skipped
+time back on its next run.
+
 ## 012-bot-ai-tick-divisor.patch
 
 Activity stagger for the bot AI loop, added after measuring the world tick
@@ -399,8 +410,9 @@ many world ticks, rotating by character guid: eligible means a random bot with
 no owner/master, no group, not in combat, and no network-transport player
 within `AiPlayerbot.ReactDistance` of it. Everything a player owns, groups,
 fights beside, or can see keeps a full update rate, and a skipped bot is handed
-the skipped milliseconds on its next run (`BotRecord::aiSkippedMs`) so its own
-timers stay wall-clock correct. Teleport acknowledgement still runs every tick.
+the skipped time on its next run because the gate returns before touching
+upstream's per-bot update clock (`BotRecord::lastAiUpdateMs`), so its own timers
+stay wall-clock correct. Teleport acknowledgement still runs every tick.
 
 The gate's "is a real player near this bot" test is batched: `UpdateBots` builds
 the (tiny) real-player set once per pass instead of rescanning the whole session
@@ -408,7 +420,7 @@ map for every eligible pool bot, which was O(pool x sessions) and dominated the
 gate at a thousand bots.
 
 Touches: `runtime/BotManager.{h,cpp}` (the stagger gate, the batched
-real-player set, the rotating tick counter, `BotRecord::aiSkippedMs`),
+real-player set, the rotating tick counter),
 `ai/playerbot/PlayerbotAIConfig.{h,cpp}` (new `botAiTickDivisor`, clamped 1-60),
 `ai/playerbot/aiplayerbot.conf.dist.in` (documented key). Exposed as
 `AI_BOT_AI_TICK_DIVISOR` in the image (rendered config, `.env.example.penqle`,
@@ -416,4 +428,39 @@ compose, README table). Status: applies cleanly to `BOTS_COMMIT` and reproduces
 the local `enhancements` tree, and is compile-verified by
 `docker build -f Dockerfile.penqle` (2026-09-29). The stagger skip exits the
 per-bot update lambda with `return`, not `continue`; the lambda is not a loop,
-and the first build at this pin rejected the `continue`.
+and the first build at this pin rejected the `continue`. At the 2026-10-08
+re-pin the patch's own elapsed-time accumulator was dropped in favour of
+upstream's `lastAiUpdateMs` (see "Merged upstream since the last pin").
+
+## 013-cost-adaptive-bot-scheduling.patch
+
+Cost-adaptive scheduling and heavy-bot diagnostics, the follow-up to 012. The
+activity stagger removes most of the per-tick pool cost but is blind to how
+expensive an individual bot's AI update is: one bot running a full Detour
+search or a runaway target scan still stalls the whole pass (a multi-second
+`BOTPERF maxUs`) and is never named. The patch times each bot's own AI update,
+keeps an exponentially weighted mean of it (`BotRecord::aiCostUsEwma`), and
+uses it in two ways, both restricted to bots already eligible for the 012
+stagger so nothing a player owns, groups, fights beside, or can see slows down:
+
+- a rate-limited `HEAVYBOT` log line names the offender (guid, name, map, cost,
+  ewma), so an expensive bot is diagnosable instead of showing up only as a
+  spike;
+- the stagger divisor is scaled up for persistently expensive bots, up to
+  `AiPlayerbot.BotAdaptiveBackoffMax` (clamped 1-60), which throttles exactly
+  the bots that cost the most (the crowded-zone case) without a spatial scan.
+
+`AiPlayerbot.BotUpdateWarnUs` (default 20000 us) sets the "expensive" threshold
+and doubles as the log gate; `0` disables both halves. Both keys are exposed as
+`AI_BOT_UPDATE_WARN_US` and `AI_BOT_ADAPTIVE_BACKOFF_MAX` in the image (rendered
+config, `.env.example.penqle`, compose, README table). Motivated and measured in
+`docs/perf-analysis-2026-10-01.md`. At the 2026-10-07 re-pin this feature had
+only ever existed as a hand-maintained patch; it is now a commit on
+`enhancements` (`Cost-adaptive bot AI scheduling and heavy-bot diagnostics.`)
+and regenerated from the clean branch like the rest of the series.
+
+Touches: `runtime/BotManager.{h,cpp}` (the per-bot timer, the EWMA and warn
+cooldown on `BotRecord`, the adaptive divisor in `ShouldStaggerAiThisTick`),
+`ai/playerbot/PlayerbotAIConfig.{h,cpp}` (new `botUpdateWarnUs`,
+`botAdaptiveBackoffMax`), `ai/playerbot/aiplayerbot.conf.dist.in` (documented
+keys).

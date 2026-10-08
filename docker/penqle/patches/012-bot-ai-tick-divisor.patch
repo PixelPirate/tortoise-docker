@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/PlayerbotAIConfig.cpp b/ai/playerbot/PlayerbotAIConfig.cpp
-index 40dd281..7c86ee4 100644
+index dfe910b..58d179e 100644
 --- a/ai/playerbot/PlayerbotAIConfig.cpp
 +++ b/ai/playerbot/PlayerbotAIConfig.cpp
-@@ -712,6 +712,11 @@ bool PlayerbotAIConfig::Initialize()
+@@ -722,6 +722,11 @@ bool PlayerbotAIConfig::Initialize()
      limitCombatActivity = config.GetBoolDefault("AiPlayerbot.LimitCombatActivity", false);
      guildOrderAlwaysActive = config.GetBoolDefault("AiPlayerbot.GuildOrderAlwaysActive", true);
      botActiveAlone = config.GetIntDefault("AiPlayerbot.botActiveAlone", 10);
@@ -15,10 +15,10 @@ index 40dd281..7c86ee4 100644
      diffEmpty = config.GetIntDefault("AiPlayerbot.DiffEmpty", 200);
      RandombotsWalkingRPG = config.GetBoolDefault("AiPlayerbot.RandombotsWalkingRPG", false);
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index fb24132..65298aa 100644
+index c568f6c..4017e68 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
-@@ -472,6 +472,10 @@ public:
+@@ -477,6 +477,10 @@ public:
      bool limitCombatActivity;
      bool guildOrderAlwaysActive;
      uint32 botActiveAlone;
@@ -30,10 +30,10 @@ index fb24132..65298aa 100644
      uint32 diffEmpty;
      uint32 minEnchantingBotLevel;
 diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index a1cb8c7..eaf6af9 100644
+index 843d053..04b0353 100644
 --- a/ai/playerbot/aiplayerbot.conf.dist.in
 +++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -430,6 +430,19 @@ AiPlayerbot.DisableActivityPriorities = 1
+@@ -435,6 +435,19 @@ AiPlayerbot.DisableActivityPriorities = 1
  # Default is 10, higher numbers may affect performance
  # AiPlayerbot.botActiveAlone = 10
  
@@ -54,28 +54,33 @@ index a1cb8c7..eaf6af9 100644
  # When enabled, bot alts will level up one level at a time to match their master's level
  # AiPlayerbot.SyncAltLevelToMaster = 0
 diff --git a/runtime/BotManager.cpp b/runtime/BotManager.cpp
-index 3c653ec..bafbbda 100644
+index 3e776e6..591dc23 100644
 --- a/runtime/BotManager.cpp
 +++ b/runtime/BotManager.cpp
-@@ -1561,10 +1561,27 @@ void BotManager::UpdateBots(uint32_t diff)
+@@ -1844,10 +1844,19 @@ void BotManager::UpdateBots(uint32_t diff)
  
          if (entry.aiAdapter && entry.aiAdapter->IsUsable())
          {
--            entry.aiAdapter->Update(diff);
 +            // Activity stagger: a bot nobody is grouping, fighting beside, or
 +            // looking at does not need a full AI tick every world tick. Skipping
 +            // it for other ticks keeps the world tick cost off the population
-+            // curve; the skipped time is handed back to the AI on its next run
-+            // so its own timers stay wall-clock correct.
++            // curve; its own delays stay wall-clock correct because the elapsed
++            // time below hands the skipped time back on its next run.
 +            if (ShouldStaggerAiThisTick(entry, player))
-+            {
-+                entry.record.aiSkippedMs += diff;
 +                return;
-+            }
 +
-+            uint32_t const elapsed = diff + entry.record.aiSkippedMs;
-+            entry.record.aiSkippedMs = 0;
-+            entry.aiAdapter->Update(elapsed);
+             // The AI counts its delays (GCD, react, rpg, sit...) down by the
+-            // elapsed time it is given. A budgeted pool bot is visited once
+-            // every N ticks, so it must get the time since ITS last update,
+-            // not one world tick, or every delay stretches N times.
++            // elapsed time it is given. A bot the pool rotation or the activity
++            // stagger skipped is visited once every N ticks, so it must get the
++            // time since ITS last update, not one world tick, or every delay
++            // stretches N times.
+             uint32_t const nowMs = WorldTimer::getMSTime();
+             uint32_t const elapsed = entry.lastAiUpdateMs
+                 ? std::min(WorldTimer::getMSTimeDiff(entry.lastAiUpdateMs, nowMs), kMaxAiElapsedMs)
+@@ -1878,6 +1887,10 @@ void BotManager::UpdateBots(uint32_t diff)
          }
      };
  
@@ -86,7 +91,7 @@ index 3c653ec..bafbbda 100644
      // Pass 1: bots under a real player, always, first, with no budget.
      for (uint32_t guidLow : playerGuids)
          updateOneBot(guidLow);
-@@ -1588,6 +1605,8 @@ void BotManager::UpdateBots(uint32_t diff)
+@@ -1941,6 +1954,8 @@ void BotManager::UpdateBots(uint32_t diff)
          },
          updateOneBot, budgetHit);
  
@@ -95,7 +100,7 @@ index 3c653ec..bafbbda 100644
      m_inBotUpdate = false;
  
      if (!m_pendingBotRemovals.empty())
-@@ -1622,6 +1641,72 @@ void BotManager::UpdateBots(uint32_t diff)
+@@ -1975,6 +1990,72 @@ void BotManager::UpdateBots(uint32_t diff)
      }
  }
  
@@ -169,22 +174,12 @@ index 3c653ec..bafbbda 100644
  {
      // Core owns Headless session lifecycle (queue, LoginPlayer dispatch, reclaim).
 diff --git a/runtime/BotManager.h b/runtime/BotManager.h
-index 0f44159..66c6035 100644
+index 70a4355..a451f09 100644
 --- a/runtime/BotManager.h
 +++ b/runtime/BotManager.h
-@@ -52,6 +52,9 @@ struct BotRecord
-     // retains the historical accountId fallback for diagnostics.
-     uint32_t ownerAccountId = 0;
-     uint32_t ticksInWorld = 0;
-+    // World time this bot's AI update was skipped by the activity stagger, owed
-+    // back to the AI on its next run so its own timers stay wall-clock correct.
-+    uint32_t aiSkippedMs = 0;
-     bool enteredWorld = false;
-     bool random = false;
-     bool syncedInWorld = false;
-@@ -235,6 +238,17 @@ private:
-     ObjectGuid m_packetTestBotGuid;
-     uint32_t m_packetTestTicks = 0;
+@@ -257,6 +257,17 @@ private:
+     // out of teleport drops out. Feeds the "stuck teleport" diagnostic line.
+     std::unordered_map<uint32_t, time_t> m_teleportSince;
      void SweepStrandedBots(uint32_t diff);
 +    // Activity stagger: true when this bot's AI may be skipped for this tick.
 +    // Only bots with no owner/master, no group, not in combat and no real

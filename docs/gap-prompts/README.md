@@ -7,9 +7,9 @@ briefing.
 
 Shared context every prompt assumes — do not repeat it in chat:
 
-- Module checkout: `/Users/pho/Turtle/New/TortoiseBots` (pin `153b85c`)
+- Module checkout: `/Users/pho/Turtle/New/TortoiseBots` (pin `845cf17`)
 - Image repo (consumes the work): this repo; conventions in `../SPEC.md`
-- Core reference: `/Users/pho/Turtle/New/tortoise-wow` (`main`, `d94947b0`)
+- Core reference: `/Users/pho/Turtle/New/tortoise-wow` (`1181dev`, `ff26036`)
 - Deliverable format: numbered patches in `docker/penqle/patches/`
   (rules in that folder's README), `git apply --check` clean against the pin
 - House rules: Vanilla 1.12 IDs only, fail-closed, no silent no-ops,

@@ -27,10 +27,10 @@ index e2eff48..88a7f0d 100644
          nonCombatEngine->removeStrategy("travel");
          nonCombatEngine->removeStrategy("tfish");
 diff --git a/ai/playerbot/PlayerbotAI.cpp b/ai/playerbot/PlayerbotAI.cpp
-index 9aea2da..21a60c2 100644
+index b4c35cb..b3fbe63 100644
 --- a/ai/playerbot/PlayerbotAI.cpp
 +++ b/ai/playerbot/PlayerbotAI.cpp
-@@ -240,7 +240,7 @@ PlayerbotAI::PlayerbotAI() : PlayerbotAIBase(), bot(NULL), aiObjectContext(NULL)
+@@ -241,7 +241,7 @@ PlayerbotAI::PlayerbotAI() : PlayerbotAIBase(), bot(NULL), aiObjectContext(NULL)
  }
  
  PlayerbotAI::PlayerbotAI(Player* bot) :
@@ -39,7 +39,7 @@ index 9aea2da..21a60c2 100644
  {
      this->bot = bot;
      if (!bot->IsTaxiCheater() && HasCheat(BotCheatMask::taxi))
-@@ -5505,6 +5505,8 @@ bool PlayerbotAI::CastSpell(uint32 spellId, Unit* target, Item* itemTarget, bool
+@@ -5549,6 +5549,8 @@ bool PlayerbotAI::CastSpell(uint32 spellId, Unit* target, Item* itemTarget, bool
  
      PlayAttackEmote(6);
  
@@ -49,7 +49,7 @@ index 9aea2da..21a60c2 100644
      {
          WaitForSpellCast(spell);
 diff --git a/ai/playerbot/PlayerbotAI.h b/ai/playerbot/PlayerbotAI.h
-index e2e63cb..46afe14 100644
+index 47ca1b4..9bda73f 100644
 --- a/ai/playerbot/PlayerbotAI.h
 +++ b/ai/playerbot/PlayerbotAI.h
 @@ -13,6 +13,7 @@
@@ -60,7 +60,7 @@ index e2e63cb..46afe14 100644
  #include "../../runtime/BotManager.h"
  
  class Player;
-@@ -926,6 +927,10 @@ protected:
+@@ -925,6 +926,10 @@ protected:
      void UpdateEvadeProbe();
  
  public:
@@ -72,10 +72,10 @@ index e2e63cb..46afe14 100644
      bool IsRecordingMessages() const { return m_recordMessages; }
      bool IsRecordingIncommingMessages() const { return m_recordIncommingMessages; }
 diff --git a/ai/playerbot/PlayerbotAIConfig.cpp b/ai/playerbot/PlayerbotAIConfig.cpp
-index 4e4fa3f..40dd281 100644
+index c32481e..dfe910b 100644
 --- a/ai/playerbot/PlayerbotAIConfig.cpp
 +++ b/ai/playerbot/PlayerbotAIConfig.cpp
-@@ -394,6 +394,8 @@ bool PlayerbotAIConfig::Initialize()
+@@ -398,6 +398,8 @@ bool PlayerbotAIConfig::Initialize()
      bombRunoutDistance = config.GetFloatDefault("AiPlayerbot.BombRunoutDistance", 30.0f);
      hazardEvasionDistance = config.GetFloatDefault("AiPlayerbot.HazardEvasionDistance", 12.0f);
      enableCustomRaidTactics = config.GetBoolDefault("AiPlayerbot.EnableCustomRaidTactics", true);
@@ -85,10 +85,10 @@ index 4e4fa3f..40dd281 100644
      randomBotMaxLevel = config.GetIntDefault("AiPlayerbot.RandomBotMaxLevel", 60);
      randomBotLoginAtStartup = config.GetBoolDefault("AiPlayerbot.RandomBotLoginAtStartup", false);
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index 827be29..947e301 100644
+index 73b5003..aa00895 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
-@@ -400,6 +400,9 @@ public:
+@@ -405,6 +405,9 @@ public:
      // Custom Turtle raid tactics (issue #203): Emerald Sanctum / Lower
      // Karazhan / Karazhan Crypt transition strategies.
      bool enableCustomRaidTactics = true;
@@ -99,10 +99,10 @@ index 827be29..947e301 100644
      std::string combatStrategies, nonCombatStrategies, reactStrategies, deadStrategies;
      std::string randomBotCombatStrategies, randomBotNonCombatStrategies, randomBotReactStrategies, randomBotDeadStrategies;
 diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index a989298..a1cb8c7 100644
+index 17f98ee..843d053 100644
 --- a/ai/playerbot/aiplayerbot.conf.dist.in
 +++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -1532,6 +1532,24 @@ AiPlayerbot.FleeingEnabled = 1
+@@ -1540,6 +1540,24 @@ AiPlayerbot.FleeingEnabled = 1
  # manual pending playtesting (#237); this gates the transition strategies.
  AiPlayerbot.EnableCustomRaidTactics = 1
  
@@ -158,7 +158,7 @@ index 7b46a2a..c813982 100644
              LogAction("T:%s src=%s", trigger->getName().c_str(), event.getSource().c_str());
          }
 diff --git a/ai/playerbot/strategy/StrategyContext.h b/ai/playerbot/strategy/StrategyContext.h
-index f1cde4f..691e6d5 100644
+index 5f5d3bb..7ad1f9d 100644
 --- a/ai/playerbot/strategy/StrategyContext.h
 +++ b/ai/playerbot/strategy/StrategyContext.h
 @@ -11,6 +11,7 @@
@@ -169,7 +169,7 @@ index f1cde4f..691e6d5 100644
  #include "generic/FollowMasterStrategy.h"
  #include "generic/RunawayStrategy.h"
  #include "generic/StayStrategy.h"
-@@ -75,6 +76,7 @@ namespace ai
+@@ -76,6 +77,7 @@ namespace ai
              creators["chat"] = [](PlayerbotAI* ai) { return new ChatCommandHandlerStrategy(ai); };
              creators["default"] = [](PlayerbotAI* ai) { return new WorldPacketHandlerStrategy(ai); };
              creators["ready check"] = [](PlayerbotAI* ai) { return new ReadyCheckStrategy(ai); };
@@ -388,7 +388,7 @@ index 5c85c02..379e217 100644
 +    };
  }
 diff --git a/ai/playerbot/strategy/actions/WorldPacketActionContext.h b/ai/playerbot/strategy/actions/WorldPacketActionContext.h
-index 1308cf7..56d51e9 100644
+index c6a3ac6..dc0d6dc 100644
 --- a/ai/playerbot/strategy/actions/WorldPacketActionContext.h
 +++ b/ai/playerbot/strategy/actions/WorldPacketActionContext.h
 @@ -14,13 +14,13 @@
@@ -406,7 +406,7 @@ index 1308cf7..56d51e9 100644
  #include "SecurityCheckAction.h"
  #include "GuildAcceptAction.h"
  #include "PetitionSignAction.h"
-@@ -73,6 +73,8 @@ namespace ai
+@@ -74,6 +74,8 @@ namespace ai
              creators["accept duel"] = [](PlayerbotAI* ai) { return new AcceptDuelAction(ai); };
              creators["ready check"] = [](PlayerbotAI* ai) { return new ReadyCheckAction(ai); };
              creators["finish ready check"] = [](PlayerbotAI* ai) { return new FinishReadyCheckAction(ai); };
@@ -641,7 +641,7 @@ index 5a03c5e..50cf2c6 100644
              creators["cdebug"] = [](PlayerbotAI* ai) { return new ChatCommandTrigger(ai, "cdebug"); };
              creators["cs"] = [](PlayerbotAI* ai) { return new ChatCommandTrigger(ai, "cs"); };
 diff --git a/ai/playerbot/strategy/triggers/GenericTriggers.cpp b/ai/playerbot/strategy/triggers/GenericTriggers.cpp
-index b041f72..c21ee8b 100644
+index f0545ae..7927cea 100644
 --- a/ai/playerbot/strategy/triggers/GenericTriggers.cpp
 +++ b/ai/playerbot/strategy/triggers/GenericTriggers.cpp
 @@ -5,6 +5,7 @@
@@ -667,7 +667,7 @@ index b041f72..c21ee8b 100644
      return ai::BuffNeedsRefresh(aura != nullptr, aura ? aura->GetAuraDuration() : 0,
          aura ? aura->GetAuraMaxDuration() : 0);
  }
-@@ -1303,3 +1312,8 @@ bool PetAttackTrigger::IsActive()
+@@ -1316,3 +1325,8 @@ bool PetAttackTrigger::IsActive()
  
      return true;
  }

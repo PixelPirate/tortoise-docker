@@ -37,6 +37,29 @@ Repo: this spec lives in the new repo (`tortoise-docker`).
 > prefer-main conflict resolution; no patch retired. The series was regenerated
 > and verified against the rebased branch (patch 013 re-verified on top).
 > Core pin unchanged (`d94947b0`).
+>
+> **Re-pin 2026-10-07 (core + module).** Both pins moved. The core returns to
+> `1181dev` (tip `ff26036`) and the module moves to upstream `main` `a84855a`
+> (64 commits: dead-bot sweep, claim lifecycle, mimic-consumable, round-robin
+> combat pass budget, world buffs, observability dashboard). `enhancements`
+> rebased onto the new module tip with prefer-main conflict resolution; no patch
+> retired. The series was regenerated and verified. Patch 013 (cost-adaptive
+> scheduling), until now a hand-maintained patch absent from the module branch,
+> was mirrored onto `enhancements` as a commit and is now regenerated from the
+> clean branch like the rest of the series. The module's host-contract gate and
+> the core patch were re-verified against `1181dev`.
+>
+> **Re-pin 2026-10-08 (module).** The module pin moved to upstream `main`
+> `845cf17` (2 commits: large-pool behaviour fix, player lag window on the
+> observability dashboard). `enhancements` rebased onto the new tip with
+> prefer-main conflict resolution; no patch retired. Patch 012
+> (`Improve bot performance.`) conflicted on the per-bot elapsed-time slot:
+> upstream had independently reworked it to hand the AI the time since its own
+> last update (`lastAiUpdateMs`), so the patch now rides that mechanism and its
+> own skip-time accumulator (`BotRecord::aiSkippedMs`) and the
+> `continue` -> `return` fixup commit were dropped as redundant. The series was
+> regenerated and verified against the rebased branch. Core pin unchanged
+> (`ff26036`).
 
 ## 0. Local context (paths on this machine)
 
@@ -47,8 +70,8 @@ An agent working here has these existing checkouts/projects:
 | `/Users/pho/Turtle/New/tortoise-docker` | **This repo.** All deliverables in §1 are built here. |
 | `/Users/pho/Turtle/tortoise-docker` | The **old image this project supersedes**: the working Shyalya-based setup ([Nescabir/tortoise-docker](https://github.com/Nescabir/tortoise-docker)). **Reference implementation AND parity target** — its `Dockerfile`, `docker-compose.yml`, and `docker/*.sh` scripts are the templates to adapt (see §4). Do not modify it. |
 | `/Users/pho/Turtle/TortoiseCompiledNew` | A Windows-native build/play setup of the current Shyalya stack (compile scripts `compile-tortoise-wow.{ps1,bat}`, compiled server binaries, live config files incl. `aiplayerbot.conf`). Useful as a config example and as proof of the user's client-side setup; not part of the Docker pipeline. |
-| `/Users/pho/Turtle/New/tortoise-wow` | Local clone of the canonical core (`tortoise-wow/tortoise-wow`); the image pins it at `main` `d94947b0`. |
-| `/Users/pho/Turtle/New/TortoiseBots` | Local clone of the bot module; local `main` tracks upstream, the custom work lives on branch `enhancements`, and the image pins upstream `main` `fff90cc` plus the patches in `docker/penqle/patches/`. |
+| `/Users/pho/Turtle/New/tortoise-wow` | Local clone of the canonical core (`tortoise-wow/tortoise-wow`); the image pins it at `1181dev` `ff26036`. |
+| `/Users/pho/Turtle/New/TortoiseBots` | Local clone of the bot module; local `main` tracks upstream, the custom work lives on branch `enhancements`, and the image pins upstream `main` `845cf17` plus the patches in `docker/penqle/patches/`. |
 
 Both upstream projects are cloned locally (see §0); the clones above are the
 reference for reading code and re-running the host-contract verify script.
@@ -70,8 +93,8 @@ the bar — anything the old stack does, this one must do too.
 A Docker image, packaged like the old one, that runs:
 
 - **Core**: [tortoise-wow/tortoise-wow](https://github.com/tortoise-wow/tortoise-wow)
-  (the renamed `Penqle/tortoise-wow`), branch **`main`**, pinned to a commit
-  SHA (`d94947b0`, the branch tip whose seams the module's host-contract gate
+  (the renamed `Penqle/tortoise-wow`), branch **`1181dev`**, pinned to a commit
+  SHA (`ff26036`, the branch tip whose seams the module's host-contract gate
   accepts).
 - **Bot module**: [Sagiroth/TortoiseBots](https://github.com/Sagiroth/TortoiseBots),
   cloned into the core checkout as `modules/TortoiseBots`, pinned to a commit SHA.
@@ -110,7 +133,7 @@ Deliverables in **this repo**:
 
 ### 3.1 Core branch compatibility
 
-- The image pins core `main` at `d94947b0`. The module records `1181dev` as
+- The image pins core `1181dev` at `ff26036`. The module records `1181dev` as
   its canonical target in `CHANGELOG.md` (#162); its `docs/HOST_API.md` still
   names the older `main` `5fafe43b` ("Merging headless session and module API
   expansion") baseline.
@@ -122,7 +145,8 @@ Deliverables in **this repo**:
   (`PlayerScript::OnChatYell`) alongside. The earlier `bot-helpers` pin is no
   longer needed.
 - The module's `tools/verify_penqle_host_contract.sh --core <checkout>`
-  **PASSES** against `d94947b0` and runs as a build gate in `Dockerfile.penqle`
+  **PASSES** against `ff26036` (re-verified 2026-10-07) and runs as a build gate
+  in `Dockerfile.penqle`
   (checks `SessionTransport::Headless`, `HeadlessSessionMgr`,
   `WorldSession::InitHeadlessSession/IsHeadless`, `World::Start/Stop/
   GetHeadlessSessionState`, `CharacterCreation::CreateCharacter`, LFT/BG
@@ -319,9 +343,9 @@ Model on the reference `Dockerfile` at
 `/Users/pho/Turtle/tortoise-docker/Dockerfile`. Key changes:
 
 - Build args: `CORE_REPO` (default `https://github.com/tortoise-wow/tortoise-wow.git`),
-  `CORE_REF` (default `main`), `CORE_COMMIT` (pin, currently `d94947b0`),
+  `CORE_REF` (default `1181dev`), `CORE_COMMIT` (pin, currently `ff26036`),
   `BOTS_REPO` (default `https://github.com/Sagiroth/TortoiseBots.git`),
-  `BOTS_COMMIT` (pin, currently `fff90cc`), `CPU_TARGET=x86-64-v2`,
+  `BOTS_COMMIT` (pin, currently `845cf17`), `CPU_TARGET=x86-64-v2`,
   `BUILD_JOBS`.
 - Clone core at pinned SHA (cache-bust pattern from the existing Dockerfile:
   declare the SHA right before the clone `RUN`), then clone TortoiseBots into
@@ -448,7 +472,11 @@ Remaining:
    `database_updates/` are left to the AutoUpdater on first mangosd start,
    which records proper SHA1 migration hashes (§3.4.5). The old Shyalya
    repo's hand-rolled update application (and its broken `update_files`
-   hash-recording loop) is intentionally not carried over.
+   hash-recording loop) is intentionally not carried over. Because db-init is
+   marker-gated, a re-pin against an **existing** database does not apply the
+   module's newly added SQL, and mangosd crash-loops on the first query against
+   a missing table (2026-10-07: `tw_char.tortoise_bots_claimed`); apply just the
+   new module SQL files by hand — see `docs/bot-patch-refresh.md` §3.2.
 3. **Pin bump cadence** for `CORE_COMMIT`/`BOTS_COMMIT` (suggest: manual
    `workflow_dispatch` inputs like the reference publish workflow's
    `source_ref`).

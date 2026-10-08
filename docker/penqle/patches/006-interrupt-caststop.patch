@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/PlayerbotAI.cpp b/ai/playerbot/PlayerbotAI.cpp
-index 21a60c2..46b312c 100644
+index b3fbe63..efa068c 100644
 --- a/ai/playerbot/PlayerbotAI.cpp
 +++ b/ai/playerbot/PlayerbotAI.cpp
-@@ -919,7 +919,10 @@ bool PlayerbotAI::UpdateAIReaction(uint32 elapsed, bool minimal, bool isStunned)
+@@ -921,7 +921,10 @@ bool PlayerbotAI::UpdateAIReaction(uint32 elapsed, bool minimal, bool isStunned)
          {
              if(reaction->ShouldInterruptCast())
              {
@@ -14,7 +14,7 @@ index 21a60c2..46b312c 100644
              }
  
              if (reaction->ShouldInterruptMovement())
-@@ -2004,7 +2007,7 @@ void PlayerbotAI::Reset(bool full)
+@@ -2015,7 +2018,7 @@ void PlayerbotAI::Reset(bool full)
          RESET_AI_VALUE2(std::string, "manual string", "future travel purpose");
          RESET_AI_VALUE2(int, "manual int", "future travel relevance");
  
@@ -23,7 +23,7 @@ index 21a60c2..46b312c 100644
  
          StopMoving();
  
-@@ -2711,7 +2714,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
+@@ -2722,7 +2725,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
          verticalSpeed = -verticalSpeed;
  
          // stop casting
@@ -32,7 +32,7 @@ index 21a60c2..46b312c 100644
  
          // stop movement
          StopMoving();
-@@ -3111,7 +3114,6 @@ void PlayerbotAI::DoNextAction(bool min, bool forceActivity)
+@@ -3146,7 +3149,6 @@ void PlayerbotAI::DoNextAction(bool min, bool forceActivity)
  
  void PlayerbotAI::ReInitCurrentEngine()
  {
@@ -41,10 +41,10 @@ index 21a60c2..46b312c 100644
  }
  
 diff --git a/ai/playerbot/strategy/actions/MovementActions.cpp b/ai/playerbot/strategy/actions/MovementActions.cpp
-index 3ab3da7..844c1c8 100644
+index faa37c5..5ecdf84 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.cpp
 +++ b/ai/playerbot/strategy/actions/MovementActions.cpp
-@@ -1045,8 +1045,9 @@ bool MovementAction::MoveTo2(const WorldPosition& endPos, bool idle, bool react,
+@@ -1046,8 +1046,9 @@ bool MovementAction::MoveTo2(const WorldPosition& endPos, bool idle, bool react,
          if (bot->GetStandState() != UNIT_STAND_STATE_STAND)
              bot->SetStandState(UNIT_STAND_STATE_STAND);
  
@@ -56,7 +56,7 @@ index 3ab3da7..844c1c8 100644
      }
  
      if (totalDistance > sPlayerbotAIConfig.reactDistance && !detailedMove)
-@@ -1445,11 +1446,10 @@ bool MovementAction::Follow(Unit* target, float distance, float angle)
+@@ -1446,11 +1447,10 @@ bool MovementAction::Follow(Unit* target, float distance, float angle)
      if (bot->GetStandState() != UNIT_STAND_STATE_STAND)
          bot->SetStandState(UNIT_STAND_STATE_STAND);
  
@@ -72,7 +72,7 @@ index 3ab3da7..844c1c8 100644
  
      AI_VALUE(LastMovement&, "last movement").Set(target);
      ClearIdleState();
-@@ -3158,7 +3158,7 @@ bool JumpAction::DoJump(const WorldPosition &dest, const WorldPosition& highestP
+@@ -3166,7 +3166,7 @@ bool JumpAction::DoJump(const WorldPosition &dest, const WorldPosition& highestP
      if (!goodLanding)
          ai->SetFallAfterJump();
  

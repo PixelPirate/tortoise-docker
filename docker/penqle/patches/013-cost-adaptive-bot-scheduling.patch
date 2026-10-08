@@ -1,25 +1,8 @@
-Subject: [PATCH] Cost-adaptive bot AI scheduling and heavy-bot diagnostics
-
-The activity stagger (012) removes most of the per-tick pool cost, but it is
-blind to how expensive an individual bot's AI update actually is: one bot
-running a full Detour search or a runaway target scan still stalls the whole
-pass (observed as a multi-second BOTPERF maxUs), and it is never named.
-
-This measures each bot's own AI update, keeps an exponentially weighted mean of
-it, and uses that in two ways, both inside the set that is already eligible for
-the stagger so nothing a player owns/groups/fights/sees is slowed:
-
-- a rate-limited HEAVYBOT log line names the offender (guid, name, map, cost),
-  so the expensive bot is diagnosable instead of showing up only as a spike;
-- the stagger divisor is scaled up for persistently expensive bots, up to
-  AiPlayerbot.BotAdaptiveBackoffMax, which throttles exactly the bots that cost
-  the most (the crowded-zone case) without a spatial scan.
-
 diff --git a/ai/playerbot/PlayerbotAIConfig.cpp b/ai/playerbot/PlayerbotAIConfig.cpp
-index ead07de..992b25f 100644
+index 58d179e..b7e0d34 100644
 --- a/ai/playerbot/PlayerbotAIConfig.cpp
 +++ b/ai/playerbot/PlayerbotAIConfig.cpp
-@@ -665,6 +665,16 @@ bool PlayerbotAIConfig::Initialize()
+@@ -727,6 +727,16 @@ bool PlayerbotAIConfig::Initialize()
          botAiTickDivisor = 1;
      if (botAiTickDivisor > 60)
          botAiTickDivisor = 60;
@@ -37,10 +20,10 @@ index ead07de..992b25f 100644
      diffEmpty = config.GetIntDefault("AiPlayerbot.DiffEmpty", 200);
      RandombotsWalkingRPG = config.GetBoolDefault("AiPlayerbot.RandombotsWalkingRPG", false);
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index 239e667..f1d9d7d 100644
+index 4017e68..6a7c360 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
-@@ -420,6 +420,12 @@ public:
+@@ -481,6 +481,12 @@ public:
      // the donor behavior (a full AI tick per bot per tick); >1 staggers bots
      // that no real player is grouped/fighting/seeing with. See BotManager.
      uint32 botAiTickDivisor;
@@ -54,10 +37,10 @@ index 239e667..f1d9d7d 100644
      uint32 diffEmpty;
      uint32 minEnchantingBotLevel;
 diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index 26b52e8..bfa9ff6 100644
+index 04b0353..679d33f 100644
 --- a/ai/playerbot/aiplayerbot.conf.dist.in
 +++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -387,6 +387,20 @@ AiPlayerbot.DisableActivityPriorities = 1
+@@ -448,6 +448,20 @@ AiPlayerbot.DisableActivityPriorities = 1
  # hundred bots, 5-10 for a thousand.
  AiPlayerbot.BotAiTickDivisor = 1
  
@@ -79,13 +62,13 @@ index 26b52e8..bfa9ff6 100644
  # When enabled, bot alts will level up one level at a time to match their master's level
  # AiPlayerbot.SyncAltLevelToMaster = 0
 diff --git a/runtime/BotManager.cpp b/runtime/BotManager.cpp
-index 9467a8b..92ea735 100644
+index 591dc23..5a73e3a 100644
 --- a/runtime/BotManager.cpp
 +++ b/runtime/BotManager.cpp
-@@ -1480,7 +1480,35 @@ void BotManager::UpdateBots(uint32_t diff)
- 
-             uint32_t const elapsed = diff + entry.record.aiSkippedMs;
-             entry.record.aiSkippedMs = 0;
+@@ -1862,7 +1862,35 @@ void BotManager::UpdateBots(uint32_t diff)
+                 ? std::min(WorldTimer::getMSTimeDiff(entry.lastAiUpdateMs, nowMs), kMaxAiElapsedMs)
+                 : diff;
+             entry.lastAiUpdateMs = nowMs ? nowMs : 1;
 +
 +            // Cost-adaptive scheduling: measure this bot's own AI update so the
 +            // stagger gate can back off the expensive ones and so a pathological
@@ -115,10 +98,10 @@ index 9467a8b..92ea735 100644
 +                    costUs, elapsed, player ? player->GetMapId() : 0u,
 +                    entry.record.aiCostUsEwma);
 +            }
-         }
-     };
  
-@@ -1556,7 +1584,7 @@ void BotManager::UpdateBots(uint32_t diff)
+             // One bot's update is never cut by the budget, so a single slow
+             // one lands whole in the tick every player waits on. Name it, at
+@@ -1999,7 +2027,7 @@ void BotManager::UpdateBots(uint32_t diff)
  // could see keeps a full update rate.
  bool BotManager::ShouldStaggerAiThisTick(BotEntry const& entry, Player* player) const
  {
@@ -127,7 +110,7 @@ index 9467a8b..92ea735 100644
      if (divisor <= 1 || !entry.record.random)
          return false;
  
-@@ -1570,6 +1598,19 @@ bool BotManager::ShouldStaggerAiThisTick(BotEntry const& entry, Player* player)
+@@ -2013,6 +2041,19 @@ bool BotManager::ShouldStaggerAiThisTick(BotEntry const& entry, Player* player)
      if (HasRealPlayerWithin(player, range))
          return false;
  
@@ -148,13 +131,13 @@ index 9467a8b..92ea735 100644
  }
  
 diff --git a/runtime/BotManager.h b/runtime/BotManager.h
-index 1ab5546..16d9c07 100644
+index a451f09..0fe1657 100644
 --- a/runtime/BotManager.h
 +++ b/runtime/BotManager.h
-@@ -55,6 +55,11 @@ struct BotRecord
-     // World time this bot's AI update was skipped by the activity stagger, owed
-     // back to the AI on its next run so its own timers stay wall-clock correct.
-     uint32_t aiSkippedMs = 0;
+@@ -52,6 +52,11 @@ struct BotRecord
+     // retains the historical accountId fallback for diagnostics.
+     uint32_t ownerAccountId = 0;
+     uint32_t ticksInWorld = 0;
 +    // Cost-adaptive scheduling (performance): exponentially weighted mean of
 +    // this bot's own AI update cost in microseconds, and the countdown before
 +    // it may log another "expensive bot" warning. See BotManager::UpdateBots.

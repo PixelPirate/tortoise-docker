@@ -40,10 +40,12 @@ from `docs/gap-prompts/` and land as a new patch on the existing series.
 
 The build pins two SHAs in `Dockerfile.penqle` (`CORE_COMMIT`, `BOTS_COMMIT`),
 declared immediately before the clone `RUN`. Read the current values from
-there, and resolve each source's tip without touching the reference checkouts:
+there, and resolve each source's tip without touching the reference checkouts.
+The core is pinned on the `1181dev` branch (`CORE_REF`), so resolve the core
+from `1181dev`, not `main`:
 
 ```bash
-git ls-remote https://github.com/tortoise-wow/tortoise-wow.git main   # CORE_COMMIT
+git ls-remote https://github.com/tortoise-wow/tortoise-wow.git 1181dev  # CORE_COMMIT
 git ls-remote https://github.com/Sagiroth/TortoiseBots.git main          # BOTS_COMMIT
 ```
 
@@ -184,7 +186,14 @@ patch.
 | 008 | `Engine robustness.` + squash `Drop solo-idle claim registry superseded by the lease manager` |
 | 009 | `Port raid boss tactics for Onyxia, MC, BWL, and Naxx fights.` |
 | 010 | `Dungeon Clear port.` + squash `Make the vendored tree compile against the Penqle core.` + squash `Fix wrong character in config.` + squash `Provision dungeon-clear test bots with MakeComplete after factory refactor.` + squash `Fix duplicate IsValidPosition declaration after upstream made it public.` |
-| 012 | `Improve bot performance.` + squash `Fix tick-divisor stagger skipping via return not continue.` + squash `Batch the real-player scan used by the bot AI stagger gate.` |
+| 012 | `Improve bot performance.` + squash `Batch the real-player scan used by the bot AI stagger gate.` |
+| 013 | `Cost-adaptive bot AI scheduling and heavy-bot diagnostics.` |
+
+Patch 013 was originally authored as a hand-maintained patch file with no
+matching module commit; the 2026-10-07 refresh mirrored it onto `enhancements`
+so it regenerates like the rest of the series. Keep it that way: any new patch
+feature gets a commit on `enhancements` (or is squashed into an existing
+boundary) before the series is emitted.
 
 Doc-only commits are deliberately not replayed: `Record QoL batch ledger
 rows.` and `Record raid boss tactics ledger row.` (the patches ship source
@@ -192,6 +201,13 @@ only; docs stay on `enhancements` and in the module repo).
 
 If Stage 1 retired a feature, delete its row and renumber nothing — leave the
 gap and continue.
+
+A local fixup commit can also become empty when the prefer-main resolution of
+its parent already produces the fixed form; the 2026-10-08 refresh dropped
+`squash Fix tick-divisor stagger skipping via return not continue.` from the 012
+row that way (upstream's elapsed-time rework made the whole skip-time
+bookkeeping it patched redundant). When that happens, drop the squash from this
+table too so the next run does not look up a commit that no longer exists.
 
 ### 2.2 Emit the patches
 
@@ -205,7 +221,8 @@ BOUNDS=( "$NEWPIN" $(git rev-list --reverse "$NEWPIN"..clean) )   # boundaries, 
 NAMES=( 001-summon-when-group 002-dungeon-cc-suppression 003-avoid-creature \
         004-force-rebuff-ready-check 005-trade-cancel-hygiene 006-interrupt-caststop \
         007-grind-rpg-corrections 008-engine-robustness 009-raid-boss-tactics \
-        010-dungeon-clear 012-bot-ai-tick-divisor )              # drop names of retired patches
+        010-dungeon-clear 012-bot-ai-tick-divisor 013-cost-adaptive-bot-scheduling ) \
+                                                        # drop names of retired patches
 for i in "${!NAMES[@]}"; do
   git -c core.abbrev=7 diff --no-color "${BOUNDS[$i]}" "${BOUNDS[$((i+1))]}" \
     -- . ':(exclude)docs/' ':(exclude)*.md' > "$P/${NAMES[$i]}.patch"
@@ -245,7 +262,7 @@ nothing, and every patch passed `git apply --check`.
 ### 3.1 Bump the pins and their docs
 
 ```bash
-CORE_NEW=$(git ls-remote https://github.com/tortoise-wow/tortoise-wow.git main | cut -f1)
+CORE_NEW=$(git ls-remote https://github.com/tortoise-wow/tortoise-wow.git 1181dev | cut -f1)
 BOTS_NEW=$(git -C /Users/pho/Turtle/New/TortoiseBots rev-parse main)
 # Dockerfile.penqle: ARG CORE_COMMIT=<CORE_NEW>, ARG BOTS_COMMIT=<BOTS_NEW>
 # (both declared immediately before the clone RUN; do not reorder)
@@ -262,9 +279,13 @@ build's host-contract gate passes (see Gotchas).
 cd /Users/pho/Turtle/New/tortoise-docker
 docker build -f Dockerfile.penqle --build-arg CPU_TARGET=armv8-a \
   -t tortoise-docker:penqle-bots .
-docker compose -f docker-compose.penqle.yml up -d
-docker compose -f docker-compose.penqle.yml logs -f mangosd
+./compose.sh up -d
+./compose.sh logs -f mangosd
 ```
+
+`compose.sh`, not bare `docker compose`: it unsets every `.env` key from the
+shell first, because Compose prefers the process environment and an exported
+`AI_*`/`DB_*` value silently overrides `.env`.
 
 `CPU_TARGET` defaults to `x86-64-v2` for x86_64 CI; on ARM/Apple Silicon pass
 `armv8-a` or the compile fails with `unknown value 'x86-64-v2' for '-march'`.
@@ -272,12 +293,34 @@ The build compiles the core (1–6 hours) and fails fast on a bad patch, the
 host-contract check, or the `-march=native` guard. A `.env` must exist
 (copy from `.env.example.penqle`); client data must be under `DATA_PATH`.
 
+**New module SQL against an existing database.** `db-init` is marker-gated and
+skips itself once the `init-marker` volume holds `initialized`, so on a re-pin
+the module's new `data/sql/{world,char}` files are *not* applied and `mangosd`
+crash-loops on the first query against a missing table (seen 2026-10-07:
+`Table 'tw_char.tortoise_bots_claimed' doesn't exist`). Diff the module SQL
+directory between the old and new pins, then apply just the new files by hand
+before restarting `mangosd`:
+
+```bash
+OLD=$(git -C /Users/pho/Turtle/New/TortoiseBots rev-parse <old BOTS_COMMIT>)
+NEW=$(git -C /Users/pho/Turtle/New/TortoiseBots rev-parse <new BOTS_COMMIT>)
+comm -13 <(git -C /Users/pho/Turtle/New/TortoiseBots ls-tree -r --name-only "$OLD" -- data/sql | sort) \
+         <(git -C /Users/pho/Turtle/New/TortoiseBots ls-tree -r --name-only "$NEW" -- data/sql | sort)
+# for each world file:  ./compose.sh exec -T realmd sh -c "mariadb -h db -uroot -p\"\$DB_ROOT_PASSWORD\" tw_world" < <file>
+# for each char file:   ... tw_char < <file>
+./compose.sh restart mangosd
+```
+
+Do not re-apply the whole series: the older files are not all idempotent.
+A fresh DB (no marker) needs none of this — `db-init` imports the whole set.
+
 ### 3.3 Acceptance
 
 - Image builds; host-contract verify passes inside the build.
 - `mangosd` logs the world-server-ready line; `realmd` is up.
 - Module migrations apply on first `mangosd` start (AutoUpdater lines in
-  `docker compose logs mangosd`).
+  `./compose.sh logs mangosd`); on an existing DB, apply the new module SQL by
+  hand first (3.2).
 - Any newly added/removed env setting is reflected in `README.md`'s settings
   table and takes effect after restart.
 

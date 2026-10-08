@@ -1,5 +1,5 @@
 diff --git a/runtime/BattlegroundQueueService.cpp b/runtime/BattlegroundQueueService.cpp
-index 9e45fd1..f0df5c5 100644
+index a3004d7..62fecfe 100644
 --- a/runtime/BattlegroundQueueService.cpp
 +++ b/runtime/BattlegroundQueueService.cpp
 @@ -121,6 +121,29 @@ BattlegroundQueueService& BattlegroundQueueService::Instance()
@@ -42,7 +42,7 @@ index 9e45fd1..f0df5c5 100644
      {
          TB_LOG_BASIC("TortoiseBots: BG auto-queue disabled (ai %u bg %u)",
 diff --git a/runtime/BattlegroundQueueService.h b/runtime/BattlegroundQueueService.h
-index 6a198c1..92164c6 100644
+index e7b396a..419dde6 100644
 --- a/runtime/BattlegroundQueueService.h
 +++ b/runtime/BattlegroundQueueService.h
 @@ -40,6 +40,7 @@ private:

@@ -42,10 +42,10 @@ index 77d2151..e2eff48 100644
      const int tab = GetPlayerSpecTab(player);
      switch (player->GetClass())
 diff --git a/ai/playerbot/strategy/StrategyContext.h b/ai/playerbot/strategy/StrategyContext.h
-index a4d9d36..f1cde4f 100644
+index a82db04..5f5d3bb 100644
 --- a/ai/playerbot/strategy/StrategyContext.h
 +++ b/ai/playerbot/strategy/StrategyContext.h
-@@ -78,6 +78,11 @@ namespace ai
+@@ -79,6 +79,11 @@ namespace ai
              creators["dead"] = [](PlayerbotAI* ai) { return new DeadStrategy(ai); };
              creators["flee"] = [](PlayerbotAI* ai) { return new FleeStrategy(ai); };
              creators["avoid mobs"] = [](PlayerbotAI* ai) { return new AvoidMobsStrategy(ai); };
@@ -280,10 +280,10 @@ index 29a4882..0450b4d 100644
              creators["add all loot"] = [](PlayerbotAI* ai) { return new AddAllLootAction(ai); };
              creators["roll"] = [](PlayerbotAI* ai) { return new RollAction(ai); };
 diff --git a/ai/playerbot/strategy/actions/DungeonActions.cpp b/ai/playerbot/strategy/actions/DungeonActions.cpp
-index ee4e733..bf96d7b 100644
+index 6228307..d7f777e 100644
 --- a/ai/playerbot/strategy/actions/DungeonActions.cpp
 +++ b/ai/playerbot/strategy/actions/DungeonActions.cpp
-@@ -226,6 +226,19 @@ bool MoveAwayFromCreature::Execute(Event& event)
+@@ -227,6 +227,19 @@ bool MoveAwayFromCreature::Execute(Event& event)
      return false;
  }
  
@@ -498,7 +498,7 @@ index 861df22..237fa2e 100644
  {
      // Check if the bot has the item or if it has cheats enabled
 diff --git a/ai/playerbot/strategy/triggers/DungeonTriggers.h b/ai/playerbot/strategy/triggers/DungeonTriggers.h
-index 0c638fd..3218ecf 100644
+index 7ed3f31..7a9e572 100644
 --- a/ai/playerbot/strategy/triggers/DungeonTriggers.h
 +++ b/ai/playerbot/strategy/triggers/DungeonTriggers.h
 @@ -222,6 +222,23 @@ namespace ai

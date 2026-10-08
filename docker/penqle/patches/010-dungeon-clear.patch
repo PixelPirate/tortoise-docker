@@ -1,5 +1,5 @@
 diff --git a/TortoiseBots.cmake b/TortoiseBots.cmake
-index b7c7737..6c2d6b8 100644
+index c4af50f..beb08c4 100644
 --- a/TortoiseBots.cmake
 +++ b/TortoiseBots.cmake
 @@ -40,6 +40,16 @@ endfunction()
@@ -34,7 +34,7 @@ index b7c7737..6c2d6b8 100644
    # Optional module migrations are installed only with the module. The core
    # AutoUpdater applies them on startup without making bots a core dependency.
    # AutoUpdater's module contract is case-sensitive on Linux. Penqle's
-@@ -227,6 +245,28 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
+@@ -229,6 +247,28 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
    file(GLOB TORTOISEBOTS_ACTION_SRC CONFIGURE_DEPENDS
      "${TORTOISEBOTS_ROOT}/ai/playerbot/strategy/actions/*.cpp")
  
@@ -63,7 +63,7 @@ index b7c7737..6c2d6b8 100644
    set(TORTOISEBOTS_SOURCES
      ${TORTOISEBOTS_HOST_SRC}
      ${TORTOISEBOTS_AI_SRC}
-@@ -237,6 +277,8 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
+@@ -239,6 +279,8 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
      ${TORTOISEBOTS_TRIGGER_SRC}
      ${TORTOISEBOTS_ACTION_SRC})
    list(REMOVE_DUPLICATES TORTOISEBOTS_SOURCES)
@@ -72,7 +72,7 @@ index b7c7737..6c2d6b8 100644
  
    foreach(TORTOISEBOTS_SOURCE IN LISTS TORTOISEBOTS_SOURCES)
      if(NOT EXISTS "${TORTOISEBOTS_SOURCE}")
-@@ -334,5 +376,91 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "POST_TARGETS")
+@@ -336,5 +378,91 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "POST_TARGETS")
            "-include" "${TORTOISEBOTS_PCH_HEADER}")
        endif()
      endif()
@@ -126019,7 +126019,7 @@ index 0000000..76f71a1
 +if __name__ == "__main__":
 +    main()
 diff --git a/ai/playerbot/PlayerbotAI.h b/ai/playerbot/PlayerbotAI.h
-index 46afe14..15f0c25 100644
+index 9bda73f..d1e01bd 100644
 --- a/ai/playerbot/PlayerbotAI.h
 +++ b/ai/playerbot/PlayerbotAI.h
 @@ -349,6 +349,13 @@ public:
@@ -126036,7 +126036,7 @@ index 46afe14..15f0c25 100644
  private:
      void UpdateAIInternal(uint32 elapsed, bool minimal = false) override;
  public:
-@@ -937,9 +944,14 @@ public:
+@@ -936,9 +943,14 @@ public:
      std::vector<std::string> GetRecordedMessages() { m_recordMessages = false; m_recordIncommingMessages= false; auto msgs = m_recordedMessages; m_recordedMessages.clear(); return msgs; }
      void ClearRecordedMessages() { m_recordedMessages.clear(); m_recordMessages = false; m_recordIncommingMessages = false;}
  
@@ -126071,10 +126071,10 @@ index 79ebea8..63cdb7b 100644
      void IncreaseAIInternalUpdateDelay(uint32 delay);
      void YieldAIInternalThread(bool minimal = false);
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index 947e301..fb24132 100644
+index aa00895..c568f6c 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
-@@ -97,6 +97,14 @@ public:
+@@ -98,6 +98,14 @@ public:
  	bool IsInPvpProhibitedZone(uint32 id);
  
      bool enabled;
@@ -126103,10 +126103,10 @@ index 2577977..533550c 100644
  		virtual std::string GetShortName() const override;
  	private:
 diff --git a/ai/playerbot/strategy/Value.h b/ai/playerbot/strategy/Value.h
-index 4472ddb..f4d30b4 100644
+index ad067f3..df22a77 100644
 --- a/ai/playerbot/strategy/Value.h
 +++ b/ai/playerbot/strategy/Value.h
-@@ -346,6 +346,9 @@ namespace ai
+@@ -368,6 +368,9 @@ namespace ai
          virtual void Set(T value) override { this->value = value; }
          virtual void Update() { }
          virtual void Reset() override { value = defaultValue; }
@@ -126158,10 +126158,10 @@ index 42335ba..a966afc 100644
  
      uint32 triggerId = movement.lastAreaTrigger;
 diff --git a/ai/playerbot/strategy/actions/MovementActions.cpp b/ai/playerbot/strategy/actions/MovementActions.cpp
-index 372b1eb..2b88d13 100644
+index eaca6b3..1bb49c4 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.cpp
 +++ b/ai/playerbot/strategy/actions/MovementActions.cpp
-@@ -1297,6 +1297,26 @@ float MovementAction::GetFollowAngle()
+@@ -1298,6 +1298,26 @@ float MovementAction::GetFollowAngle()
      return 0;
  }
  

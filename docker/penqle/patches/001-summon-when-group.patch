@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/PlayerbotAIConfig.cpp b/ai/playerbot/PlayerbotAIConfig.cpp
-index 31f6147..4e4fa3f 100644
+index f559090..c32481e 100644
 --- a/ai/playerbot/PlayerbotAIConfig.cpp
 +++ b/ai/playerbot/PlayerbotAIConfig.cpp
-@@ -831,6 +831,7 @@ bool PlayerbotAIConfig::Initialize()
+@@ -841,6 +841,7 @@ bool PlayerbotAIConfig::Initialize()
      shareTargets = config.GetBoolDefault("AiPlayerbot.ShareTargets", true);
      globalSoundEffects = config.GetBoolDefault("AiPlayerbot.GlobalSoundEffects", false);
      nonGmFreeSummon = config.GetBoolDefault("AiPlayerbot.NonGmFreeSummon", false);
@@ -11,10 +11,10 @@ index 31f6147..4e4fa3f 100644
      //SPP automation
      autoPickReward = config.GetStringDefault("AiPlayerbot.AutoPickReward", "yes");
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index 855d557..827be29 100644
+index 6bb67bc..73b5003 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
-@@ -566,6 +566,7 @@ public:
+@@ -571,6 +571,7 @@ public:
  
      bool talentsInPublicNote;
      bool nonGmFreeSummon;
@@ -23,10 +23,10 @@ index 855d557..827be29 100644
      BotSelfBotLevel selfBotLevel;
      uint32 iterationsPerTick;
 diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index 297e275..dfa9429 100644
+index 41a1abf..a3ee56c 100644
 --- a/ai/playerbot/aiplayerbot.conf.dist.in
 +++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -632,6 +632,11 @@ AiPlayerbot.BotLogFile =
+@@ -637,6 +637,11 @@ AiPlayerbot.BotLogFile =
  # the bot walks or uses a meeting stone or innkeeper. .bot summon is not affected.
  # AiPlayerbot.NonGmFreeSummon = 0
  
