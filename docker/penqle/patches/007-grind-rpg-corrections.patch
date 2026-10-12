@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/TravelMgr.cpp b/ai/playerbot/TravelMgr.cpp
-index fbc1c56..10de6e3 100644
+index 772e780..4592513 100644
 --- a/ai/playerbot/TravelMgr.cpp
 +++ b/ai/playerbot/TravelMgr.cpp
-@@ -583,6 +583,12 @@ bool RpgTravelDestination::IsActive(Player* bot, const PlayerTravelInfo& info) c
+@@ -610,6 +610,12 @@ bool RpgTravelDestination::IsActive(Player* bot, const PlayerTravelInfo& info) c
      if (!IsPossible(info))
          return false;
  
@@ -16,7 +16,7 @@ index fbc1c56..10de6e3 100644
      std::set<ObjectGuid>& ignoreList = AI_VALUE(std::set<ObjectGuid>&,"ignore rpg target");
  
 diff --git a/ai/playerbot/strategy/actions/ChooseRpgTargetAction.cpp b/ai/playerbot/strategy/actions/ChooseRpgTargetAction.cpp
-index bc83f59..76bdc37 100644
+index b0d6a08..676f99e 100644
 --- a/ai/playerbot/strategy/actions/ChooseRpgTargetAction.cpp
 +++ b/ai/playerbot/strategy/actions/ChooseRpgTargetAction.cpp
 @@ -15,12 +15,12 @@
@@ -107,11 +107,11 @@ index bc83f59..76bdc37 100644
  
      //If we can't find a target clear ignore list and try again later.
 diff --git a/ai/playerbot/strategy/actions/ChooseRpgTargetAction.h b/ai/playerbot/strategy/actions/ChooseRpgTargetAction.h
-index e67f3de..4ee073c 100644
+index 183dfa3..c88de4c 100644
 --- a/ai/playerbot/strategy/actions/ChooseRpgTargetAction.h
 +++ b/ai/playerbot/strategy/actions/ChooseRpgTargetAction.h
-@@ -19,7 +19,7 @@ namespace ai
-         std::string GetRpgActionReason(ObjectGuid target) { auto reason = rgpActionReason.find(target); if (reason != rgpActionReason.end())  return reason->second; return ""; }
+@@ -24,7 +24,7 @@ namespace ai
+         static bool TravelJourneyInFlight(PlayerbotAI* ai);
      private:
          float getMaxRelevance(GuidPosition guidP);
 -        bool HasSameTarget(ObjectGuid guid, uint32 max, std::list<ObjectGuid>& nearGuids);
@@ -120,7 +120,7 @@ index e67f3de..4ee073c 100644
          std::unordered_map <ObjectGuid, std::string> rgpActionReason;
      };
 diff --git a/ai/playerbot/strategy/actions/MoveToRpgTargetAction.cpp b/ai/playerbot/strategy/actions/MoveToRpgTargetAction.cpp
-index dabdd87..309de17 100644
+index 7ae31c0..1f76876 100644
 --- a/ai/playerbot/strategy/actions/MoveToRpgTargetAction.cpp
 +++ b/ai/playerbot/strategy/actions/MoveToRpgTargetAction.cpp
 @@ -26,7 +26,12 @@ bool MoveToRpgTargetAction::Execute(Event& event)
@@ -161,10 +161,10 @@ index dabdd87..309de17 100644
  
      if(MEM_AI_VALUE(WorldPosition, "current position")->LastChangeDelay() < 60)
 diff --git a/ai/playerbot/strategy/actions/MovementActions.cpp b/ai/playerbot/strategy/actions/MovementActions.cpp
-index 5ecdf84..eaca6b3 100644
+index 2738ddc..d984f3d 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.cpp
 +++ b/ai/playerbot/strategy/actions/MovementActions.cpp
-@@ -114,7 +114,7 @@ bool MovementAction::FlyDirect(const WorldPosition &startPosition, const WorldPo
+@@ -116,7 +116,7 @@ bool MovementAction::FlyDirect(const WorldPosition &startPosition, const WorldPo
      return false;
  }
  
@@ -173,7 +173,7 @@ index 5ecdf84..eaca6b3 100644
  {
      AiObjectContext* context = ai->GetAiObjectContext();
      Player* bot = ai->GetBot();
-@@ -124,24 +124,44 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
+@@ -126,24 +126,44 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
      if (!tEntry)
          return false;
  
@@ -228,7 +228,7 @@ index 5ecdf84..eaca6b3 100644
          {
              bot->GetSession()->SendLearnNewTaxiNode(unit);
  
-@@ -149,6 +169,9 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
+@@ -151,6 +171,9 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
          }
      }
  
@@ -239,7 +239,7 @@ index 5ecdf84..eaca6b3 100644
      if (ai->HasCheat(BotCheatMask::gold) || ai->HasCheat(BotCheatMask::taxi))
      {
 diff --git a/ai/playerbot/strategy/actions/MovementActions.h b/ai/playerbot/strategy/actions/MovementActions.h
-index 7232b2a..78e2a5a 100644
+index e58bfff..a8e5131 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.h
 +++ b/ai/playerbot/strategy/actions/MovementActions.h
 @@ -31,7 +31,7 @@ namespace ai

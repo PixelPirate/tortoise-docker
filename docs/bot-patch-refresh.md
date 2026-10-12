@@ -41,12 +41,12 @@ from `docs/gap-prompts/` and land as a new patch on the existing series.
 The build pins two SHAs in `Dockerfile.penqle` (`CORE_COMMIT`, `BOTS_COMMIT`),
 declared immediately before the clone `RUN`. Read the current values from
 there, and resolve each source's tip without touching the reference checkouts.
-The core is pinned on the `1181dev` branch (`CORE_REF`), so resolve the core
-from `1181dev`, not `main`:
+The core is pinned on the `main` branch (`CORE_REF`), so resolve the core
+from `main`:
 
 ```bash
-git ls-remote https://github.com/tortoise-wow/tortoise-wow.git 1181dev  # CORE_COMMIT
-git ls-remote https://github.com/Sagiroth/TortoiseBots.git main          # BOTS_COMMIT
+git ls-remote https://github.com/tortoise-wow/tortoise-wow.git main  # CORE_COMMIT
+git ls-remote https://github.com/Sagiroth/TortoiseBots.git main      # BOTS_COMMIT
 ```
 
 Both move on every run of this runbook. A core bump is accepted only if the
@@ -179,15 +179,17 @@ patch.
 | 001 | `Summon bot to player when grouped.` |
 | 002 | `Don't do generic crowd control inside non-raid dungeons.` |
 | 003 | `Add manual creature avoidance.` |
-| 004 | `Force rebuff on ready check.` |
 | 005 | `Harden trade packet handling on refusal.` |
 | 006 | `Rework spell interrupt calls to CastStop.` |
 | 007 | `Grind RPG corrections.` |
 | 008 | `Engine robustness.` + squash `Drop solo-idle claim registry superseded by the lease manager` |
-| 009 | `Port raid boss tactics for Onyxia, MC, BWL, and Naxx fights.` |
 | 010 | `Dungeon Clear port.` + squash `Make the vendored tree compile against the Penqle core.` + squash `Fix wrong character in config.` + squash `Provision dungeon-clear test bots with MakeComplete after factory refactor.` + squash `Fix duplicate IsValidPosition declaration after upstream made it public.` |
 | 012 | `Improve bot performance.` + squash `Batch the real-player scan used by the bot AI stagger gate.` |
 | 013 | `Cost-adaptive bot AI scheduling and heavy-bot diagnostics.` |
+
+Patches 004 and 009 were retired on the 2026-10-12 refresh (upstream `main`
+absorbed the force-rebuff ready-check rework and the raid boss tactics port);
+patch 011 was dropped earlier. Numbering continues with the gaps left in place.
 
 Patch 013 was originally authored as a hand-maintained patch file with no
 matching module commit; the 2026-10-07 refresh mirrored it onto `enhancements`
@@ -219,8 +221,8 @@ cd /tmp/bots-clean
 P=/Users/pho/Turtle/New/tortoise-docker/docker/penqle/patches
 BOUNDS=( "$NEWPIN" $(git rev-list --reverse "$NEWPIN"..clean) )   # boundaries, oldest first
 NAMES=( 001-summon-when-group 002-dungeon-cc-suppression 003-avoid-creature \
-        004-force-rebuff-ready-check 005-trade-cancel-hygiene 006-interrupt-caststop \
-        007-grind-rpg-corrections 008-engine-robustness 009-raid-boss-tactics \
+        005-trade-cancel-hygiene 006-interrupt-caststop \
+        007-grind-rpg-corrections 008-engine-robustness \
         010-dungeon-clear 012-bot-ai-tick-divisor 013-cost-adaptive-bot-scheduling ) \
                                                         # drop names of retired patches
 for i in "${!NAMES[@]}"; do
@@ -262,7 +264,7 @@ nothing, and every patch passed `git apply --check`.
 ### 3.1 Bump the pins and their docs
 
 ```bash
-CORE_NEW=$(git ls-remote https://github.com/tortoise-wow/tortoise-wow.git 1181dev | cut -f1)
+CORE_NEW=$(git ls-remote https://github.com/tortoise-wow/tortoise-wow.git main | cut -f1)
 BOTS_NEW=$(git -C /Users/pho/Turtle/New/TortoiseBots rev-parse main)
 # Dockerfile.penqle: ARG CORE_COMMIT=<CORE_NEW>, ARG BOTS_COMMIT=<BOTS_NEW>
 # (both declared immediately before the clone RUN; do not reorder)

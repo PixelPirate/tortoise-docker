@@ -60,6 +60,17 @@ Repo: this spec lives in the new repo (`tortoise-docker`).
 > `continue` -> `return` fixup commit were dropped as redundant. The series was
 > regenerated and verified against the rebased branch. Core pin unchanged
 > (`ff26036`).
+>
+> **Re-pin 2026-10-12 (core + module).** Both pins moved and the core tracks
+> `main` again (`CORE_REF=main`, tip `1039342`); the module moves to upstream
+> `main` `234f44a`. `enhancements` was rebased onto the new module tip with
+> prefer-main conflict resolution and the series regenerated; **two patches
+> were retired** because upstream `main` had absorbed them: 004
+> (force-rebuff ready check, reworked upstream into `ForceRebuffPolicy.h` /
+> `ReadyRebuffPolicy.h`) and 009 (raid boss tactics, reworked upstream into
+> `ResistAuraPolicy.h` and friends with a wider boss set). Patch 011 had been
+> dropped earlier. Numbering keeps the gaps. The module's host-contract gate
+> is verified against the new core tip in the build.
 
 ## 0. Local context (paths on this machine)
 
@@ -70,8 +81,8 @@ An agent working here has these existing checkouts/projects:
 | `/Users/pho/Turtle/New/tortoise-docker` | **This repo.** All deliverables in §1 are built here. |
 | `/Users/pho/Turtle/tortoise-docker` | The **old image this project supersedes**: the working Shyalya-based setup ([Nescabir/tortoise-docker](https://github.com/Nescabir/tortoise-docker)). **Reference implementation AND parity target** — its `Dockerfile`, `docker-compose.yml`, and `docker/*.sh` scripts are the templates to adapt (see §4). Do not modify it. |
 | `/Users/pho/Turtle/TortoiseCompiledNew` | A Windows-native build/play setup of the current Shyalya stack (compile scripts `compile-tortoise-wow.{ps1,bat}`, compiled server binaries, live config files incl. `aiplayerbot.conf`). Useful as a config example and as proof of the user's client-side setup; not part of the Docker pipeline. |
-| `/Users/pho/Turtle/New/tortoise-wow` | Local clone of the canonical core (`tortoise-wow/tortoise-wow`); the image pins it at `1181dev` `ff26036`. |
-| `/Users/pho/Turtle/New/TortoiseBots` | Local clone of the bot module; local `main` tracks upstream, the custom work lives on branch `enhancements`, and the image pins upstream `main` `845cf17` plus the patches in `docker/penqle/patches/`. |
+| `/Users/pho/Turtle/New/tortoise-wow` | Local clone of the canonical core (`tortoise-wow/tortoise-wow`); the image pins it at `main` `1039342`. |
+| `/Users/pho/Turtle/New/TortoiseBots` | Local clone of the bot module; local `main` tracks upstream, the custom work lives on branch `enhancements`, and the image pins upstream `main` `234f44a` plus the patches in `docker/penqle/patches/`. |
 
 Both upstream projects are cloned locally (see §0); the clones above are the
 reference for reading code and re-running the host-contract verify script.
@@ -93,8 +104,8 @@ the bar — anything the old stack does, this one must do too.
 A Docker image, packaged like the old one, that runs:
 
 - **Core**: [tortoise-wow/tortoise-wow](https://github.com/tortoise-wow/tortoise-wow)
-  (the renamed `Penqle/tortoise-wow`), branch **`1181dev`**, pinned to a commit
-  SHA (`ff26036`, the branch tip whose seams the module's host-contract gate
+  (the renamed `Penqle/tortoise-wow`), branch **`main`**, pinned to a commit
+  SHA (`1039342`, the branch tip whose seams the module's host-contract gate
   accepts).
 - **Bot module**: [Sagiroth/TortoiseBots](https://github.com/Sagiroth/TortoiseBots),
   cloned into the core checkout as `modules/TortoiseBots`, pinned to a commit SHA.
@@ -133,10 +144,10 @@ Deliverables in **this repo**:
 
 ### 3.1 Core branch compatibility
 
-- The image pins core `1181dev` at `ff26036`. The module records `1181dev` as
-  its canonical target in `CHANGELOG.md` (#162); its `docs/HOST_API.md` still
-  names the older `main` `5fafe43b` ("Merging headless session and module API
-  expansion") baseline.
+- The image pins core `main` at `1039342` (2026-10-12). The module records
+  `1181dev` as its canonical target in `CHANGELOG.md` (#162); its
+  `docs/HOST_API.md` still names the older `main` `5fafe43b` ("Merging headless
+  session and module API expansion") baseline.
 - Penqle PRs **#411** and **#416** were closed unmerged on 2026-09-02, but
   their surface landed on `main` through **#438** (transport plus `World`
   Headless lifecycle, and the generic participant primitives), with **#469**
@@ -145,7 +156,7 @@ Deliverables in **this repo**:
   (`PlayerScript::OnChatYell`) alongside. The earlier `bot-helpers` pin is no
   longer needed.
 - The module's `tools/verify_penqle_host_contract.sh --core <checkout>`
-  **PASSES** against `ff26036` (re-verified 2026-10-07) and runs as a build gate
+  **PASSES** against `1039342` (re-verified 2026-10-12) and runs as a build gate
   in `Dockerfile.penqle`
   (checks `SessionTransport::Headless`, `HeadlessSessionMgr`,
   `WorldSession::InitHeadlessSession/IsHeadless`, `World::Start/Stop/
@@ -343,9 +354,9 @@ Model on the reference `Dockerfile` at
 `/Users/pho/Turtle/tortoise-docker/Dockerfile`. Key changes:
 
 - Build args: `CORE_REPO` (default `https://github.com/tortoise-wow/tortoise-wow.git`),
-  `CORE_REF` (default `1181dev`), `CORE_COMMIT` (pin, currently `ff26036`),
+  `CORE_REF` (default `main`), `CORE_COMMIT` (pin, currently `1039342`),
   `BOTS_REPO` (default `https://github.com/Sagiroth/TortoiseBots.git`),
-  `BOTS_COMMIT` (pin, currently `845cf17`), `CPU_TARGET=x86-64-v2`,
+  `BOTS_COMMIT` (pin, currently `234f44a`), `CPU_TARGET=x86-64-v2`,
   `BUILD_JOBS`.
 - Clone core at pinned SHA (cache-bust pattern from the existing Dockerfile:
   declare the SHA right before the clone `RUN`), then clone TortoiseBots into

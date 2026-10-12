@@ -1,5 +1,5 @@
 diff --git a/TortoiseBots.cmake b/TortoiseBots.cmake
-index c4af50f..beb08c4 100644
+index dc7fd2e..ea21b1f 100644
 --- a/TortoiseBots.cmake
 +++ b/TortoiseBots.cmake
 @@ -40,6 +40,16 @@ endfunction()
@@ -19,22 +19,17 @@ index c4af50f..beb08c4 100644
    # Make source selection observable. The Penqle development builder mounts
    # this checkout over the core's optional module path; a direct core build
    # must not silently fall back to an unrelated stale copy.
-@@ -105,6 +115,14 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
-     COPYONLY)
-   CopyModuleConfig("${CMAKE_CURRENT_BINARY_DIR}/tortoise_bots.conf")
- 
-+  # Dungeon-clear module config (vendored mod-dungeon-clear): same CopyModuleConfig
-+  # mechanism as tortoise_bots.conf, rendered by the image's render-config.sh.
-+  configure_file(
-+    "${TORTOISEBOTS_ROOT}/conf/mod_dungeon_clear.conf.dist"
-+    "${CMAKE_CURRENT_BINARY_DIR}/mod_dungeon_clear.conf"
-+    COPYONLY)
-+  CopyModuleConfig("${CMAKE_CURRENT_BINARY_DIR}/mod_dungeon_clear.conf")
-+
-   # Optional module migrations are installed only with the module. The core
-   # AutoUpdater applies them on startup without making bots a core dependency.
-   # AutoUpdater's module contract is case-sensitive on Linux. Penqle's
-@@ -229,6 +247,28 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
+@@ -111,7 +121,8 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
+   endif()
+   foreach(TORTOISEBOTS_LIVE_CONFIG
+       "${CONF_DIR}/aiplayerbot.conf|${TORTOISEBOTS_AI_CONFIG_DIST}"
+-      "${TORTOISEBOTS_MODULE_CONF_DIR}/tortoise_bots.conf|${TORTOISEBOTS_ROOT}/conf/tortoise_bots.conf.dist")
++      "${TORTOISEBOTS_MODULE_CONF_DIR}/tortoise_bots.conf|${TORTOISEBOTS_ROOT}/conf/tortoise_bots.conf.dist"
++      "${TORTOISEBOTS_MODULE_CONF_DIR}/mod_dungeon_clear.conf|${TORTOISEBOTS_ROOT}/conf/mod_dungeon_clear.conf.dist")
+     string(REPLACE "|" ";" TORTOISEBOTS_LIVE_CONFIG "${TORTOISEBOTS_LIVE_CONFIG}")
+     list(GET TORTOISEBOTS_LIVE_CONFIG 0 TORTOISEBOTS_LIVE_CONFIG_DEST)
+     list(GET TORTOISEBOTS_LIVE_CONFIG 1 TORTOISEBOTS_LIVE_CONFIG_SRC)
+@@ -247,6 +258,28 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
    file(GLOB TORTOISEBOTS_ACTION_SRC CONFIGURE_DEPENDS
      "${TORTOISEBOTS_ROOT}/ai/playerbot/strategy/actions/*.cpp")
  
@@ -63,7 +58,7 @@ index c4af50f..beb08c4 100644
    set(TORTOISEBOTS_SOURCES
      ${TORTOISEBOTS_HOST_SRC}
      ${TORTOISEBOTS_AI_SRC}
-@@ -239,6 +279,8 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
+@@ -257,6 +290,8 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
      ${TORTOISEBOTS_TRIGGER_SRC}
      ${TORTOISEBOTS_ACTION_SRC})
    list(REMOVE_DUPLICATES TORTOISEBOTS_SOURCES)
@@ -72,7 +67,7 @@ index c4af50f..beb08c4 100644
  
    foreach(TORTOISEBOTS_SOURCE IN LISTS TORTOISEBOTS_SOURCES)
      if(NOT EXISTS "${TORTOISEBOTS_SOURCE}")
-@@ -336,5 +378,91 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "POST_TARGETS")
+@@ -360,5 +395,91 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "POST_TARGETS")
            "-include" "${TORTOISEBOTS_PCH_HEADER}")
        endif()
      endif()
@@ -126019,7 +126014,7 @@ index 0000000..76f71a1
 +if __name__ == "__main__":
 +    main()
 diff --git a/ai/playerbot/PlayerbotAI.h b/ai/playerbot/PlayerbotAI.h
-index 9bda73f..d1e01bd 100644
+index f4593a3..7d320af 100644
 --- a/ai/playerbot/PlayerbotAI.h
 +++ b/ai/playerbot/PlayerbotAI.h
 @@ -349,6 +349,13 @@ public:
@@ -126036,7 +126031,7 @@ index 9bda73f..d1e01bd 100644
  private:
      void UpdateAIInternal(uint32 elapsed, bool minimal = false) override;
  public:
-@@ -936,9 +943,14 @@ public:
+@@ -986,9 +993,14 @@ public:
      std::vector<std::string> GetRecordedMessages() { m_recordMessages = false; m_recordIncommingMessages= false; auto msgs = m_recordedMessages; m_recordedMessages.clear(); return msgs; }
      void ClearRecordedMessages() { m_recordedMessages.clear(); m_recordMessages = false; m_recordIncommingMessages = false;}
  
@@ -126071,7 +126066,7 @@ index 79ebea8..63cdb7b 100644
      void IncreaseAIInternalUpdateDelay(uint32 delay);
      void YieldAIInternalThread(bool minimal = false);
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index aa00895..c568f6c 100644
+index 46ffac7..2fc282f 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
 @@ -98,6 +98,14 @@ public:
@@ -126090,7 +126085,7 @@ index aa00895..c568f6c 100644
      bool allowMultiAccountAltBots;
      uint32 globalCoolDown, reactDelay, maxWaitForMove, expireActionTime, dispelAuraDuration, passiveDelay, repeatDelay,
 diff --git a/ai/playerbot/TravelMgr.h b/ai/playerbot/TravelMgr.h
-index 2577977..533550c 100644
+index 117918b..909af4f 100644
 --- a/ai/playerbot/TravelMgr.h
 +++ b/ai/playerbot/TravelMgr.h
 @@ -196,7 +196,7 @@ namespace ai
@@ -126103,7 +126098,7 @@ index 2577977..533550c 100644
  		virtual std::string GetShortName() const override;
  	private:
 diff --git a/ai/playerbot/strategy/Value.h b/ai/playerbot/strategy/Value.h
-index ad067f3..df22a77 100644
+index caff0ba..df14f43 100644
 --- a/ai/playerbot/strategy/Value.h
 +++ b/ai/playerbot/strategy/Value.h
 @@ -368,6 +368,9 @@ namespace ai
@@ -126141,10 +126136,10 @@ index 71961a8..49cb822 100644
  {
      class AcceptInvitationAction : public Action
 diff --git a/ai/playerbot/strategy/actions/AreaTriggerAction.cpp b/ai/playerbot/strategy/actions/AreaTriggerAction.cpp
-index 42335ba..a966afc 100644
+index 5129dea..b73b574 100644
 --- a/ai/playerbot/strategy/actions/AreaTriggerAction.cpp
 +++ b/ai/playerbot/strategy/actions/AreaTriggerAction.cpp
-@@ -53,6 +53,12 @@ bool ReachAreaTriggerAction::Execute(Event& event)
+@@ -54,6 +54,12 @@ bool ReachAreaTriggerAction::Execute(Event& event)
  
  bool AreaTriggerAction::Execute(Event& event)
  {
@@ -126158,10 +126153,10 @@ index 42335ba..a966afc 100644
  
      uint32 triggerId = movement.lastAreaTrigger;
 diff --git a/ai/playerbot/strategy/actions/MovementActions.cpp b/ai/playerbot/strategy/actions/MovementActions.cpp
-index eaca6b3..1bb49c4 100644
+index d984f3d..c293380 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.cpp
 +++ b/ai/playerbot/strategy/actions/MovementActions.cpp
-@@ -1298,6 +1298,26 @@ float MovementAction::GetFollowAngle()
+@@ -1300,6 +1300,26 @@ float MovementAction::GetFollowAngle()
      return 0;
  }
  
@@ -126189,7 +126184,7 @@ index eaca6b3..1bb49c4 100644
  {
      if (!target)
 diff --git a/ai/playerbot/strategy/actions/MovementActions.h b/ai/playerbot/strategy/actions/MovementActions.h
-index 78e2a5a..e5a7dee 100644
+index a8e5131..b877aa3 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.h
 +++ b/ai/playerbot/strategy/actions/MovementActions.h
 @@ -9,6 +9,19 @@
@@ -126226,7 +126221,7 @@ index 78e2a5a..e5a7dee 100644
  
          bool WaitForTransport();
  
-@@ -89,9 +107,50 @@ namespace ai
+@@ -95,9 +113,50 @@ namespace ai
          bool ShouldReactionInterruptCast() const override { return true; }
          bool ShouldReactionInterruptMovement() const override { return true; }
  
@@ -126296,32 +126291,6 @@ index 506a360..130730f 100644
  #include "CombatStrategy.h"
  
  class PlayerbotAI;
-diff --git a/ai/playerbot/strategy/generic/ForceRebuff.cpp b/ai/playerbot/strategy/generic/ForceRebuff.cpp
-index dfa4a2d..f69f45f 100644
---- a/ai/playerbot/strategy/generic/ForceRebuff.cpp
-+++ b/ai/playerbot/strategy/generic/ForceRebuff.cpp
-@@ -35,7 +35,9 @@ bool ForceRebuffState::IsPending() const
- 
- bool ForceRebuffState::IsOnGlobalCooldown() const
- {
--    return bot && lastGcdSpell && bot->HasGlobalCooldown(lastGcdSpell);
-+    // Unit carries the global-cooldown state on this core.
-+    return bot && lastGcdSpell &&
-+           bot->GetGlobalCooldownMgr().HasGlobalCooldown(lastGcdSpell);
- }
- 
- void ForceRebuffState::NoteBuffWork()
-@@ -101,7 +103,9 @@ public:
- 
- void ForceRebuffStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
- {
--    triggers.push_back(new TriggerNode("force rebuff pending", { new NextAction("ready reply", 6.0f) }));
-+    triggers.push_back(new TriggerNode(
-+        "force rebuff pending",
-+        NextAction::array(0, new NextAction("ready reply", 6.0f), NULL)));
- }
- 
- void ForceRebuffStrategy::InitMultipliers(std::vector<Multiplier*>& multipliers)
 diff --git a/ai/playerbot/strategy/hunter/GenericHunterStrategy.h b/ai/playerbot/strategy/hunter/GenericHunterStrategy.h
 index 901a05f..e88cd24 100644
 --- a/ai/playerbot/strategy/hunter/GenericHunterStrategy.h
@@ -126413,10 +126382,10 @@ index 26fd5bc..97ff3d3 100644
  #include "MeleeCombatStrategy.h"
  
 diff --git a/ai/playerbot/strategy/triggers/DungeonTriggers.cpp b/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
-index 51e9679..d97f14a 100644
+index c0543fa..502944a 100644
 --- a/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
 +++ b/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
-@@ -60,7 +60,8 @@ bool StartBossFightTrigger::IsActive()
+@@ -61,7 +61,8 @@ bool StartBossFightTrigger::IsActive()
          if (bot->IsInWorld() && !bot->IsBeingTeleported())
          {
              AiObjectContext* context = ai->GetAiObjectContext();
@@ -126426,31 +126395,8 @@ index 51e9679..d97f14a 100644
              for (const ObjectGuid& attackerGuid : attackers)
              {
                  Unit* attacker = ai->GetUnit(attackerGuid);
-@@ -87,9 +88,10 @@ bool EndBossFightTrigger::IsActive()
-     return false;
- }
- 
--Unit* FindDungeonBoss(PlayerbotAI* ai, uint32 entry)
-+Unit* ai::FindDungeonBoss(PlayerbotAI* ai, uint32 entry)
- {
--    const std::list<ObjectGuid> attackers = AI_VALUE(std::list<ObjectGuid>, "attackers");
-+    const std::list<ObjectGuid> attackers =
-+        ai->GetAiObjectContext()->GetValue<std::list<ObjectGuid>>("attackers")->Get();
-     for (const ObjectGuid& guid : attackers)
-     {
-         Unit* unit = ai->GetUnit(guid);
-@@ -97,7 +99,8 @@ Unit* FindDungeonBoss(PlayerbotAI* ai, uint32 entry)
-             return unit;
-     }
- 
--    const std::list<ObjectGuid> possible = AI_VALUE(std::list<ObjectGuid>, "possible targets");
-+    const std::list<ObjectGuid> possible =
-+        ai->GetAiObjectContext()->GetValue<std::list<ObjectGuid>>("possible targets")->Get();
-     for (const ObjectGuid& guid : possible)
-     {
-         Unit* unit = ai->GetUnit(guid);
 diff --git a/ai/playerbot/strategy/values/AttackersValue.h b/ai/playerbot/strategy/values/AttackersValue.h
-index fb1b913..b64fab4 100644
+index 2714ccd..4ae2d30 100644
 --- a/ai/playerbot/strategy/values/AttackersValue.h
 +++ b/ai/playerbot/strategy/values/AttackersValue.h
 @@ -25,6 +25,11 @@ namespace ai

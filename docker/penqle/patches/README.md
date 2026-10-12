@@ -4,9 +4,9 @@ Pins these patches are written against (see `Dockerfile.penqle`):
 
 ```text
 CORE_REPO   https://github.com/tortoise-wow/tortoise-wow.git
-CORE_REF    1181dev
-CORE_COMMIT ff260364986282e7d16957699b539f18e2757e88
-BOTS_COMMIT 845cf177f3e6af4f47e98f5bcd104cd288285b45
+CORE_REF    main
+CORE_COMMIT 10393426efe4bbe1de3a31fd071ca36fae358bb6
+BOTS_COMMIT 234f44a97ab8e66184079c9274645be3b59aa083
 ```
 
 The series is generated from the local `TortoiseBots` `enhancements` branch as
@@ -93,33 +93,6 @@ Touches: `strategy/actions/AvoidCreatureListAction.{h,cpp}`,
 `triggers/ChatTriggerContext.h`, `triggers/TriggerContext.h`,
 `triggers/DungeonTriggers.{h,cpp}`, `values/ValueContext.h`,
 `StrategyContext.h`, `AiFactory.cpp` (strategy installs + posture comments).
-
-## 004-force-rebuff-ready-check.patch
-
-Ports AzerothCore mod-playerbots PR #2571 ("force rebuff on ready check"):
-when a ready check is issued out of combat, bots whisper their readiness
-report and top up missing/short buffs before confirming ready — a bot with
-outstanding buff work (including casts that fail for missing reagents) stays
-not-ready until the ready check ends. A `rebuff` chat command runs the same
-buff pass manually (works regardless of the config key), and heals yield to
-buffing while the pass runs. Kept from the donor: the 2-minute rebuff-window
-ceiling, buff triggers re-evaluated every tick during the pass, and the
-buffs-topped-toward-full-duration refresh margin
-(`AiPlayerbot.ForceRebuffMarginSecs`, default 60).
-`AiPlayerbot.ForceRebuffOnReadyCheck` ships default **off** (donor default)
-and is exposed as `AI_FORCE_REBUFF_ON_READY_CHECK` in the image (rendered
-config, `.env.example.penqle`, compose, README table).
-
-Touches: `strategy/generic/ForceRebuff.{h,cpp}` (new: rebuff window state,
-strategy, buff-first multiplier), `Trigger.{h,cpp}` (buff-trigger virtuals +
-per-tick eval), `GenericTriggers.{h,cpp}` (duration-aware `BuffTrigger`,
-`ForceRebuffPendingTrigger`), `TriggerContext.h`, `Engine.cpp` (cycle roll +
-buff-proposed note), `GenericSpellActions.{h,cpp}` (`CastBuffSpellAction`
-buff-work note), `ReadyCheckAction.{h,cpp}` (defer/report split, `force
-rebuff` + `ready reply` actions), `WorldPacketActionContext.h`,
-`ChatTriggerContext.h`, `ChatCommandHandlerStrategy.cpp`,
-`StrategyContext.h`, `AiFactory.cpp`, `PlayerbotAI.{h,cpp}` (window state,
-cast note), `PlayerbotAIConfig.{h,cpp}`, `aiplayerbot.conf.dist.in`.
 
 ## 005-trade-cancel-hygiene.patch
 
@@ -221,49 +194,6 @@ Touches: `runtime/BattlegroundQueueService.cpp` (BG data drain),
 drain). Implementation-verified (host contract + backoff harness pass),
 gameplay-untested.
 
-## 009-raid-boss-tactics.patch
-
-Ports per-boss raid tactics from AzerothCore mod-playerbots' `src/Ai/Raid/`
-(MC rework PR #2573, BWL fire-resist coverage #2631, Heigan dance #2671,
-Thaddius pet-phase fix #2669) onto TortoiseBots' DungeonStrategy family
-(gap prompt `docs/gap-prompts/01-raid-boss-tactics.md`):
-
-- **Onyxia**: fills the empty `OnyxiaFightStrategy` body — non-tanks exit
-  Onyxia's front/tail arcs, spread from Fireball splash, move perpendicular
-  out of the deep-breath corridor (donor's 3.3.5-lair safe-zone coordinates
-  do not transfer; replaced with corridor-relative movement), and
-  non-healers swap to Onyxian Whelps in phase 2.
-- **MC**: Golemagg Magma Splash stack back-off + skull-mark; Shazzrah
-  ranged/healer Arcane Explosion gate; Majordomo Flamewaker add-focus
-  attack; Ragnaros magma escape to the nearest dry group member.
-- **BWL**: Broodlord/Firemaw/Flamegor fight strategies — the first alive
-  raid paladin keeps Fire Resistance Aura up, everyone else pops a Fire
-  Protection Potion.
-- **Naxx**: Heigan fight-clock quadrant dance (90s fight / 45s dance,
-  re-derived from the core's `boss_heigan.cpp` event schedule; donor's
-  ranged platform hold dropped fail-closed) and Thaddius pet-phase target
-  fix + opposite-polarity spread.
-
-Every creature/spell ID was verified against Tortoise data (the core's
-`boss_*.cpp` scripts and `sql/base` creature templates); Turtle entries
-differ from the WotLK donor in several places (Golemagg 11988, Firemaw
-11983, Broodlord 12017). Void-zone creators: the 4H trigger already
-existed in the pin; Turtle's Grobbulus/Kel'Thuzad scripts summon no
-void-zone creatures, so there was nothing to add. No new config key.
-Implementation-verified (wiring checker live-missing=0, host contract
-pass), gameplay-untested.
-
-Upstream has since added its own raid-survival actions (`raid bomb runout`,
-`dragon flank`, `raid spread`, `dragon tank face away`) and its own Onyxia
-phase-2 `OnyxiaAirborneTrigger`. Both sets are kept: the upstream actions
-cover generic raid survival, this patch's Onyxia triggers cover the
-encounter-specific front/tail, Fireball-splash and deep-breath reactions.
-
-Touches: `strategy/generic/{OnyxiasLair,MoltenCore,BlackwingLair,Naxxramas}DungeonStrategies.{h,cpp}`,
-`strategy/triggers/{DungeonTriggers,{OnyxiasLair,MoltenCore,BlackwingLair,Naxxramas}DungeonTriggers}.{h,cpp}`,
-`strategy/actions/{DungeonActions,{OnyxiasLair,MoltenCore,BlackwingLair,Naxxramas}DungeonActions}.{h,cpp}`,
-`strategy/{TriggerContext.h,actions/ActionContext.h,StrategyContext.h}`.
-
 ## Rules
 
 - One feature per patch, numbered, named `NNN-description.patch`.
@@ -349,7 +279,6 @@ Touches: `ai/dungeonclear/**` (new, vendored), `ai/dungeonclear/compat/**`
 `ai/playerbot/strategy/triggers/{DungeonTriggers.cpp,GenericTriggers.cpp}`,
 `ai/playerbot/strategy/generic/ClassStrategy.{h,cpp}` and the class strategy
 headers that call its CC-suppression gate,
-`ai/playerbot/strategy/generic/ForceRebuff.cpp`,
 `ai/playerbot/strategy/actions/{MovementActions.{h,cpp},AreaTriggerAction.cpp,RpgSubActions.cpp,AcceptInvitationAction.h}`,
 `ai/playerbot/strategy/values/AttackersValue.h`, `ai/playerbot/TravelMgr.{h,cpp}`,
 `ai/cmangos-compat-shim.h`,
@@ -390,6 +319,23 @@ upstream's elapsed mechanism; the patch's own skip-time accumulator
 only existed to fix it are gone. The stagger's `return` still precedes the
 update, so a skipped bot simply keeps its `lastAiUpdateMs` and gets the skipped
 time back on its next run.
+
+At the 2026-10-12 re-pin, upstream `main` had absorbed two features outright:
+
+- `004-force-rebuff-ready-check`: upstream reworked the whole pass into
+  policy headers (`ForceRebuffPolicy.h`, `ReadyRebuffPolicy.h`) with the
+  `ForceRebuffStrategy`, the `force rebuff pending` trigger and the
+  `rebuff`/`ready reply` actions, driven from engine values instead of the
+  patch's `ForceRebuffState`. Upstream's version wins; the patch's
+  `strategy/generic/ForceRebuff.{h,cpp}` and the `ai->forceRebuff` member are
+  gone. `AiPlayerbot.ForceRebuffOnReadyCheck` / `AI_FORCE_REBUFF_ON_READY_CHECK`
+  stays (upstream defines the same key); the patch-only
+  `AiPlayerbot.ForceRebuffMarginSecs` was dropped, its margin now hardcoded in
+  `ForceRebuffPolicy.h`.
+- `009-raid-boss-tactics`: upstream reworked raid tactics into policy headers
+  (`ResistAuraPolicy.h`, `GolemaggPolicy.h`, `McGarrShazzrahPolicy.h`) covering
+  a wider boss set (Garr, Geddon, Chromaggus, Razorgore, Nefarian, Vael, and
+  the Naxx bosses). Upstream's version wins whole; the patch is gone.
 
 ## 012-bot-ai-tick-divisor.patch
 

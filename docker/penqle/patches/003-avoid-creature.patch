@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/AiFactory.cpp b/ai/playerbot/AiFactory.cpp
-index 77d2151..e2eff48 100644
+index 3393535..03ab469 100644
 --- a/ai/playerbot/AiFactory.cpp
 +++ b/ai/playerbot/AiFactory.cpp
-@@ -456,9 +456,12 @@ void AiFactory::AddDefaultCombatStrategies(Player* player, PlayerbotAI* const fa
+@@ -469,9 +469,12 @@ void AiFactory::AddDefaultCombatStrategies(Player* player, PlayerbotAI* const fa
      // enter/leave <raid> triggers that swap in MC/Ony/BWL/Naxx tactics.
      // Without it bots zone into raids and keep fighting with outdoor AI.
      combatEngine->addStrategies("dungeon", "mount", NULL);
@@ -18,7 +18,7 @@ index 77d2151..e2eff48 100644
  
      // A battleground is precisely where "pvp" is needed: it is the strategy
      // whose "enemy player near" trigger lets the bot take an enemy player as a
-@@ -1055,8 +1058,11 @@ void AiFactory::AddDefaultNonCombatStrategies(Player* player, PlayerbotAI* const
+@@ -1132,8 +1135,11 @@ void AiFactory::AddDefaultNonCombatStrategies(Player* player, PlayerbotAI* const
      nonCombatEngine->addStrategies("wbuff", "dungeon", NULL);
      // "dungeon" owns the enter/leave <raid> transition triggers; without it
      // zone-ins never swap into raid tactics.
@@ -32,7 +32,7 @@ index 77d2151..e2eff48 100644
  
      if(sPlayerbotAIConfig.llmEnabled == 2)
          nonCombatEngine->addStrategy("ai chat");
-@@ -1423,7 +1429,7 @@ Engine* AiFactory::createDeadEngine(Player* player, PlayerbotAI* const facade, A
+@@ -1541,7 +1547,7 @@ Engine* AiFactory::createDeadEngine(Player* player, PlayerbotAI* const facade, A
  
  void AiFactory::AddDefaultReactionStrategies(Player* player, PlayerbotAI* const facade, ReactionEngine* reactionEngine)
  {
@@ -42,10 +42,10 @@ index 77d2151..e2eff48 100644
      const int tab = GetPlayerSpecTab(player);
      switch (player->GetClass())
 diff --git a/ai/playerbot/strategy/StrategyContext.h b/ai/playerbot/strategy/StrategyContext.h
-index a82db04..5f5d3bb 100644
+index dee7939..85b6f83 100644
 --- a/ai/playerbot/strategy/StrategyContext.h
 +++ b/ai/playerbot/strategy/StrategyContext.h
-@@ -79,6 +79,11 @@ namespace ai
+@@ -92,6 +92,11 @@ namespace ai
              creators["dead"] = [](PlayerbotAI* ai) { return new DeadStrategy(ai); };
              creators["flee"] = [](PlayerbotAI* ai) { return new FleeStrategy(ai); };
              creators["avoid mobs"] = [](PlayerbotAI* ai) { return new AvoidMobsStrategy(ai); };
@@ -58,12 +58,12 @@ index a82db04..5f5d3bb 100644
              creators["start duel"] = [](PlayerbotAI* ai) { return new StartDuelStrategy(ai); };
              creators["kite"] = [](PlayerbotAI* ai) { return new KiteStrategy(ai); };
 diff --git a/ai/playerbot/strategy/actions/ActionContext.h b/ai/playerbot/strategy/actions/ActionContext.h
-index 3a7a469..928f478 100644
+index 36115f0..ddc9400 100644
 --- a/ai/playerbot/strategy/actions/ActionContext.h
 +++ b/ai/playerbot/strategy/actions/ActionContext.h
-@@ -353,6 +353,7 @@ namespace ai
-             creators["dragon flank"] = [](PlayerbotAI* ai) { return new DragonFlankAction(ai); };
-             creators["raid spread"] = [](PlayerbotAI* ai) { return new RaidSpreadAction(ai); };
+@@ -401,6 +401,7 @@ namespace ai
+             creators["swap fire resistance aura"] = [](PlayerbotAI* ai) { return new SwapFireResistanceAuraAction(ai); };
+             creators["swap shadow resistance aura"] = [](PlayerbotAI* ai) { return new SwapShadowResistanceAuraAction(ai); };
              creators["dragon tank face away"] = [](PlayerbotAI* ai) { return new DragonTankFaceAwayAction(ai); };
 +            creators["move away from specific creatures"] = [](PlayerbotAI* ai) { return new MoveAwayFromSpecificCreatures(ai, 10.0f); };
              creators["move to mc rune"] = [](PlayerbotAI* ai) { return new MoveToMCRuneAction(ai); };
@@ -260,7 +260,7 @@ index 0000000..9d22fbd
 +    };
 +}
 diff --git a/ai/playerbot/strategy/actions/ChatActionContext.h b/ai/playerbot/strategy/actions/ChatActionContext.h
-index 29a4882..0450b4d 100644
+index 738e8d7..1862445 100644
 --- a/ai/playerbot/strategy/actions/ChatActionContext.h
 +++ b/ai/playerbot/strategy/actions/ChatActionContext.h
 @@ -34,6 +34,7 @@
@@ -271,7 +271,7 @@ index 29a4882..0450b4d 100644
  #include "BuffAction.h"
  #include "AttackAction.h"
  #include "HelpAction.h"
-@@ -106,6 +107,7 @@ namespace ai
+@@ -108,6 +109,7 @@ namespace ai
              creators["query item usage"] = [](PlayerbotAI* ai) { return new QueryItemUsageAction(ai); };
              creators["ll"] = [](PlayerbotAI* ai) { return new LootStrategyAction(ai); };
              creators["ss"] = [](PlayerbotAI* ai) { return new SkipSpellsListAction(ai); };
@@ -280,10 +280,10 @@ index 29a4882..0450b4d 100644
              creators["add all loot"] = [](PlayerbotAI* ai) { return new AddAllLootAction(ai); };
              creators["roll"] = [](PlayerbotAI* ai) { return new RollAction(ai); };
 diff --git a/ai/playerbot/strategy/actions/DungeonActions.cpp b/ai/playerbot/strategy/actions/DungeonActions.cpp
-index 6228307..d7f777e 100644
+index c9bf1c1..4074731 100644
 --- a/ai/playerbot/strategy/actions/DungeonActions.cpp
 +++ b/ai/playerbot/strategy/actions/DungeonActions.cpp
-@@ -227,6 +227,19 @@ bool MoveAwayFromCreature::Execute(Event& event)
+@@ -229,6 +229,19 @@ bool MoveAwayFromCreature::Execute(Event& event)
      return false;
  }
  
@@ -304,10 +304,10 @@ index 6228307..d7f777e 100644
  {
      if (MovementAction::isPossible())
 diff --git a/ai/playerbot/strategy/actions/DungeonActions.h b/ai/playerbot/strategy/actions/DungeonActions.h
-index 0d609e3..e083283 100644
+index 6571a10..4b64099 100644
 --- a/ai/playerbot/strategy/actions/DungeonActions.h
 +++ b/ai/playerbot/strategy/actions/DungeonActions.h
-@@ -50,7 +50,7 @@ namespace ai
+@@ -51,7 +51,7 @@ namespace ai
          bool HasCreaturesNearby(const WorldPosition& point, const std::list<Creature*>& creatures) const;
          bool IsHazardNearby(const WorldPosition& point, const std::list<HazardPosition>& hazards) const;
  
@@ -316,7 +316,7 @@ index 0d609e3..e083283 100644
          uint32 creatureID;
          float range;
      };
-@@ -96,4 +96,22 @@ namespace ai
+@@ -148,4 +148,22 @@ namespace ai
          bool Execute(Event& event) override;
          bool isPossible() override { return MovementAction::isPossible() && ai->CanMove(); }
      };
@@ -372,7 +372,7 @@ index 12e01f8..7650b46 100644
  
  void AvoidMobsStrategy::InitNonCombatTriggers(std::list<TriggerNode*>& triggers)
 diff --git a/ai/playerbot/strategy/generic/ChatCommandHandlerStrategy.cpp b/ai/playerbot/strategy/generic/ChatCommandHandlerStrategy.cpp
-index f6ab561..1fcdd61 100644
+index 8432e79..400ba84 100644
 --- a/ai/playerbot/strategy/generic/ChatCommandHandlerStrategy.cpp
 +++ b/ai/playerbot/strategy/generic/ChatCommandHandlerStrategy.cpp
 @@ -38,6 +38,7 @@ ChatCommandHandlerStrategy::ChatCommandHandlerStrategy(PlayerbotAI* ai) : PassTr
@@ -384,10 +384,10 @@ index f6ab561..1fcdd61 100644
      supported.push_back("corpse run");
      supported.push_back("teleport");
 diff --git a/ai/playerbot/strategy/generic/CombatStrategy.cpp b/ai/playerbot/strategy/generic/CombatStrategy.cpp
-index f46e635..dd044b3 100644
+index 1531ed0..d7d8df9 100644
 --- a/ai/playerbot/strategy/generic/CombatStrategy.cpp
 +++ b/ai/playerbot/strategy/generic/CombatStrategy.cpp
-@@ -82,6 +82,18 @@ void AvoidAoeStrategy::InitReactionMultipliers(std::list<Multiplier*>& multiplie
+@@ -94,6 +94,18 @@ void AvoidAoeStrategy::InitReactionMultipliers(std::list<Multiplier*>& multiplie
      InitCombatMultipliers(multipliers);
  }
  
@@ -407,7 +407,7 @@ index f46e635..dd044b3 100644
  {
      triggers.push_back(new TriggerNode(
 diff --git a/ai/playerbot/strategy/generic/CombatStrategy.h b/ai/playerbot/strategy/generic/CombatStrategy.h
-index 983cff4..02fe65e 100644
+index bf846b7..7c54473 100644
 --- a/ai/playerbot/strategy/generic/CombatStrategy.h
 +++ b/ai/playerbot/strategy/generic/CombatStrategy.h
 @@ -43,6 +43,26 @@ namespace ai
@@ -438,7 +438,7 @@ index 983cff4..02fe65e 100644
      {
      public:
 diff --git a/ai/playerbot/strategy/triggers/ChatTriggerContext.h b/ai/playerbot/strategy/triggers/ChatTriggerContext.h
-index 698b6ec..5a03c5e 100644
+index 951af69..9ded7fb 100644
 --- a/ai/playerbot/strategy/triggers/ChatTriggerContext.h
 +++ b/ai/playerbot/strategy/triggers/ChatTriggerContext.h
 @@ -23,6 +23,7 @@ namespace ai
@@ -450,10 +450,10 @@ index 698b6ec..5a03c5e 100644
              creators["add all loot"] = [](PlayerbotAI* ai) { return new ChatCommandTrigger(ai, "add all loot"); };
              creators["release"] = [](PlayerbotAI* ai) { return new ChatCommandTrigger(ai, "release"); };
 diff --git a/ai/playerbot/strategy/triggers/DungeonTriggers.cpp b/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
-index 861df22..237fa2e 100644
+index 6dcfca7..c0543fa 100644
 --- a/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
 +++ b/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
-@@ -304,6 +304,43 @@ bool CloseToCreatureTrigger::IsActive()
+@@ -306,6 +306,43 @@ bool CloseToCreatureTrigger::IsActive()
      return false;
  }
  
@@ -498,10 +498,10 @@ index 861df22..237fa2e 100644
  {
      // Check if the bot has the item or if it has cheats enabled
 diff --git a/ai/playerbot/strategy/triggers/DungeonTriggers.h b/ai/playerbot/strategy/triggers/DungeonTriggers.h
-index 7ed3f31..7a9e572 100644
+index 079caaa..15df5e7 100644
 --- a/ai/playerbot/strategy/triggers/DungeonTriggers.h
 +++ b/ai/playerbot/strategy/triggers/DungeonTriggers.h
-@@ -222,6 +222,23 @@ namespace ai
+@@ -274,6 +274,23 @@ namespace ai
          float range;
      };
  
@@ -526,14 +526,13 @@ index 7ed3f31..7a9e572 100644
      {
      public:
 diff --git a/ai/playerbot/strategy/triggers/TriggerContext.h b/ai/playerbot/strategy/triggers/TriggerContext.h
-index 9254a6a..a5a92d4 100644
+index f4b853c..95218c2 100644
 --- a/ai/playerbot/strategy/triggers/TriggerContext.h
 +++ b/ai/playerbot/strategy/triggers/TriggerContext.h
-@@ -308,6 +308,9 @@ namespace ai
-             creators["four horsemen mark"] = [](PlayerbotAI* ai) { return new FourHorsemenMarkTrigger(ai); };
-             creators["dragon breath risk"] = [](PlayerbotAI* ai) { return new DragonBreathRiskTrigger(ai); };
-             creators["raid spread needed"] = [](PlayerbotAI* ai) { return new RaidSpreadNeededTrigger(ai); };
-+
+@@ -344,6 +344,8 @@ namespace ai
+             creators["boss wants shadow aura"] = [](PlayerbotAI* ai) { return new BossWantsShadowAuraTrigger(ai); };
+             creators["spread needed"] = [](PlayerbotAI* ai) { return new SpreadNeededTrigger(ai); };
+ 
 +            creators["specific creature too close"] = [](PlayerbotAI* ai) { return new CloseToSpecificCreaturesTrigger(ai); };
 +
              creators["start onyxia fight"] = [](PlayerbotAI* ai) { return new OnyxiaStartFightTrigger(ai); };
@@ -709,10 +708,10 @@ index 0000000..cef675b
 +    };
 +}
 diff --git a/ai/playerbot/strategy/values/ValueContext.h b/ai/playerbot/strategy/values/ValueContext.h
-index 3ba2872..53a70e3 100644
+index e7b1da4..bbbfb0f 100644
 --- a/ai/playerbot/strategy/values/ValueContext.h
 +++ b/ai/playerbot/strategy/values/ValueContext.h
-@@ -75,6 +75,8 @@
+@@ -78,6 +78,8 @@
  #include "RandomBotUpdateValue.h"
  #include "RangeValues.h"
  #include "SkipSpellsListValue.h"
@@ -721,7 +720,7 @@ index 3ba2872..53a70e3 100644
  #include "SnareTargetValue.h"
  #include "Stances.h"
  #include "QuestValues.h"
-@@ -116,6 +118,8 @@ namespace ai
+@@ -119,6 +121,8 @@ namespace ai
              creators["craft"] = [](PlayerbotAI* ai) { return new CraftValue(ai); };
              creators["collision"] = [](PlayerbotAI* ai) { return new CollisionValue(ai); };
              creators["skip spells list"] = [](PlayerbotAI* ai) { return new SkipSpellsListValue(ai); };
@@ -729,4 +728,4 @@ index 3ba2872..53a70e3 100644
 +            creators["creature id"] = [](PlayerbotAI* ai) { return new CreatureIdValue(ai); };
              creators["nearest game objects"] = [](PlayerbotAI* ai) { return new NearestGameObjects(ai); };
              creators["nearest game objects no los"] = [](PlayerbotAI* ai) { return new NearestGameObjects(ai, sPlayerbotAIConfig.sightDistance, LOS_IGNORE); };
-             creators["nearest dynamic objects"] = [](PlayerbotAI* ai) { return new NearestDynamicObjects(ai); };
+             creators["nearest damaging traps"] = [](PlayerbotAI* ai) { return new NearestDamagingTrapsValue(ai); };
