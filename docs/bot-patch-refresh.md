@@ -183,7 +183,7 @@ patch.
 | 006 | `Rework spell interrupt calls to CastStop.` |
 | 007 | `Grind RPG corrections.` |
 | 008 | `Engine robustness.` + squash `Drop solo-idle claim registry superseded by the lease manager` |
-| 010 | `Dungeon Clear port.` + squash `Make the vendored tree compile against the Penqle core.` + squash `Fix wrong character in config.` + squash `Provision dungeon-clear test bots with MakeComplete after factory refactor.` + squash `Fix duplicate IsValidPosition declaration after upstream made it public.` |
+| 010 | `Dungeon Clear port.` + squash `Make the vendored tree compile against the Penqle core.` + squash `Fix wrong character in config.` + squash `Provision dungeon-clear test bots with MakeComplete after factory refactor.` |
 | 012 | `Improve bot performance.` + squash `Batch the real-player scan used by the bot AI stagger gate.` |
 | 013 | `Cost-adaptive bot AI scheduling and heavy-bot diagnostics.` |
 
@@ -210,6 +210,14 @@ its parent already produces the fixed form; the 2026-10-08 refresh dropped
 row that way (upstream's elapsed-time rework made the whole skip-time
 bookkeeping it patched redundant). When that happens, drop the squash from this
 table too so the next run does not look up a commit that no longer exists.
+
+The 2026-10-12 (later) refresh dropped `squash Fix duplicate IsValidPosition
+declaration after upstream made it public.` from the 010 row the same way:
+upstream now declares `IsValidPosition`, `IsHazardNearPosition` and
+`GeneratePathAvoidingHazards` itself, so the prefer-main resolution of the
+`Dungeon Clear port.` header conflict already removes the port's redundant
+re-declarations and the fixup has nothing left to do (it was `git rebase
+--skip`ped, so it is gone from `enhancements` too).
 
 ### 2.2 Emit the patches
 

@@ -1,5 +1,5 @@
 diff --git a/ai/playerbot/TravelMgr.cpp b/ai/playerbot/TravelMgr.cpp
-index 772e780..4592513 100644
+index 5880512..891cb03 100644
 --- a/ai/playerbot/TravelMgr.cpp
 +++ b/ai/playerbot/TravelMgr.cpp
 @@ -610,6 +610,12 @@ bool RpgTravelDestination::IsActive(Player* bot, const PlayerTravelInfo& info) c
@@ -16,10 +16,10 @@ index 772e780..4592513 100644
      std::set<ObjectGuid>& ignoreList = AI_VALUE(std::set<ObjectGuid>&,"ignore rpg target");
  
 diff --git a/ai/playerbot/strategy/actions/ChooseRpgTargetAction.cpp b/ai/playerbot/strategy/actions/ChooseRpgTargetAction.cpp
-index b0d6a08..676f99e 100644
+index da91f79..9d952a0 100644
 --- a/ai/playerbot/strategy/actions/ChooseRpgTargetAction.cpp
 +++ b/ai/playerbot/strategy/actions/ChooseRpgTargetAction.cpp
-@@ -15,12 +15,12 @@
+@@ -17,12 +17,12 @@
  
  using namespace ai;
  
@@ -36,7 +36,7 @@ index b0d6a08..676f99e 100644
  
      for (auto& i : nearGuids)
      {
-@@ -32,24 +32,20 @@ bool ChooseRpgTargetAction::HasSameTarget(ObjectGuid guid, uint32 max, std::list
+@@ -34,24 +34,20 @@ bool ChooseRpgTargetAction::HasSameTarget(ObjectGuid guid, uint32 max, std::list
          if (!ai->IsSafe(player))
              continue;
  
@@ -68,7 +68,7 @@ index b0d6a08..676f99e 100644
  }
  
  #define SkipRpgTarget(reason){ if(debug) debugTargets[guidP] = reason; continue;}
-@@ -74,6 +70,12 @@ std::unordered_map<ObjectGuid, float> ChooseRpgTargetAction::GetTargets(Player*
+@@ -76,6 +72,12 @@ std::unordered_map<ObjectGuid, float> ChooseRpgTargetAction::GetTargets(Player*
      std::list<ObjectGuid> possibleObjects = bot->GetMap()->IsDungeon() ? AI_VALUE(std::list<ObjectGuid>, "nearest game objects") : AI_VALUE(std::list<ObjectGuid>, "nearest game objects no los");
      std::list<ObjectGuid> possiblePlayers = AI_VALUE(std::list<ObjectGuid>, "nearest friendly players");
  
@@ -81,7 +81,7 @@ index b0d6a08..676f99e 100644
      //List of targets that we rpg'ed with before and should be ignored.
      std::set<ObjectGuid>& ignoreList = AI_VALUE(std::set<ObjectGuid>&, "ignore rpg target");
  
-@@ -228,8 +230,9 @@ std::unordered_map<ObjectGuid, float> ChooseRpgTargetAction::GetTargets(Player*
+@@ -236,8 +238,9 @@ std::unordered_map<ObjectGuid, float> ChooseRpgTargetAction::GetTargets(Player*
              }
          }
  
@@ -93,7 +93,7 @@ index b0d6a08..676f99e 100644
          {
              sametarget++;
              SkipRpgTarget("Too many bots are rpging with this npc.");
-@@ -512,8 +515,10 @@ bool ChooseRpgTargetAction::Execute(Event& event)
+@@ -520,8 +523,10 @@ bool ChooseRpgTargetAction::Execute(Event& event)
      }
  
      //We pick a random target from the list with targets having a higher relevance of being picked.
@@ -120,7 +120,7 @@ index 183dfa3..c88de4c 100644
          std::unordered_map <ObjectGuid, std::string> rgpActionReason;
      };
 diff --git a/ai/playerbot/strategy/actions/MoveToRpgTargetAction.cpp b/ai/playerbot/strategy/actions/MoveToRpgTargetAction.cpp
-index 7ae31c0..1f76876 100644
+index 95b1a16..e7cbc74 100644
 --- a/ai/playerbot/strategy/actions/MoveToRpgTargetAction.cpp
 +++ b/ai/playerbot/strategy/actions/MoveToRpgTargetAction.cpp
 @@ -26,7 +26,12 @@ bool MoveToRpgTargetAction::Execute(Event& event)
@@ -136,7 +136,7 @@ index 7ae31c0..1f76876 100644
  
      if (guidP.IsPlayer())
      {
-@@ -165,6 +170,12 @@ bool MoveToRpgTargetAction::Execute(Event& event)
+@@ -183,6 +188,12 @@ bool MoveToRpgTargetAction::Execute(Event& event)
          {
              ai->TellDebug(GetMaster(), "Can not path to desired location around " + chat->formatWorldobject(guidP.GetWorldObject(bot->GetInstanceId())) + " trying again later.", "debug move");
  
@@ -149,7 +149,7 @@ index 7ae31c0..1f76876 100644
              return false;
          }
      }
-@@ -232,6 +243,10 @@ bool MoveToRpgTargetAction::isUseful()
+@@ -250,6 +261,10 @@ bool MoveToRpgTargetAction::isUseful()
          {
              ai->TellPlayerNoFacing(GetMaster(), "Target could not be found. Drop rpg target");
          }
@@ -161,10 +161,10 @@ index 7ae31c0..1f76876 100644
  
      if(MEM_AI_VALUE(WorldPosition, "current position")->LastChangeDelay() < 60)
 diff --git a/ai/playerbot/strategy/actions/MovementActions.cpp b/ai/playerbot/strategy/actions/MovementActions.cpp
-index 2738ddc..d984f3d 100644
+index ee085f2..c8f94c9 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.cpp
 +++ b/ai/playerbot/strategy/actions/MovementActions.cpp
-@@ -116,7 +116,7 @@ bool MovementAction::FlyDirect(const WorldPosition &startPosition, const WorldPo
+@@ -127,7 +127,7 @@ bool MovementAction::FlyDirect(const WorldPosition &startPosition, const WorldPo
      return false;
  }
  
@@ -173,7 +173,7 @@ index 2738ddc..d984f3d 100644
  {
      AiObjectContext* context = ai->GetAiObjectContext();
      Player* bot = ai->GetBot();
-@@ -126,24 +126,44 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
+@@ -137,24 +137,44 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
      if (!tEntry)
          return false;
  
@@ -228,7 +228,7 @@ index 2738ddc..d984f3d 100644
          {
              bot->GetSession()->SendLearnNewTaxiNode(unit);
  
-@@ -151,6 +171,9 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
+@@ -162,6 +182,9 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
          }
      }
  
@@ -239,10 +239,10 @@ index 2738ddc..d984f3d 100644
      if (ai->HasCheat(BotCheatMask::gold) || ai->HasCheat(BotCheatMask::taxi))
      {
 diff --git a/ai/playerbot/strategy/actions/MovementActions.h b/ai/playerbot/strategy/actions/MovementActions.h
-index e58bfff..a8e5131 100644
+index 8d2537c..b7aa040 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.h
 +++ b/ai/playerbot/strategy/actions/MovementActions.h
-@@ -31,7 +31,7 @@ namespace ai
+@@ -39,7 +39,7 @@ namespace ai
             return MoveTo(location.mapId, location.x, location.y, location.z, idle, react, noPath, ignoreEnemyTargets);
          }
  
@@ -252,10 +252,10 @@ index e58bfff..a8e5131 100644
  
          bool WaitForTransport();
 diff --git a/ai/playerbot/strategy/actions/RpgAction.cpp b/ai/playerbot/strategy/actions/RpgAction.cpp
-index fac0da4..091f0d7 100644
+index 7d2b182..70374bc 100644
 --- a/ai/playerbot/strategy/actions/RpgAction.cpp
 +++ b/ai/playerbot/strategy/actions/RpgAction.cpp
-@@ -127,9 +127,10 @@ bool RpgAction::SetNextRpgAction()
+@@ -128,9 +128,10 @@ bool RpgAction::SetNextRpgAction()
          }
      }
  
@@ -270,10 +270,10 @@ index fac0da4..091f0d7 100644
      Action* action = actions.front();
  
 diff --git a/ai/playerbot/strategy/actions/RpgSubActions.cpp b/ai/playerbot/strategy/actions/RpgSubActions.cpp
-index 6020da4..a338978 100644
+index f52762a..7940548 100644
 --- a/ai/playerbot/strategy/actions/RpgSubActions.cpp
 +++ b/ai/playerbot/strategy/actions/RpgSubActions.cpp
-@@ -13,6 +13,7 @@
+@@ -14,6 +14,7 @@
  #include "playerbot/TravelMgr.h"
  #include "playerbot/RandomBotFacade.h"
  #include "playerbot/strategy/values/MaintenanceValues.h"
@@ -281,7 +281,7 @@ index 6020da4..a338978 100644
  #include "SayAction.h"
  #include "playerbot/PlayerbotLLMInterface.h"
  
-@@ -217,7 +218,6 @@ bool RpgTaxiAction::Execute(Event& event)
+@@ -218,7 +219,6 @@ bool RpgTaxiAction::Execute(Event& event)
  
      uint32 path = nodes[urand(0, nodes.size() - 1)];
      uint32 money = bot->GetMoney();
@@ -289,17 +289,18 @@ index 6020da4..a338978 100644
  
      TaxiPathEntry const* entry = sTaxiPathStore.LookupEntry(path);
      if (!entry)
-@@ -241,16 +241,22 @@ bool RpgTaxiAction::Execute(Event& event)
+@@ -242,16 +242,23 @@ bool RpgTaxiAction::Execute(Event& event)
          bot->SetMoney(money);
          return false;
      }
--    if (!bot->ActivateTaxiPathTo({ entry->from, entry->to }, flightMaster, 0))
+-    if (!ai::BotTaxiRouteAllowed({ entry->from, entry->to }) || !bot->ActivateTaxiPathTo({ entry->from, entry->to }, flightMaster, 0))
 +
-+    // Keep the existing ambient free-flight policy, but use the SAME native
-+    // eligibility/discovery adapter as purposeful travel. Fund only the exact
-+    // fare and restore funds on rejection too; a temporary credit larger than
-+    // the fare both overdraws the bot ledger and, on the old early-return
-+    // paths, used to leak.
++    // Ambient free flights use the SAME native eligibility/discovery adapter
++    // as purposeful travel (MovementAction::UseTaxi), which runs upstream's
++    // ai::BotTaxiRouteAllowed broken-path guard and the learned-node
++    // fail-closed check. Fund only the exact fare and restore funds on
++    // rejection too; the old temporary credit larger than the fare both
++    // overdraws the bot ledger and, on the early-return paths, used to leak.
 +    bot->SetMoney(uint32(std::min<uint64>(uint64(money) + entry->price, uint64(uint32(-1)))));
 +    bool const activated = MovementAction::UseTaxi(ai, path, true, flightMaster);
 +    bot->SetMoney(money);

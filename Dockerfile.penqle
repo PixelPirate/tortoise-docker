@@ -16,7 +16,7 @@ ARG CORE_REPO=https://github.com/tortoise-wow/tortoise-wow.git
 ARG CORE_REF=main
 ARG CORE_COMMIT=10393426efe4bbe1de3a31fd071ca36fae358bb6
 ARG BOTS_REPO=https://github.com/Sagiroth/TortoiseBots.git
-ARG BOTS_COMMIT=234f44a97ab8e66184079c9274645be3b59aa083
+ARG BOTS_COMMIT=3f57727873b775f4e577ab6f10ba3714b1041ac8
 ARG CMAKE_BUILD_TYPE=Release
 ARG CMAKE_INSTALL_PREFIX=/opt/turtle
 ARG BUILD_JOBS=2
@@ -50,12 +50,25 @@ WORKDIR /src
 # Pinning the commit right before the clone busts the cache only when the pin moves.
 # Fetch the pinned SHA directly instead of the branch tip: a --depth 1 branch
 # clone fails with "reference is not a tree" once upstream advances past the pin.
-RUN git clone --no-checkout "${CORE_REPO}" tortoise-wow \
-    && git -C tortoise-wow fetch --depth 1 origin "${CORE_COMMIT}" \
-    && git -C tortoise-wow checkout --detach FETCH_HEAD \
-    && git clone --no-checkout "${BOTS_REPO}" tortoise-wow/modules/TortoiseBots \
-    && git -C tortoise-wow/modules/TortoiseBots fetch --depth 1 origin "${BOTS_COMMIT}" \
-    && git -C tortoise-wow/modules/TortoiseBots checkout --detach FETCH_HEAD
+# The clone runs over HTTP/1.1 and retries: transfers of the large core repo
+# abort mid-stream behind an intercepting proxy ("curl 56 GnuTLS recv error",
+# with -9 or -24) often enough that a single attempt is unreliable, and a fresh
+# clone is needed each attempt.
+RUN export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.version GIT_CONFIG_VALUE_0=HTTP/1.1 \
+    && for attempt in 1 2 3 4 5 6 7 8; do \
+         rm -rf tortoise-wow; \
+         if git clone --no-checkout "${CORE_REPO}" tortoise-wow \
+            && git -C tortoise-wow fetch --depth 1 origin "${CORE_COMMIT}" \
+            && git -C tortoise-wow checkout --detach FETCH_HEAD \
+            && git clone --no-checkout "${BOTS_REPO}" tortoise-wow/modules/TortoiseBots \
+            && git -C tortoise-wow/modules/TortoiseBots fetch --depth 1 origin "${BOTS_COMMIT}" \
+            && git -C tortoise-wow/modules/TortoiseBots checkout --detach FETCH_HEAD; then \
+           break; \
+         fi; \
+         echo "clone attempt ${attempt} failed, retrying"; \
+         sleep 5; \
+       done \
+    && git -C tortoise-wow rev-parse --verify HEAD
 
 # Local feature patches on top of the pinned core. Same contract as the module
 # series below: numbered, rebase-able, must apply cleanly or the build fails

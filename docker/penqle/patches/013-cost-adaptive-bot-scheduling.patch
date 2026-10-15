@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/PlayerbotAIConfig.cpp b/ai/playerbot/PlayerbotAIConfig.cpp
-index 9ad8a3a..fbdb219 100644
+index 04df8fa..9dbba00 100644
 --- a/ai/playerbot/PlayerbotAIConfig.cpp
 +++ b/ai/playerbot/PlayerbotAIConfig.cpp
-@@ -757,6 +757,16 @@ bool PlayerbotAIConfig::Initialize()
+@@ -778,6 +778,16 @@ bool PlayerbotAIConfig::Initialize()
          botAiTickDivisor = 1;
      if (botAiTickDivisor > 60)
          botAiTickDivisor = 60;
@@ -20,10 +20,10 @@ index 9ad8a3a..fbdb219 100644
      diffEmpty = config.GetIntDefault("AiPlayerbot.DiffEmpty", 200);
      RandombotsWalkingRPG = config.GetBoolDefault("AiPlayerbot.RandombotsWalkingRPG", false);
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index c33fdc4..86ef91b 100644
+index 5a9fdc9..035348f 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
-@@ -502,6 +502,12 @@ public:
+@@ -536,6 +536,12 @@ public:
      // the donor behavior (a full AI tick per bot per tick); >1 staggers bots
      // that no real player is grouped/fighting/seeing with. See BotManager.
      uint32 botAiTickDivisor;
@@ -37,10 +37,10 @@ index c33fdc4..86ef91b 100644
      uint32 diffEmpty;
      uint32 minEnchantingBotLevel;
 diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index d664444..e587e2c 100644
+index 3d4c158..52675f6 100644
 --- a/ai/playerbot/aiplayerbot.conf.dist.in
 +++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -500,6 +500,20 @@ AiPlayerbot.DisableActivityPriorities = 1
+@@ -530,6 +530,20 @@ AiPlayerbot.DisableActivityPriorities = 1
  # hundred bots, 5-10 for a thousand.
  AiPlayerbot.BotAiTickDivisor = 1
  
@@ -62,10 +62,10 @@ index d664444..e587e2c 100644
  # When enabled, bot alts will level up one level at a time to match their master's level
  # AiPlayerbot.SyncAltLevelToMaster = 0
 diff --git a/runtime/BotManager.cpp b/runtime/BotManager.cpp
-index a25bb9f..e8c6391 100644
+index 784a13c..3c845f4 100644
 --- a/runtime/BotManager.cpp
 +++ b/runtime/BotManager.cpp
-@@ -1949,7 +1949,35 @@ void BotManager::UpdateBots(uint32_t diff)
+@@ -1952,7 +1952,35 @@ void BotManager::UpdateBots(uint32_t diff)
                  : diff;
              entry.lastAiUpdateMs = nowMs ? nowMs : 1;
              ++entry.aiVisits;
@@ -101,7 +101,7 @@ index a25bb9f..e8c6391 100644
  
              // Next pool turn: when the AI asked to think again, capped by the
              // bot's situation after this turn. A travel-pipeline step (pick a
-@@ -2146,7 +2174,7 @@ void BotManager::UpdateBots(uint32_t diff)
+@@ -2155,7 +2183,7 @@ void BotManager::UpdateBots(uint32_t diff)
  // could see keeps a full update rate.
  bool BotManager::ShouldStaggerAiThisTick(BotEntry const& entry, Player* player) const
  {
@@ -110,7 +110,7 @@ index a25bb9f..e8c6391 100644
      if (divisor <= 1 || !entry.record.random)
          return false;
  
-@@ -2160,6 +2188,19 @@ bool BotManager::ShouldStaggerAiThisTick(BotEntry const& entry, Player* player)
+@@ -2169,6 +2197,19 @@ bool BotManager::ShouldStaggerAiThisTick(BotEntry const& entry, Player* player)
      if (HasRealPlayerWithin(player, range))
          return false;
  
@@ -131,10 +131,10 @@ index a25bb9f..e8c6391 100644
  }
  
 diff --git a/runtime/BotManager.h b/runtime/BotManager.h
-index bad5664..6d8772f 100644
+index 96a4660..03ce657 100644
 --- a/runtime/BotManager.h
 +++ b/runtime/BotManager.h
-@@ -53,6 +53,11 @@ struct BotRecord
+@@ -54,6 +54,11 @@ struct BotRecord
      // retains the historical accountId fallback for diagnostics.
      uint32_t ownerAccountId = 0;
      uint32_t ticksInWorld = 0;

@@ -71,6 +71,11 @@ Bot-behavior changes are delivered as **build-time patches**, not forks:
 - The clone `RUN` and the `CORE_COMMIT`/`BOTS_COMMIT` ARG declarations are
   deliberately adjacent — declaring pins right before the clone busts the
   layer cache only when a pin actually moves. Preserve that ordering.
+- The clone `RUN` forces `http.version=HTTP/1.1` via `GIT_CONFIG_*` env vars.
+  HTTP/2 transfers of the large core repo abort mid-stream behind an
+  intercepting proxy (`error: RPC failed; curl 56 GnuTLS recv error (-9)`), so
+  the clone never finishes; HTTP/1.1 completes it (observed 2026-10-12 on a
+  corporate-network macOS host). Keep the override.
 - The `-march=native` sed + grep guard exists because upstream hardcodes it;
   published images must not depend on the build host's CPU. If the guard's
   grep fails the build, upstream changed its CMakeLists — fix the sed, don't

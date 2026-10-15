@@ -6,7 +6,7 @@ Pins these patches are written against (see `Dockerfile.penqle`):
 CORE_REPO   https://github.com/tortoise-wow/tortoise-wow.git
 CORE_REF    main
 CORE_COMMIT 10393426efe4bbe1de3a31fd071ca36fae358bb6
-BOTS_COMMIT 234f44a97ab8e66184079c9274645be3b59aa083
+BOTS_COMMIT 3f57727873b775f4e577ab6f10ba3714b1041ac8
 ```
 
 The series is generated from the local `TortoiseBots` `enhancements` branch as

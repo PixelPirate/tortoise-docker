@@ -1,8 +1,8 @@
 diff --git a/runtime/BattlegroundQueueService.cpp b/runtime/BattlegroundQueueService.cpp
-index 30b7203..3488f1e 100644
+index 050d6b9..ece28e0 100644
 --- a/runtime/BattlegroundQueueService.cpp
 +++ b/runtime/BattlegroundQueueService.cpp
-@@ -122,6 +122,29 @@ BattlegroundQueueService& BattlegroundQueueService::Instance()
+@@ -151,6 +151,29 @@ BattlegroundQueueService& BattlegroundQueueService::Instance()
      return instance;
  }
  
@@ -32,9 +32,9 @@ index 30b7203..3488f1e 100644
  void BattlegroundQueueService::Initialize()
  {
      if (m_initialized)
-@@ -129,6 +152,8 @@ void BattlegroundQueueService::Initialize()
-     m_initialized = true;
+@@ -159,6 +182,8 @@ void BattlegroundQueueService::Initialize()
      m_elapsedMs = 0;
+     m_demandElapsedMs = 0;
  
 +    DrainStaleBattlegroundData();
 +
@@ -42,10 +42,10 @@ index 30b7203..3488f1e 100644
      {
          TB_LOG_BASIC("TortoiseBots: BG auto-queue disabled (ai %u bg %u)",
 diff --git a/runtime/BattlegroundQueueService.h b/runtime/BattlegroundQueueService.h
-index 251b5de..29aa2f6 100644
+index 371cb4b..9e84d62 100644
 --- a/runtime/BattlegroundQueueService.h
 +++ b/runtime/BattlegroundQueueService.h
-@@ -56,6 +56,8 @@ private:
+@@ -59,6 +59,8 @@ private:
      void CountSeededForTeams(uint32_t queueTypeValue, uint32_t bracketIndex,
          uint32_t& seededAlliance, uint32_t& seededHorde) const;
  
@@ -53,12 +53,12 @@ index 251b5de..29aa2f6 100644
 +
      bool m_initialized = false;
      uint32_t m_elapsedMs = 0;
-     uint32_t m_reconcileElapsedMs = 0;
+     uint32_t m_demandElapsedMs = 0;
 diff --git a/runtime/BotManager.h b/runtime/BotManager.h
-index f20baa0..e2586e3 100644
+index bc198db..b0a913d 100644
 --- a/runtime/BotManager.h
 +++ b/runtime/BotManager.h
-@@ -259,6 +259,7 @@ private:
+@@ -273,6 +273,7 @@ private:
      // Action-count snapshot cadence: cumulative per-(class, action) CSV dump
      // every 5 minutes of tick time (AiPlayerbot.ActionCountsLog only).
      uint32_t m_actionCountsElapsedMs = 0;

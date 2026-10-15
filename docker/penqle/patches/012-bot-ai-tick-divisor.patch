@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/PlayerbotAIConfig.cpp b/ai/playerbot/PlayerbotAIConfig.cpp
-index 0497ac9..9ad8a3a 100644
+index 55f7b62..04df8fa 100644
 --- a/ai/playerbot/PlayerbotAIConfig.cpp
 +++ b/ai/playerbot/PlayerbotAIConfig.cpp
-@@ -752,6 +752,11 @@ bool PlayerbotAIConfig::Initialize()
+@@ -773,6 +773,11 @@ bool PlayerbotAIConfig::Initialize()
      limitCombatActivity = config.GetBoolDefault("AiPlayerbot.LimitCombatActivity", false);
      guildOrderAlwaysActive = config.GetBoolDefault("AiPlayerbot.GuildOrderAlwaysActive", true);
      botActiveAlone = config.GetIntDefault("AiPlayerbot.botActiveAlone", 10);
@@ -15,10 +15,10 @@ index 0497ac9..9ad8a3a 100644
      diffEmpty = config.GetIntDefault("AiPlayerbot.DiffEmpty", 200);
      RandombotsWalkingRPG = config.GetBoolDefault("AiPlayerbot.RandombotsWalkingRPG", false);
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index 2fc282f..c33fdc4 100644
+index 939e637..5a9fdc9 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
-@@ -498,6 +498,10 @@ public:
+@@ -532,6 +532,10 @@ public:
      bool limitCombatActivity;
      bool guildOrderAlwaysActive;
      uint32 botActiveAlone;
@@ -30,10 +30,10 @@ index 2fc282f..c33fdc4 100644
      uint32 diffEmpty;
      uint32 minEnchantingBotLevel;
 diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index ac8edf6..d664444 100644
+index 419c409..3d4c158 100644
 --- a/ai/playerbot/aiplayerbot.conf.dist.in
 +++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -487,6 +487,19 @@ AiPlayerbot.DisableActivityPriorities = 1
+@@ -517,6 +517,19 @@ AiPlayerbot.DisableActivityPriorities = 1
  # Default is 10, higher numbers may affect performance
  # AiPlayerbot.botActiveAlone = 10
  
@@ -54,10 +54,10 @@ index ac8edf6..d664444 100644
  # When enabled, bot alts will level up one level at a time to match their master's level
  # AiPlayerbot.SyncAltLevelToMaster = 0
 diff --git a/runtime/BotManager.cpp b/runtime/BotManager.cpp
-index cfa8f4a..a25bb9f 100644
+index ef12b73..784a13c 100644
 --- a/runtime/BotManager.cpp
 +++ b/runtime/BotManager.cpp
-@@ -1930,10 +1930,19 @@ void BotManager::UpdateBots(uint32_t diff)
+@@ -1933,10 +1933,19 @@ void BotManager::UpdateBots(uint32_t diff)
  
          if (entry.aiAdapter && entry.aiAdapter->IsUsable())
          {
@@ -80,7 +80,7 @@ index cfa8f4a..a25bb9f 100644
              uint32_t const nowMs = WorldTimer::getMSTime();
              uint32_t const elapsed = entry.lastAiUpdateMs
                  ? std::min(WorldTimer::getMSTimeDiff(entry.lastAiUpdateMs, nowMs), kMaxAiElapsedMs)
-@@ -1983,6 +1992,10 @@ void BotManager::UpdateBots(uint32_t diff)
+@@ -1986,6 +1995,10 @@ void BotManager::UpdateBots(uint32_t diff)
          }
      };
  
@@ -91,16 +91,16 @@ index cfa8f4a..a25bb9f 100644
      // Pass 1: bots under a real player, always, first, with no budget.
      for (uint32_t guidLow : playerGuids)
          updateOneBot(guidLow);
-@@ -2057,6 +2070,8 @@ void BotManager::UpdateBots(uint32_t diff)
-     }
-     m_perfTurnLoopUsSum += nowUs() - turnLoopStartUs;
+@@ -2062,6 +2075,8 @@ void BotManager::UpdateBots(uint32_t diff)
+     // The cuttable share of this tick, fed to the controller next pass.
+     m_lastPoolTurnsMs = static_cast<uint32_t>((nowUs() - turnsStartUs) / 1000);
  
 +    ++m_aiTickCounter;
 +
      m_inBotUpdate = false;
  
      if (!m_pendingBotRemovals.empty())
-@@ -2122,6 +2137,72 @@ void BotManager::UpdateBots(uint32_t diff)
+@@ -2131,6 +2146,72 @@ void BotManager::UpdateBots(uint32_t diff)
      }
  }
  
@@ -174,10 +174,10 @@ index cfa8f4a..a25bb9f 100644
  {
      // Core owns Headless session lifecycle (queue, LoginPlayer dispatch, reclaim).
 diff --git a/runtime/BotManager.h b/runtime/BotManager.h
-index e2586e3..bad5664 100644
+index b0a913d..96a4660 100644
 --- a/runtime/BotManager.h
 +++ b/runtime/BotManager.h
-@@ -287,6 +287,17 @@ private:
+@@ -301,6 +301,17 @@ private:
      // out of teleport drops out. Feeds the "stuck teleport" diagnostic line.
      std::unordered_map<uint32_t, time_t> m_teleportSince;
      void SweepStrandedBots(uint32_t diff);

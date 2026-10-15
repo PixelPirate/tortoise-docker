@@ -1,5 +1,5 @@
 diff --git a/TortoiseBots.cmake b/TortoiseBots.cmake
-index dc7fd2e..ea21b1f 100644
+index b84507b..06ef0da 100644
 --- a/TortoiseBots.cmake
 +++ b/TortoiseBots.cmake
 @@ -40,6 +40,16 @@ endfunction()
@@ -29,7 +29,7 @@ index dc7fd2e..ea21b1f 100644
      string(REPLACE "|" ";" TORTOISEBOTS_LIVE_CONFIG "${TORTOISEBOTS_LIVE_CONFIG}")
      list(GET TORTOISEBOTS_LIVE_CONFIG 0 TORTOISEBOTS_LIVE_CONFIG_DEST)
      list(GET TORTOISEBOTS_LIVE_CONFIG 1 TORTOISEBOTS_LIVE_CONFIG_SRC)
-@@ -247,6 +258,28 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
+@@ -250,6 +261,28 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
    file(GLOB TORTOISEBOTS_ACTION_SRC CONFIGURE_DEPENDS
      "${TORTOISEBOTS_ROOT}/ai/playerbot/strategy/actions/*.cpp")
  
@@ -58,7 +58,7 @@ index dc7fd2e..ea21b1f 100644
    set(TORTOISEBOTS_SOURCES
      ${TORTOISEBOTS_HOST_SRC}
      ${TORTOISEBOTS_AI_SRC}
-@@ -257,6 +290,8 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
+@@ -260,6 +293,8 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
      ${TORTOISEBOTS_TRIGGER_SRC}
      ${TORTOISEBOTS_ACTION_SRC})
    list(REMOVE_DUPLICATES TORTOISEBOTS_SOURCES)
@@ -67,7 +67,7 @@ index dc7fd2e..ea21b1f 100644
  
    foreach(TORTOISEBOTS_SOURCE IN LISTS TORTOISEBOTS_SOURCES)
      if(NOT EXISTS "${TORTOISEBOTS_SOURCE}")
-@@ -360,5 +395,91 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "POST_TARGETS")
+@@ -372,5 +407,91 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "POST_TARGETS")
            "-include" "${TORTOISEBOTS_PCH_HEADER}")
        endif()
      endif()
@@ -126014,10 +126014,10 @@ index 0000000..76f71a1
 +if __name__ == "__main__":
 +    main()
 diff --git a/ai/playerbot/PlayerbotAI.h b/ai/playerbot/PlayerbotAI.h
-index f4593a3..7d320af 100644
+index e22b2d2..44462c6 100644
 --- a/ai/playerbot/PlayerbotAI.h
 +++ b/ai/playerbot/PlayerbotAI.h
-@@ -349,6 +349,13 @@ public:
+@@ -350,6 +350,13 @@ public:
      virtual void UpdateAI(uint32 elapsed, bool minimal = false);
  
      void HandleCommands();
@@ -126031,7 +126031,7 @@ index f4593a3..7d320af 100644
  private:
      void UpdateAIInternal(uint32 elapsed, bool minimal = false) override;
  public:
-@@ -986,9 +993,14 @@ public:
+@@ -1062,9 +1069,14 @@ public:
      std::vector<std::string> GetRecordedMessages() { m_recordMessages = false; m_recordIncommingMessages= false; auto msgs = m_recordedMessages; m_recordedMessages.clear(); return msgs; }
      void ClearRecordedMessages() { m_recordedMessages.clear(); m_recordMessages = false; m_recordIncommingMessages = false;}
  
@@ -126066,7 +126066,7 @@ index 79ebea8..63cdb7b 100644
      void IncreaseAIInternalUpdateDelay(uint32 delay);
      void YieldAIInternalThread(bool minimal = false);
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index 46ffac7..2fc282f 100644
+index 3f53e5e..939e637 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
 @@ -98,6 +98,14 @@ public:
@@ -126098,10 +126098,10 @@ index 117918b..909af4f 100644
  		virtual std::string GetShortName() const override;
  	private:
 diff --git a/ai/playerbot/strategy/Value.h b/ai/playerbot/strategy/Value.h
-index caff0ba..df14f43 100644
+index fa4a48b..55049eb 100644
 --- a/ai/playerbot/strategy/Value.h
 +++ b/ai/playerbot/strategy/Value.h
-@@ -368,6 +368,9 @@ namespace ai
+@@ -378,6 +378,9 @@ namespace ai
          virtual void Set(T value) override { this->value = value; }
          virtual void Update() { }
          virtual void Reset() override { value = defaultValue; }
@@ -126153,10 +126153,10 @@ index 5129dea..b73b574 100644
  
      uint32 triggerId = movement.lastAreaTrigger;
 diff --git a/ai/playerbot/strategy/actions/MovementActions.cpp b/ai/playerbot/strategy/actions/MovementActions.cpp
-index d984f3d..c293380 100644
+index c8f94c9..cd49801 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.cpp
 +++ b/ai/playerbot/strategy/actions/MovementActions.cpp
-@@ -1300,6 +1300,26 @@ float MovementAction::GetFollowAngle()
+@@ -1367,6 +1367,26 @@ float MovementAction::GetFollowAngle()
      return 0;
  }
  
@@ -126184,12 +126184,12 @@ index d984f3d..c293380 100644
  {
      if (!target)
 diff --git a/ai/playerbot/strategy/actions/MovementActions.h b/ai/playerbot/strategy/actions/MovementActions.h
-index a8e5131..b877aa3 100644
+index b7aa040..2c591a2 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.h
 +++ b/ai/playerbot/strategy/actions/MovementActions.h
-@@ -9,6 +9,19 @@
- #include "playerbot/strategy/values/HazardsValue.h"
- #include "playerbot/strategy/values/LastMovementValue.h"
+@@ -11,6 +11,19 @@
+ #include "playerbot/LedgeStepDownPolicy.h"
+ #include <atomic>
  
 +// Move priorities, for code ported from mod-playerbots, which arbitrates
 +// moves by them. Nothing in this tree arbitrates: MoveTo takes the move and
@@ -126207,7 +126207,7 @@ index a8e5131..b877aa3 100644
  namespace ai
  {
      class MovementAction : public Action
-@@ -31,8 +44,13 @@ namespace ai
+@@ -39,8 +52,13 @@ namespace ai
             return MoveTo(location.mapId, location.x, location.y, location.z, idle, react, noPath, ignoreEnemyTargets);
          }
  
@@ -126221,14 +126221,11 @@ index a8e5131..b877aa3 100644
  
          bool WaitForTransport();
  
-@@ -95,9 +113,50 @@ namespace ai
+@@ -119,6 +137,49 @@ namespace ai
          bool ShouldReactionInterruptCast() const override { return true; }
          bool ShouldReactionInterruptMovement() const override { return true; }
  
--    private:
 +    protected: // the dungeon-clear port's dropping overloads are used by subclasses
-         bool IsHazardNearPosition(const WorldPosition& position, HazardPosition* outHazard = nullptr);
-         bool GeneratePathAvoidingHazards(std::vector<WorldPosition>& movePath);
 +
 +        // --- dungeon-clear port: mod-playerbots movement surface ------------
 +        // MoveTo overload dropping the mod-playerbots movement arguments
@@ -126270,9 +126267,10 @@ index a8e5131..b877aa3 100644
 +        // No-argument form: may the bot start moving from where it stands.
 +        bool IsMovingAllowed();
 +        // --------------------------------------------------------------------
-     };
++
+     private:
+         bool GeneratePathAvoidingHazards(std::vector<WorldPosition>& movePath);
  
-     class FleeAction : public MovementAction
 diff --git a/ai/playerbot/strategy/druid/GenericDruidStrategy.h b/ai/playerbot/strategy/druid/GenericDruidStrategy.h
 index 506a360..130730f 100644
 --- a/ai/playerbot/strategy/druid/GenericDruidStrategy.h
@@ -126382,10 +126380,10 @@ index 26fd5bc..97ff3d3 100644
  #include "MeleeCombatStrategy.h"
  
 diff --git a/ai/playerbot/strategy/triggers/DungeonTriggers.cpp b/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
-index c0543fa..502944a 100644
+index 4de8aae..55716cc 100644
 --- a/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
 +++ b/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
-@@ -61,7 +61,8 @@ bool StartBossFightTrigger::IsActive()
+@@ -65,7 +65,8 @@ bool StartBossFightTrigger::IsActive()
          if (bot->IsInWorld() && !bot->IsBeingTeleported())
          {
              AiObjectContext* context = ai->GetAiObjectContext();
@@ -126396,7 +126394,7 @@ index c0543fa..502944a 100644
              {
                  Unit* attacker = ai->GetUnit(attackerGuid);
 diff --git a/ai/playerbot/strategy/values/AttackersValue.h b/ai/playerbot/strategy/values/AttackersValue.h
-index 2714ccd..4ae2d30 100644
+index 1b478a9..7f493d4 100644
 --- a/ai/playerbot/strategy/values/AttackersValue.h
 +++ b/ai/playerbot/strategy/values/AttackersValue.h
 @@ -25,6 +25,11 @@ namespace ai
