@@ -41,12 +41,12 @@ from `docs/gap-prompts/` and land as a new patch on the existing series.
 The build pins two SHAs in `Dockerfile.penqle` (`CORE_COMMIT`, `BOTS_COMMIT`),
 declared immediately before the clone `RUN`. Read the current values from
 there, and resolve each source's tip without touching the reference checkouts.
-The core is pinned on the `main` branch (`CORE_REF`), so resolve the core
-from `main`:
+The core is pinned on the `1181dev` branch (`CORE_REF`), so resolve the core
+from `1181dev`:
 
 ```bash
-git ls-remote https://github.com/tortoise-wow/tortoise-wow.git main  # CORE_COMMIT
-git ls-remote https://github.com/Sagiroth/TortoiseBots.git main      # BOTS_COMMIT
+git ls-remote https://github.com/tortoise-wow/tortoise-wow.git 1181dev  # CORE_COMMIT
+git ls-remote https://github.com/Sagiroth/TortoiseBots.git main         # BOTS_COMMIT
 ```
 
 Both move on every run of this runbook. A core bump is accepted only if the
@@ -183,7 +183,7 @@ patch.
 | 006 | `Rework spell interrupt calls to CastStop.` |
 | 007 | `Grind RPG corrections.` |
 | 008 | `Engine robustness.` + squash `Drop solo-idle claim registry superseded by the lease manager` |
-| 010 | `Dungeon Clear port.` + squash `Make the vendored tree compile against the Penqle core.` + squash `Fix wrong character in config.` + squash `Provision dungeon-clear test bots with MakeComplete after factory refactor.` |
+| 010 | `Dungeon Clear port.` + squash `Make the vendored tree compile against the Penqle core.` + squash `Fix wrong character in config.` + squash `Provision dungeon-clear test bots with MakeComplete after factory refactor.` + squash `Fix the vendored loot-roll hook after upstream grew its out-parameters.` |
 | 012 | `Improve bot performance.` + squash `Batch the real-player scan used by the bot AI stagger gate.` |
 | 013 | `Cost-adaptive bot AI scheduling and heavy-bot diagnostics.` |
 
@@ -272,16 +272,18 @@ nothing, and every patch passed `git apply --check`.
 ### 3.1 Bump the pins and their docs
 
 ```bash
-CORE_NEW=$(git ls-remote https://github.com/tortoise-wow/tortoise-wow.git main | cut -f1)
+CORE_NEW=$(git ls-remote https://github.com/tortoise-wow/tortoise-wow.git 1181dev | cut -f1)
 BOTS_NEW=$(git -C /Users/pho/Turtle/New/TortoiseBots rev-parse main)
-# Dockerfile.penqle: ARG CORE_COMMIT=<CORE_NEW>, ARG BOTS_COMMIT=<BOTS_NEW>
-# (both declared immediately before the clone RUN; do not reorder)
+# Dockerfile.penqle: ARG CORE_REF=1181dev, ARG CORE_COMMIT=<CORE_NEW>,
+# ARG BOTS_COMMIT=<BOTS_NEW> (the ARGs are declared immediately before the
+# clone RUN; do not reorder)
 ```
 
 Also update both pins in `docker/penqle/patches/README.md` (the "Pins these
 patches are written against" block) and `docs/SPEC.md` (§0 path table, the
-re-pin note, and any pin reference). The core bump is only accepted if the
-build's host-contract gate passes (see Gotchas).
+re-pin note, and any pin reference). Re-verify `docker/penqle/core-patches/`
+against the new core tip (`git apply --check`) before building. The core bump
+is only accepted if the build's host-contract gate passes (see Gotchas).
 
 ### 3.2 Build and start
 

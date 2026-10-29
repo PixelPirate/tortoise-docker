@@ -50,6 +50,17 @@ AI_RANDOM_BOT_AUTOLOGIN="${AI_RANDOM_BOT_AUTOLOGIN:-0}"
 AI_RANDOM_BOT_AUTO_CREATE="${AI_RANDOM_BOT_AUTO_CREATE:-0}"
 AI_ENABLE_RANDOM_TELEPORTS="${AI_ENABLE_RANDOM_TELEPORTS:-0}"
 AI_RANDOM_BOT_LFT_ENABLED="${AI_RANDOM_BOT_LFT_ENABLED:-0}"
+# Upstream's own run leader: a bound party of bots clears a dungeon plan by
+# itself (route, pulls, bosses, doors). Needs AI_BOT_LFG_GROUPS for the server
+# to form the bot-only parties; both keys on is "bots clear dungeons on their
+# own". Upstream default is already 1; kept explicit so the rendered file says
+# so and `.reload config` re-reads it.
+AI_DUNGEON_SELF_CLEAR="${AI_DUNGEON_SELF_CLEAR:-1}"
+# World bots form their own dungeon groups (tank, healer, two damage, one role
+# open for a player) and start an upstream run for the bot-only party. Upstream
+# default is 0. Bots cannot travel to the dungeon yet, so a group no player
+# joins disbands after two minutes.
+AI_BOT_LFG_GROUPS="${AI_BOT_LFG_GROUPS:-1}"
 AI_AH_MARKET_ENABLED="${AI_AH_MARKET_ENABLED:-0}"
 AI_FORCE_REBUFF_ON_READY_CHECK="${AI_FORCE_REBUFF_ON_READY_CHECK:-0}"
 AI_FAILED_ACTION_RETRY_BASE="${AI_FAILED_ACTION_RETRY_BASE:-250}"
@@ -176,6 +187,8 @@ set_conf "${AI_CONF}" "AiPlayerbot.RandomBotLoginAtStartup" "${AI_RANDOM_BOT_AUT
 set_conf "${AI_CONF}" "AiPlayerbot.RandomBotLoginWithPlayer" "${AI_RANDOM_BOT_LOGIN_WITH_PLAYER}"
 set_conf "${AI_CONF}" "AiPlayerbot.EnableRandomTeleports" "${AI_ENABLE_RANDOM_TELEPORTS}"
 set_conf "${AI_CONF}" "AiPlayerbot.RandomBotLftEnabled" "${AI_RANDOM_BOT_LFT_ENABLED}"
+set_conf "${AI_CONF}" "AiPlayerbot.DungeonSelfClear" "${AI_DUNGEON_SELF_CLEAR}"
+set_conf "${AI_CONF}" "AiPlayerbot.BotLfgGroups" "${AI_BOT_LFG_GROUPS}"
 set_conf "${AI_CONF}" "AiPlayerbot.AhMarketEnabled" "${AI_AH_MARKET_ENABLED}"
 set_conf "${AI_CONF}" "AiPlayerbot.DisableActivityPriorities" "${AI_DISABLE_ACTIVITY_PRIORITIES}"
 set_conf "${AI_CONF}" "AiPlayerbot.BotAiTickDivisor" "${AI_BOT_AI_TICK_DIVISOR}"

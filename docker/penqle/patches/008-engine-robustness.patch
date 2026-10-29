@@ -1,8 +1,8 @@
 diff --git a/runtime/BattlegroundQueueService.cpp b/runtime/BattlegroundQueueService.cpp
-index 050d6b9..ece28e0 100644
+index 5dd674b..8cae322 100644
 --- a/runtime/BattlegroundQueueService.cpp
 +++ b/runtime/BattlegroundQueueService.cpp
-@@ -151,6 +151,29 @@ BattlegroundQueueService& BattlegroundQueueService::Instance()
+@@ -152,6 +152,29 @@ BattlegroundQueueService& BattlegroundQueueService::Instance()
      return instance;
  }
  
@@ -32,7 +32,7 @@ index 050d6b9..ece28e0 100644
  void BattlegroundQueueService::Initialize()
  {
      if (m_initialized)
-@@ -159,6 +182,8 @@ void BattlegroundQueueService::Initialize()
+@@ -160,6 +183,8 @@ void BattlegroundQueueService::Initialize()
      m_elapsedMs = 0;
      m_demandElapsedMs = 0;
  
@@ -54,11 +54,23 @@ index 371cb4b..9e84d62 100644
      bool m_initialized = false;
      uint32_t m_elapsedMs = 0;
      uint32_t m_demandElapsedMs = 0;
+diff --git a/runtime/BotManager.cpp b/runtime/BotManager.cpp
+index b55b1f8..a3ba9dd 100644
+--- a/runtime/BotManager.cpp
++++ b/runtime/BotManager.cpp
+@@ -2267,6 +2267,7 @@ void BotManager::UpdateBots(uint32_t diff)
+ void BotManager::OnWorldUpdate(uint32_t diff)
+ {
+     AltBotService::Instance().Update();
++
+     // Core owns Headless session lifecycle (queue, LoginPlayer dispatch, reclaim).
+     // Module only tracks BotRecord and polls adapter state. No pending promotion.
+     for (auto it = m_bots.begin(); it != m_bots.end(); )
 diff --git a/runtime/BotManager.h b/runtime/BotManager.h
-index bc198db..b0a913d 100644
+index b5bc91d..82868e9 100644
 --- a/runtime/BotManager.h
 +++ b/runtime/BotManager.h
-@@ -273,6 +273,7 @@ private:
+@@ -284,6 +284,7 @@ private:
      // Action-count snapshot cadence: cumulative per-(class, action) CSV dump
      // every 5 minutes of tick time (AiPlayerbot.ActionCountsLog only).
      uint32_t m_actionCountsElapsedMs = 0;
@@ -67,10 +79,10 @@ index bc198db..b0a913d 100644
      uint32_t m_autoTestAccount = 0;
  // pi-lens-ignore: clang:unknown_typename
 diff --git a/runtime/LftBotFillService.cpp b/runtime/LftBotFillService.cpp
-index a9fcb60..8f26292 100644
+index 89cb7b2..6222055 100644
 --- a/runtime/LftBotFillService.cpp
 +++ b/runtime/LftBotFillService.cpp
-@@ -132,6 +132,28 @@ LftBotFillService& LftBotFillService::Instance()
+@@ -103,6 +103,28 @@ LftBotFillService& LftBotFillService::Instance()
      return instance;
  }
  
@@ -99,7 +111,7 @@ index a9fcb60..8f26292 100644
  void LftBotFillService::Initialize()
  {
      if (m_initialized)
-@@ -140,6 +162,8 @@ void LftBotFillService::Initialize()
+@@ -111,6 +133,8 @@ void LftBotFillService::Initialize()
      m_elapsedMs = 0;
      m_pending.clear();
  
@@ -109,13 +121,13 @@ index a9fcb60..8f26292 100644
      {
          TB_LOG_BASIC("TortoiseBots: LFT random fill disabled (ai %u lft %u); own-party offer acceptance stays on",
 diff --git a/runtime/LftBotFillService.h b/runtime/LftBotFillService.h
-index 2e882a5..e94920a 100644
+index a58929f..1dd9341 100644
 --- a/runtime/LftBotFillService.h
 +++ b/runtime/LftBotFillService.h
-@@ -57,6 +57,7 @@ private:
-     // skip reason when the bot must not fill the role, empty when it may.
-     std::string RoleMismatchReason(Player* bot, uint8 needRole) const;
-     bool EquipBestShieldFromBags(Player* bot) const;
+@@ -65,6 +65,7 @@ private:
+     // real player who shares the offer. Fill-owned bots (m_pending) are never
+     // touched here; solo managed bots never auto-accept.
+     void AcceptPartyBotOffers();
 +    void DrainStaleLftQueue();
  
      bool m_initialized = false;

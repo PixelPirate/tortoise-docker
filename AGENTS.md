@@ -8,7 +8,7 @@ This repo contains **no application source code**. It is a Docker packaging
 project: `Dockerfile.penqle` builds a Turtle WoW private-server image by
 cloning and compiling two external C++ projects at pinned commit SHAs:
 
-- **Core**: [tortoise-wow/tortoise-wow](https://github.com/tortoise-wow/tortoise-wow), branch `main`
+- **Core**: [tortoise-wow/tortoise-wow](https://github.com/tortoise-wow/tortoise-wow), branch `1181dev`
 - **Bot module**: [Sagiroth/TortoiseBots](https://github.com/Sagiroth/TortoiseBots), cloned into the core as `modules/TortoiseBots`
 
 Everything else is Compose orchestration, shell scripts run inside the image,
@@ -85,6 +85,12 @@ Bot-behavior changes are delivered as **build-time patches**, not forks:
 - The module's host-contract check
   (`tools/verify_penqle_host_contract.sh --core .`) runs before compilation on
   purpose: it fails in minutes instead of after an hour of building.
+- ARM builds link with `lld` (`CPU_TARGET=arm*` adds `-fuse-ld=lld`). binutils
+  2.38's aarch64 Cortex-A53 erratum 843419 workaround aborts with a BFD
+  internal error (`elfnn-aarch64.c`,
+  `_bfd_aarch64_erratum_843419_branch_to_stub`) on mangosd's static archive set
+  in every workaround mode; lld runs no such pass. x86_64 keeps the default
+  linker. Observed 2026-10-29 on Apple Silicon.
 - Module `.dist` config templates are copied to `/opt/turtle/etc.dist/` so a
   `CONFIG_PATH` bind mount over `/opt/turtle/etc` can never hide them (the
   "etc.dist" pattern). Keep that separation.

@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/strategy/actions/TradeStatusAction.cpp b/ai/playerbot/strategy/actions/TradeStatusAction.cpp
-index 9346f98..4fdf804 100644
+index e35067d..1425332 100644
 --- a/ai/playerbot/strategy/actions/TradeStatusAction.cpp
 +++ b/ai/playerbot/strategy/actions/TradeStatusAction.cpp
-@@ -17,6 +17,12 @@ using namespace ai;
+@@ -18,6 +18,12 @@ using namespace ai;
  
  bool TradeStatusAction::Execute(Event& event)
  {
@@ -15,7 +15,7 @@ index 9346f98..4fdf804 100644
      Player* trader = bot->GetTrader();
      Player* master = GetMaster();
      if (!trader)
-@@ -61,10 +67,7 @@ bool TradeStatusAction::Execute(Event& event)
+@@ -80,10 +86,7 @@ bool TradeStatusAction::Execute(Event& event)
  
      if (!shouldTrade)
      {
@@ -27,7 +27,7 @@ index 9346f98..4fdf804 100644
          return false;
      }
  
-@@ -234,6 +237,12 @@ void TradeStatusAction::AutoShareConjured(Player* trader)
+@@ -253,6 +256,12 @@ void TradeStatusAction::AutoShareConjured(Player* trader)
      (void)placed;
  }
  

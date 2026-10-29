@@ -1,5 +1,5 @@
 diff --git a/TortoiseBots.cmake b/TortoiseBots.cmake
-index b84507b..06ef0da 100644
+index 44c1f58..f9c9594 100644
 --- a/TortoiseBots.cmake
 +++ b/TortoiseBots.cmake
 @@ -40,6 +40,16 @@ endfunction()
@@ -29,7 +29,7 @@ index b84507b..06ef0da 100644
      string(REPLACE "|" ";" TORTOISEBOTS_LIVE_CONFIG "${TORTOISEBOTS_LIVE_CONFIG}")
      list(GET TORTOISEBOTS_LIVE_CONFIG 0 TORTOISEBOTS_LIVE_CONFIG_DEST)
      list(GET TORTOISEBOTS_LIVE_CONFIG 1 TORTOISEBOTS_LIVE_CONFIG_SRC)
-@@ -250,6 +261,28 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
+@@ -277,6 +288,28 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
    file(GLOB TORTOISEBOTS_ACTION_SRC CONFIGURE_DEPENDS
      "${TORTOISEBOTS_ROOT}/ai/playerbot/strategy/actions/*.cpp")
  
@@ -58,7 +58,7 @@ index b84507b..06ef0da 100644
    set(TORTOISEBOTS_SOURCES
      ${TORTOISEBOTS_HOST_SRC}
      ${TORTOISEBOTS_AI_SRC}
-@@ -260,6 +293,8 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
+@@ -287,6 +320,8 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
      ${TORTOISEBOTS_TRIGGER_SRC}
      ${TORTOISEBOTS_ACTION_SRC})
    list(REMOVE_DUPLICATES TORTOISEBOTS_SOURCES)
@@ -67,7 +67,7 @@ index b84507b..06ef0da 100644
  
    foreach(TORTOISEBOTS_SOURCE IN LISTS TORTOISEBOTS_SOURCES)
      if(NOT EXISTS "${TORTOISEBOTS_SOURCE}")
-@@ -372,5 +407,91 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "POST_TARGETS")
+@@ -407,5 +442,91 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "POST_TARGETS")
            "-include" "${TORTOISEBOTS_PCH_HEADER}")
        endif()
      endif()
@@ -160,7 +160,7 @@ index b84507b..06ef0da 100644
    endif()
  endif()
 diff --git a/ai/cmangos-compat-shim.h b/ai/cmangos-compat-shim.h
-index af3d6f7..9c58d8a 100644
+index 86391e5..61664d4 100644
 --- a/ai/cmangos-compat-shim.h
 +++ b/ai/cmangos-compat-shim.h
 @@ -26,6 +26,7 @@
@@ -1152,10 +1152,10 @@ index 0000000..7bb5b97
 +}
 diff --git a/ai/dungeonclear/Ai/Dungeon/DungeonClear/Action/BetterLootRollAction.cpp b/ai/dungeonclear/Ai/Dungeon/DungeonClear/Action/BetterLootRollAction.cpp
 new file mode 100644
-index 0000000..9860ead
+index 0000000..0f3f58f
 --- /dev/null
 +++ b/ai/dungeonclear/Ai/Dungeon/DungeonClear/Action/BetterLootRollAction.cpp
-@@ -0,0 +1,108 @@
+@@ -0,0 +1,132 @@
 +/*
 + * mod-dungeon-clear — BetterLootRollAction.cpp  (Tortoise port)
 + *
@@ -1211,22 +1211,46 @@ index 0000000..9860ead
 +    return LootRollAction::isUseful();
 +}
 +
-+RollVote DungeonClearBetterLootRollAction::CalculateRollVote(ItemQualifier& itemQualifier)
++RollVote DungeonClearBetterLootRollAction::CalculateRollVote(ItemQualifier& itemQualifier, RollVote* finalVote,
++                                                             std::string* reasonOut, bool log)
 +{
 +    if (!DcSettings::GetBool(bot, "BetterLootRolling"))
-+        return LootRollAction::CalculateRollVote(itemQualifier);
++        return LootRollAction::CalculateRollVote(itemQualifier, finalVote, reasonOut, log);
 +
 +    // See the header comment: isUseful() alone does not gate a queued basket.
 +    if (DcPlayerbotCompat::IsSelfBot(bot))
-+        return ROLL_PASS;
++        return Answer(itemQualifier, ROLL_PASS, "a self bot casts no vote", finalVote, reasonOut, log);
 +
 +    ItemPrototype const* proto = itemQualifier.GetProto();
 +
 +    // Anything that is not the over-level case is stock's to answer.
 +    if (!proto || !IsFutureWearable(proto))
-+        return LootRollAction::CalculateRollVote(itemQualifier);
++        return LootRollAction::CalculateRollVote(itemQualifier, finalVote, reasonOut, log);
 +
-+    return CalculateFutureVote(proto, itemQualifier.GetRandomPropertyId());
++    return Answer(itemQualifier, CalculateFutureVote(proto, itemQualifier.GetRandomPropertyId()),
++        "over-level gear this bot would wear later", finalVote, reasonOut, log);
++}
++
++RollVote DungeonClearBetterLootRollAction::Answer(ItemQualifier& itemQualifier, RollVote vote,
++                                                  std::string const& reason, RollVote* finalVote,
++                                                  std::string* reasonOut, bool log)
++{
++    if (finalVote)
++        *finalVote = vote;
++    if (reasonOut)
++        *reasonOut = reason;
++
++    if (log && sPlayerbotAIConfig.hasLog("bot_events.csv"))
++    {
++        ItemPrototype const* proto = itemQualifier.GetProto();
++        char const* voteName = vote == ROLL_NEED ? "need"
++            : vote == ROLL_GREED ? "greed"
++            : vote == ROLL_DISENCHANT ? "disenchant" : "pass";
++        sPlayerbotAIConfig.logEvent(ai, "LootRoll", proto ? proto->Name1 : "unknown item",
++            std::string(voteName) + ":" + std::to_string(itemQualifier.GetId()) + ":" + reason);
++    }
++
++    return vote;
 +}
 +
 +bool DungeonClearBetterLootRollAction::IsFutureWearable(ItemPrototype const* proto) const
@@ -1266,10 +1290,10 @@ index 0000000..9860ead
 +}
 diff --git a/ai/dungeonclear/Ai/Dungeon/DungeonClear/Action/BetterLootRollAction.h b/ai/dungeonclear/Ai/Dungeon/DungeonClear/Action/BetterLootRollAction.h
 new file mode 100644
-index 0000000..ea1a729
+index 0000000..be877e9
 --- /dev/null
 +++ b/ai/dungeonclear/Ai/Dungeon/DungeonClear/Action/BetterLootRollAction.h
-@@ -0,0 +1,76 @@
+@@ -0,0 +1,84 @@
 +/*
 + * mod-dungeon-clear — BetterLootRollAction.h
 + *
@@ -1337,12 +1361,20 @@ index 0000000..ea1a729
 +
 +    // Tortoise port: the improvement hangs off CalculateRollVote, this tree's
 +    // own per-item hook, instead of overriding Execute and walking the roll
-+    // list by hand as upstream must. See the .cpp header comment.
-+    RollVote CalculateRollVote(ItemQualifier& itemQualifier) override;
++    // list by hand as upstream must. See the .cpp header comment. Upstream later
++    // grew (finalVote, reasonOut, log) on that hook; the override carries them
++    // and fills them for its own answers, so the caller still reads a vote, a
++    // reason and a log line (RollWithEtiquette builds its step-down text from
++    // the reason).
++    RollVote CalculateRollVote(ItemQualifier& itemQualifier, RollVote* finalVote = nullptr,
++                               std::string* reasonOut = nullptr, bool log = true) override;
 +
 +private:
 +    bool IsFutureWearable(ItemPrototype const* proto) const;
 +    RollVote CalculateFutureVote(ItemPrototype const* proto, int32 randomProperty);
++    // This action's own answer, settled against the hook's out-parameters.
++    RollVote Answer(ItemQualifier& itemQualifier, RollVote vote, std::string const& reason,
++                    RollVote* finalVote, std::string* reasonOut, bool log);
 +};
 +
 +#endif
@@ -126014,13 +126046,13 @@ index 0000000..76f71a1
 +if __name__ == "__main__":
 +    main()
 diff --git a/ai/playerbot/PlayerbotAI.h b/ai/playerbot/PlayerbotAI.h
-index e22b2d2..44462c6 100644
+index 9fabca6..1242fbc 100644
 --- a/ai/playerbot/PlayerbotAI.h
 +++ b/ai/playerbot/PlayerbotAI.h
-@@ -350,6 +350,13 @@ public:
-     virtual void UpdateAI(uint32 elapsed, bool minimal = false);
- 
+@@ -354,6 +354,13 @@ public:
      void HandleCommands();
+     // Chat commands waiting for the next reaction pass (HandleCommands drains them).
+     size_t QueuedChatCommandCount() const { return chatCommands.size(); }
 +    // Dungeon-clear port (donor host parity): while a dungeon-clear run drives
 +    // the bot, the chat-keyword areatrigger relay must not port it out mid-run
 +    // (the donor's live "leader tank vanished" bug). The strategy gate sets
@@ -126031,7 +126063,7 @@ index e22b2d2..44462c6 100644
  private:
      void UpdateAIInternal(uint32 elapsed, bool minimal = false) override;
  public:
-@@ -1062,9 +1069,14 @@ public:
+@@ -1197,9 +1204,14 @@ public:
      std::vector<std::string> GetRecordedMessages() { m_recordMessages = false; m_recordIncommingMessages= false; auto msgs = m_recordedMessages; m_recordedMessages.clear(); return msgs; }
      void ClearRecordedMessages() { m_recordedMessages.clear(); m_recordMessages = false; m_recordIncommingMessages = false;}
  
@@ -126066,10 +126098,10 @@ index 79ebea8..63cdb7b 100644
      void IncreaseAIInternalUpdateDelay(uint32 delay);
      void YieldAIInternalThread(bool minimal = false);
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index 3f53e5e..939e637 100644
+index 09c0845..88e6520 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
-@@ -98,6 +98,14 @@ public:
+@@ -106,6 +106,14 @@ public:
  	bool IsInPvpProhibitedZone(uint32 id);
  
      bool enabled;
@@ -126098,10 +126130,10 @@ index 117918b..909af4f 100644
  		virtual std::string GetShortName() const override;
  	private:
 diff --git a/ai/playerbot/strategy/Value.h b/ai/playerbot/strategy/Value.h
-index fa4a48b..55049eb 100644
+index c9e0838..6d12c24 100644
 --- a/ai/playerbot/strategy/Value.h
 +++ b/ai/playerbot/strategy/Value.h
-@@ -378,6 +378,9 @@ namespace ai
+@@ -382,6 +382,9 @@ namespace ai
          virtual void Set(T value) override { this->value = value; }
          virtual void Update() { }
          virtual void Reset() override { value = defaultValue; }
@@ -126123,10 +126155,10 @@ index 90e47ac..0eac4f1 100644
 +
  // Implemented inline by the Tortoise action header.
 diff --git a/ai/playerbot/strategy/actions/AcceptInvitationAction.h b/ai/playerbot/strategy/actions/AcceptInvitationAction.h
-index 71961a8..49cb822 100644
+index 4bcf523..d3b1386 100644
 --- a/ai/playerbot/strategy/actions/AcceptInvitationAction.h
 +++ b/ai/playerbot/strategy/actions/AcceptInvitationAction.h
-@@ -9,6 +9,8 @@
+@@ -10,6 +10,8 @@
  #include "behavior/PlayerConvenience.h"
  #include "UseMeetingStoneAction.h"
  
@@ -126136,10 +126168,10 @@ index 71961a8..49cb822 100644
  {
      class AcceptInvitationAction : public Action
 diff --git a/ai/playerbot/strategy/actions/AreaTriggerAction.cpp b/ai/playerbot/strategy/actions/AreaTriggerAction.cpp
-index 5129dea..b73b574 100644
+index 06286de..62bbfa9 100644
 --- a/ai/playerbot/strategy/actions/AreaTriggerAction.cpp
 +++ b/ai/playerbot/strategy/actions/AreaTriggerAction.cpp
-@@ -54,6 +54,12 @@ bool ReachAreaTriggerAction::Execute(Event& event)
+@@ -55,6 +55,12 @@ bool ReachAreaTriggerAction::Execute(Event& event)
  
  bool AreaTriggerAction::Execute(Event& event)
  {
@@ -126153,10 +126185,10 @@ index 5129dea..b73b574 100644
  
      uint32 triggerId = movement.lastAreaTrigger;
 diff --git a/ai/playerbot/strategy/actions/MovementActions.cpp b/ai/playerbot/strategy/actions/MovementActions.cpp
-index c8f94c9..cd49801 100644
+index 588ecb7..e2a6da1 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.cpp
 +++ b/ai/playerbot/strategy/actions/MovementActions.cpp
-@@ -1367,6 +1367,26 @@ float MovementAction::GetFollowAngle()
+@@ -1929,6 +1929,26 @@ float MovementAction::GetFollowAngle()
      return 0;
  }
  
@@ -126184,11 +126216,11 @@ index c8f94c9..cd49801 100644
  {
      if (!target)
 diff --git a/ai/playerbot/strategy/actions/MovementActions.h b/ai/playerbot/strategy/actions/MovementActions.h
-index b7aa040..2c591a2 100644
+index cc85f85..f7ee8cc 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.h
 +++ b/ai/playerbot/strategy/actions/MovementActions.h
-@@ -11,6 +11,19 @@
- #include "playerbot/LedgeStepDownPolicy.h"
+@@ -13,6 +13,19 @@
+ #include "playerbot/policy/combat/SetBehindPolicy.h"
  #include <atomic>
  
 +// Move priorities, for code ported from mod-playerbots, which arbitrates
@@ -126207,7 +126239,7 @@ index b7aa040..2c591a2 100644
  namespace ai
  {
      class MovementAction : public Action
-@@ -39,8 +52,13 @@ namespace ai
+@@ -49,8 +62,13 @@ namespace ai
             return MoveTo(location.mapId, location.x, location.y, location.z, idle, react, noPath, ignoreEnemyTargets);
          }
  
@@ -126221,7 +126253,7 @@ index b7aa040..2c591a2 100644
  
          bool WaitForTransport();
  
-@@ -119,6 +137,49 @@ namespace ai
+@@ -147,6 +165,49 @@ namespace ai
          bool ShouldReactionInterruptCast() const override { return true; }
          bool ShouldReactionInterruptMovement() const override { return true; }
  
@@ -126270,7 +126302,7 @@ index b7aa040..2c591a2 100644
 +
      private:
          bool GeneratePathAvoidingHazards(std::vector<WorldPosition>& movePath);
- 
+         // Shared by the follow and chase keep-out holds: plan against each
 diff --git a/ai/playerbot/strategy/druid/GenericDruidStrategy.h b/ai/playerbot/strategy/druid/GenericDruidStrategy.h
 index 506a360..130730f 100644
 --- a/ai/playerbot/strategy/druid/GenericDruidStrategy.h
@@ -126380,7 +126412,7 @@ index 26fd5bc..97ff3d3 100644
  #include "MeleeCombatStrategy.h"
  
 diff --git a/ai/playerbot/strategy/triggers/DungeonTriggers.cpp b/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
-index 4de8aae..55716cc 100644
+index 7393d2c..07e86d3 100644
 --- a/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
 +++ b/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
 @@ -65,7 +65,8 @@ bool StartBossFightTrigger::IsActive()
@@ -126394,7 +126426,7 @@ index 4de8aae..55716cc 100644
              {
                  Unit* attacker = ai->GetUnit(attackerGuid);
 diff --git a/ai/playerbot/strategy/values/AttackersValue.h b/ai/playerbot/strategy/values/AttackersValue.h
-index 1b478a9..7f493d4 100644
+index 22b3a69..f25e315 100644
 --- a/ai/playerbot/strategy/values/AttackersValue.h
 +++ b/ai/playerbot/strategy/values/AttackersValue.h
 @@ -25,6 +25,11 @@ namespace ai
@@ -126407,10 +126439,10 @@ index 1b478a9..7f493d4 100644
 +        static bool IsPossibleTarget(Unit* target, Player* player, float /*range*/ = 0.0f, bool checkInCombat = true)
 +        { return IsValid(target, player, nullptr, checkInCombat); }
          static bool IgnoreTarget(Unit* target, Player* playerToCheckAgainst);
-         virtual std::string Format() override;
- 
+         // True while `bot`'s own "keepout set aside" book refuses `target`
+         // (a melee chase held outside a creature aura keep-out set it aside,
 diff --git a/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h b/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h
-index 0fe1803..a59f6dc 100644
+index bf85217..9584acb 100644
 --- a/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h
 +++ b/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h
 @@ -8,6 +8,13 @@

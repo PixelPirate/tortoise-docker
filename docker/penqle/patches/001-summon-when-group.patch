@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/PlayerbotAIConfig.cpp b/ai/playerbot/PlayerbotAIConfig.cpp
-index 6eeb81f..55f7b62 100644
+index 95c3ef8..cfcd6a9 100644
 --- a/ai/playerbot/PlayerbotAIConfig.cpp
 +++ b/ai/playerbot/PlayerbotAIConfig.cpp
-@@ -903,6 +903,7 @@ bool PlayerbotAIConfig::Initialize()
+@@ -1076,6 +1076,7 @@ bool PlayerbotAIConfig::Initialize()
      shareTargets = config.GetBoolDefault("AiPlayerbot.ShareTargets", true);
      globalSoundEffects = config.GetBoolDefault("AiPlayerbot.GlobalSoundEffects", false);
      nonGmFreeSummon = config.GetBoolDefault("AiPlayerbot.NonGmFreeSummon", false);
@@ -11,10 +11,10 @@ index 6eeb81f..55f7b62 100644
      //SPP automation
      autoPickReward = config.GetStringDefault("AiPlayerbot.AutoPickReward", "yes");
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index e3fb8ac..3f53e5e 100644
+index a7afd9e..09c0845 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
-@@ -634,6 +634,7 @@ public:
+@@ -779,6 +779,7 @@ public:
  
      bool talentsInPublicNote;
      bool nonGmFreeSummon;
@@ -23,12 +23,12 @@ index e3fb8ac..3f53e5e 100644
      BotSelfBotLevel selfBotLevel;
      uint32 iterationsPerTick;
 diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index f44caff..31f9aad 100644
+index ff8b95b..f591ba0 100644
 --- a/ai/playerbot/aiplayerbot.conf.dist.in
 +++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -835,6 +835,11 @@ AiPlayerbot.BotLogFile =
- # the bot walks or uses a meeting stone or innkeeper. .bot summon is not affected.
- # AiPlayerbot.NonGmFreeSummon = 0
+@@ -1306,6 +1306,11 @@ AiPlayerbot.BotLogFile =
+ # Bots may also use the innkeeper "summon me" path when resolving a summon order
+ #AiPlayerbot.SummonAtInnkeepersEnabled = 1
  
 +# Bots will be automatically summoned to the player when they accept a group
 +# invitation (if they are beyond sight range or on another map). Ported from
@@ -39,24 +39,25 @@ index f44caff..31f9aad 100644
  # AiPlayerbot.TalentsInPublicNote = 0
  
 diff --git a/ai/playerbot/strategy/actions/AcceptInvitationAction.h b/ai/playerbot/strategy/actions/AcceptInvitationAction.h
-index 39a2afc..71961a8 100644
+index 16d781a..4bcf523 100644
 --- a/ai/playerbot/strategy/actions/AcceptInvitationAction.h
 +++ b/ai/playerbot/strategy/actions/AcceptInvitationAction.h
-@@ -1,11 +1,13 @@
+@@ -1,5 +1,6 @@
  #pragma once
  #include "playerbot/PlayerbotAI.h"
 +#include "playerbot/PlayerbotAIConfig.h"
  #include "playerbot/ServerFacade.h"
  #include "playerbot/strategy/values/Formations.h"
  
- #include "playerbot/strategy/Action.h"
+@@ -7,6 +8,7 @@
  #include "runtime/HireLifecycle.h"
+ #include "../../../../runtime/AltBotService.h"
  #include "behavior/PlayerConvenience.h"
 +#include "UseMeetingStoneAction.h"
  
  namespace ai
  {
-@@ -76,6 +78,30 @@ namespace ai
+@@ -79,6 +81,30 @@ namespace ai
              if (!bot->GetGroup() || !bot->GetGroup()->IsMember(inviter->getObjectGuid()))
                  return false;
  

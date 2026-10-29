@@ -132,6 +132,8 @@ you created.
 | `AI_RANDOM_BOT_AUTO_CREATE` | `0` | Auto-create RNDBOT accounts/characters toward the Min/Max target, throttled to ~1 character per update interval |
 | `AI_ENABLE_RANDOM_TELEPORTS` | `0` | Bots roam/teleport the world on their own |
 | `AI_RANDOM_BOT_LFT_ENABLED` | `0` | Bots fill empty LFG/dungeon queues |
+| `AI_DUNGEON_SELF_CLEAR` | `1` | Upstream's run leader: a party of bots plays a dungeon plan by itself (route, pulls, bosses, doors). `0` refuses `.bot run` |
+| `AI_BOT_LFG_GROUPS` | `1` | World bots form their own dungeon groups (tank, healer, two damage, one role open for a player) and start a run for the bot-only party; they advertise in LookingForGroup and invite a player who whispers `inv`. Needs `AI_DUNGEON_SELF_CLEAR=1`. Bots cannot travel to a dungeon yet, so a group no player joins disbands after two minutes |
 | `AI_AH_MARKET_ENABLED` | `0` | Bots run a native auction-house market |
 | `AI_DISABLE_ACTIVITY_PRIORITIES` | `1` | `1` (upstream) = every bot runs a full AI tick every world tick; `0` = bots away from players share a rotating ~10% activity budget. Measured slower here — prefer `AI_BOT_AI_TICK_DIVISOR` |
 | `AI_BOT_AI_TICK_DIVISOR` | `1` | Bot AI ticks per world tick (1-60, via the `012-bot-ai-tick-divisor` patch). `1` = every eligible bot every tick; `5`-`10` staggers bots no real player owns/groups/fights beside/can see, which is what makes a large pool affordable — see "World tick budget" |
@@ -160,6 +162,44 @@ Raise bot counts cautiously — TortoiseBots is young and unsoaked at scale.
 The world server targets a 50 ms tick; a large bot population spends it
 mostly in continent cell updates, so budget for `MAPUPDATE_MTCELLS_THREADS`
 (see "World tick budget").
+
+## Making the world feel more alive
+
+These bot settings ship off (or as a non-obvious default) upstream and have
+no `.env` mapping, so they are edited in the rendered
+`config/modules/aiplayerbot.conf` (the file survives restarts: only
+`*.dist` templates and the mapped keys are rewritten). Restart `mangosd`
+after editing; the dungeon-run keys marked below are re-read by
+`.reload config` instead.
+
+| Key | Default | Effect when changed |
+|---|---|---|
+| `AiPlayerbot.RandombotsWalkingRPG` | `0` | `1` = random bots walk instead of running everywhere. The single biggest "these are people, not bots" change; bots take longer to reach places |
+| `AiPlayerbot.TurnInRpg` | `0` | `1` = bots and NPCs turn to face each other during an RPG interaction (vendor, quest giver, chatter) |
+| `AiPlayerbot.GlobalSoundEffects` | `0` | `1` = bots play their race's voice lines when repairing, selling, greeting. Ambient, free, the fastest way to make a hub sound inhabited |
+| `AiPlayerbot.RandomBotGreet` | `0` | `1` = masterless pool bots greet a passing real player once per encounter. Reads best with a few hundred bots; at a thousand every visitor is buried in waves |
+| `AiPlayerbot.RandomBotSayWithoutMaster` | `0` | `1` = bots `/say` the narration they otherwise whisper to a master (where they go and why), so their plans are audible around them |
+| `AiPlayerbot.PoolBotTradeMode` | `0` | `1` = pool bots trade with their master, group and hire master; `2` buy-only, `3` sell-only, `4` unrestricted. `1`-`2` makes bots useful without turning them into vending machines |
+| `AiPlayerbot.DungeonTactics` | `0` | `1` = boss tactics (interrupts, add order, frontal avoidance from the `ai_boss_tactic` table) for every bot, not only commander/run-bound groups. Makes pick-up groups look competent |
+| `AiPlayerbot.JumpWithPlayer` / `AiPlayerbot.JumpInBg` | `0` | `1` = bots jump along with the real player they follow, or in battlegrounds. Small, oddly convincing detail |
+| `AiPlayerbot.DungeonFollowHoldBeforePacks` | `0` | `1` = a bot following a player in a dungeon stops before an unpulled pack instead of walking through it |
+| `AiPlayerbot.AutoLearnTrainerSpells` / `AiPlayerbot.AutoLearnDroppedSpells` | `0` | `1` = bots learn trainable spells on level-up and class books that drop in dungeons/raids, so pools don't stall on untrained spells |
+| `AiPlayerbot.AllowIsolatedCustomStartingZones` | `0` | `1` = random bots may spawn in Turtle's isolated starting zones (Blackstone Island, Thalassian Highlands, Alah'Thalas), spreading the population past the two mainland hubs |
+| `AiPlayerbot.AhMarketSyntheticSupply` / `AiPlayerbot.AhMarketBuyer` | `0` | `1` = bounded synthetic auction supply and buyers on a low-population realm. Pairs with `AI_AH_MARKET_ENABLED=1`; the bots' own sales are the believable half |
+| `AiPlayerbot.HireAllowPvP` | `0` | `1` = hired companions may enter battlegrounds (off keeps hires PvE-only: queueing warns once and entering dismisses them) |
+| `AiPlayerbot.Observability` | `0` | `1` = the module's telemetry emitter (dashboard on port 9195). Not world-facing; it is what makes runs and bot behaviour watchable |
+
+Already on by default and worth keeping: `AiPlayerbot.RelocateHopelessDeaths`
+(`1`, a dead bot with no reachable spirit is moved to the graveyard it would
+repop at instead of corpse-crawling forever), `AiPlayerbot.RandomBotNameStyleWeights`
+(`55,20,25` race-flavoured/compound/fun names), `AiPlayerbot.EnableRandomTeleports`,
+and `AiPlayerbot.DungeonSelfClear` + `AiPlayerbot.BotLfgGroups` (mapped as
+`AI_DUNGEON_SELF_CLEAR` / `AI_BOT_LFG_GROUPS` above).
+
+Do **not** turn on `AiPlayerbot.AllowRepairedTaxiPaths` unless the core repairs
+taxi paths 274/355 at startup: on a core that doesn't, bots flying them crash
+the world server.
+
 
 ## Dungeon clearing
 

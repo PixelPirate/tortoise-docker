@@ -4,9 +4,9 @@ Pins these patches are written against (see `Dockerfile.penqle`):
 
 ```text
 CORE_REPO   https://github.com/tortoise-wow/tortoise-wow.git
-CORE_REF    main
-CORE_COMMIT 10393426efe4bbe1de3a31fd071ca36fae358bb6
-BOTS_COMMIT 3f57727873b775f4e577ab6f10ba3714b1041ac8
+CORE_REF    1181dev
+CORE_COMMIT 025752d246c0e83229aff6a07a496a80de6bb61e
+BOTS_COMMIT 573c791928341c79f1086ce6cf7dab795b54978d
 ```
 
 The series is generated from the local `TortoiseBots` `enhancements` branch as
@@ -336,6 +336,21 @@ At the 2026-10-12 re-pin, upstream `main` had absorbed two features outright:
   (`ResistAuraPolicy.h`, `GolemaggPolicy.h`, `McGarrShazzrahPolicy.h`) covering
   a wider boss set (Garr, Geddon, Chromaggus, Razorgore, Nefarian, Vael, and
   the Naxx bosses). Upstream's version wins whole; the patch is gone.
+
+At the 2026-10-29 re-pin (module `573c7919`, 1,747 commits since the last pin),
+upstream `main` absorbed four declarations patch 008 used to add to
+`runtime/LftBotFillService.h`: `ClearForcedRole`, `RoleMismatchReason` and
+`EquipBestShieldFromBags` are upstream's own now (issue #189 phase 4, with
+their implementations), so the patch keeps only `DrainStaleLftQueue`. No
+patch was retired. The same re-pin followed upstream's split of
+`PlayerbotAI.cpp` into `PlayerbotAI{Packets,Spells,Items,Quests,Activity}.cpp`:
+patch 006's `InterruptSpell(false)` -> `bot->CastStop()` rework now lands in
+`PlayerbotAIPackets.cpp`, where `HandleBotOutgoingPacket` moved. Patch 010's
+vendored loot-roll hook had to follow upstream's grown signature
+(`CalculateRollVote(ItemQualifier&, RollVote*, std::string*, bool)`) and now
+settles its own answers through `Answer()` so the caller still gets the vote,
+the reason (`RollWithEtiquette` builds its step-down text from it) and the
+`bot_events.csv` line.
 
 ## 012-bot-ai-tick-divisor.patch
 

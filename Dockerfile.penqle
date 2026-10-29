@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# Tortoise WoW — canonical core (tortoise-wow main) + TortoiseBots module.
+# Tortoise WoW — canonical core (tortoise-wow 1181dev) + TortoiseBots module.
 # Packaged as a drop-in replacement for the Shyalya-based image; see docs/SPEC.md.
 #
 # Build-args CORE_COMMIT / BOTS_COMMIT pin both sources. Declaring them right
@@ -13,10 +13,10 @@ ARG UBUNTU_VERSION=22.04
 FROM ubuntu:${UBUNTU_VERSION} AS builder
 
 ARG CORE_REPO=https://github.com/tortoise-wow/tortoise-wow.git
-ARG CORE_REF=main
-ARG CORE_COMMIT=10393426efe4bbe1de3a31fd071ca36fae358bb6
+ARG CORE_REF=1181dev
+ARG CORE_COMMIT=025752d246c0e83229aff6a07a496a80de6bb61e
 ARG BOTS_REPO=https://github.com/Sagiroth/TortoiseBots.git
-ARG BOTS_COMMIT=3f57727873b775f4e577ab6f10ba3714b1041ac8
+ARG BOTS_COMMIT=573c791928341c79f1086ce6cf7dab795b54978d
 ARG CMAKE_BUILD_TYPE=Release
 ARG CMAKE_INSTALL_PREFIX=/opt/turtle
 ARG BUILD_JOBS=2
@@ -40,6 +40,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libcurl4-openssl-dev \
         default-libmysqlclient-dev \
         libssl-dev \
+        lld \
         ripgrep \
         zlib1g-dev \
         pkg-config \
@@ -108,11 +109,22 @@ RUN if grep -q -- '-march=native' CMakeLists.txt; then \
 # The module's own host-contract check must pass before we spend an hour compiling.
 RUN bash modules/TortoiseBots/tools/verify_penqle_host_contract.sh --core .
 
-RUN cmake -B build \
+# binutils 2.38 on aarch64 aborts its Cortex-A53 erratum 843419 workaround with
+# a BFD internal error (elfnn-aarch64.c, _bfd_aarch64_erratum_843419_branch_to_stub)
+# while linking mangosd's static archive set, in every workaround mode; the pass
+# is not the reason the link is slow, it is just broken at this size. lld runs no
+# such pass, so ARM builds link with it under gcc. Unused on x86_64, where the
+# default linker is fine (and where CI has always built).
+RUN case "${CPU_TARGET}" in \
+        arm*) ARM_LD_FLAGS="-fuse-ld=lld";; \
+        *)    ARM_LD_FLAGS="";; \
+    esac \
+    && cmake -B build \
         -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}" \
         -DCMAKE_INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}" \
         -DMODULES=static \
         -DMODULE_TORTOISEBOTS=static \
+        -DCMAKE_EXE_LINKER_FLAGS="${ARM_LD_FLAGS}" \
     && cmake --build build -j"${BUILD_JOBS}" \
     && cmake --install build \
     && git -C . rev-parse HEAD > "${CMAKE_INSTALL_PREFIX}/CORE_COMMIT" \

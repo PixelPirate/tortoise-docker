@@ -1,5 +1,5 @@
 diff --git a/ai/playerbot/TravelMgr.cpp b/ai/playerbot/TravelMgr.cpp
-index 5880512..891cb03 100644
+index 0c3ae75..2b89ab9 100644
 --- a/ai/playerbot/TravelMgr.cpp
 +++ b/ai/playerbot/TravelMgr.cpp
 @@ -610,6 +610,12 @@ bool RpgTravelDestination::IsActive(Player* bot, const PlayerTravelInfo& info) c
@@ -16,7 +16,7 @@ index 5880512..891cb03 100644
      std::set<ObjectGuid>& ignoreList = AI_VALUE(std::set<ObjectGuid>&,"ignore rpg target");
  
 diff --git a/ai/playerbot/strategy/actions/ChooseRpgTargetAction.cpp b/ai/playerbot/strategy/actions/ChooseRpgTargetAction.cpp
-index da91f79..9d952a0 100644
+index f836073..b799997 100644
 --- a/ai/playerbot/strategy/actions/ChooseRpgTargetAction.cpp
 +++ b/ai/playerbot/strategy/actions/ChooseRpgTargetAction.cpp
 @@ -17,12 +17,12 @@
@@ -161,10 +161,10 @@ index 95b1a16..e7cbc74 100644
  
      if(MEM_AI_VALUE(WorldPosition, "current position")->LastChangeDelay() < 60)
 diff --git a/ai/playerbot/strategy/actions/MovementActions.cpp b/ai/playerbot/strategy/actions/MovementActions.cpp
-index ee085f2..c8f94c9 100644
+index d4400e2..588ecb7 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.cpp
 +++ b/ai/playerbot/strategy/actions/MovementActions.cpp
-@@ -127,7 +127,7 @@ bool MovementAction::FlyDirect(const WorldPosition &startPosition, const WorldPo
+@@ -238,7 +238,7 @@ bool MovementAction::FlyDirect(const WorldPosition &startPosition, const WorldPo
      return false;
  }
  
@@ -173,7 +173,7 @@ index ee085f2..c8f94c9 100644
  {
      AiObjectContext* context = ai->GetAiObjectContext();
      Player* bot = ai->GetBot();
-@@ -137,24 +137,44 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
+@@ -248,24 +248,44 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
      if (!tEntry)
          return false;
  
@@ -228,7 +228,7 @@ index ee085f2..c8f94c9 100644
          {
              bot->GetSession()->SendLearnNewTaxiNode(unit);
  
-@@ -162,6 +182,9 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
+@@ -273,6 +293,9 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
          }
      }
  
@@ -239,10 +239,10 @@ index ee085f2..c8f94c9 100644
      if (ai->HasCheat(BotCheatMask::gold) || ai->HasCheat(BotCheatMask::taxi))
      {
 diff --git a/ai/playerbot/strategy/actions/MovementActions.h b/ai/playerbot/strategy/actions/MovementActions.h
-index 8d2537c..b7aa040 100644
+index 968de58..cc85f85 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.h
 +++ b/ai/playerbot/strategy/actions/MovementActions.h
-@@ -39,7 +39,7 @@ namespace ai
+@@ -49,7 +49,7 @@ namespace ai
             return MoveTo(location.mapId, location.x, location.y, location.z, idle, react, noPath, ignoreEnemyTargets);
          }
  
@@ -252,7 +252,7 @@ index 8d2537c..b7aa040 100644
  
          bool WaitForTransport();
 diff --git a/ai/playerbot/strategy/actions/RpgAction.cpp b/ai/playerbot/strategy/actions/RpgAction.cpp
-index 7d2b182..70374bc 100644
+index 46d2b00..4cb70e6 100644
 --- a/ai/playerbot/strategy/actions/RpgAction.cpp
 +++ b/ai/playerbot/strategy/actions/RpgAction.cpp
 @@ -128,9 +128,10 @@ bool RpgAction::SetNextRpgAction()
@@ -270,7 +270,7 @@ index 7d2b182..70374bc 100644
      Action* action = actions.front();
  
 diff --git a/ai/playerbot/strategy/actions/RpgSubActions.cpp b/ai/playerbot/strategy/actions/RpgSubActions.cpp
-index f52762a..7940548 100644
+index 5d70558..a3f2e01 100644
 --- a/ai/playerbot/strategy/actions/RpgSubActions.cpp
 +++ b/ai/playerbot/strategy/actions/RpgSubActions.cpp
 @@ -14,6 +14,7 @@

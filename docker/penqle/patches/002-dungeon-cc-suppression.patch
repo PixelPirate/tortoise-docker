@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/PlayerbotAI.cpp b/ai/playerbot/PlayerbotAI.cpp
-index 3058c46..ce6b3be 100644
+index 5a7806b..ae7ac3d 100644
 --- a/ai/playerbot/PlayerbotAI.cpp
 +++ b/ai/playerbot/PlayerbotAI.cpp
-@@ -1176,6 +1176,12 @@ bool PlayerbotAI::IsInPve()
+@@ -981,6 +981,12 @@ bool PlayerbotAI::IsInPve()
      return !IsInPvp() && !IsInRaid();
  }
  
@@ -16,10 +16,10 @@ index 3058c46..ce6b3be 100644
  {
      if (IsSafe(bot))
 diff --git a/ai/playerbot/PlayerbotAI.h b/ai/playerbot/PlayerbotAI.h
-index 6b0bd49..e22b2d2 100644
+index 5a0ee3a..9fabca6 100644
 --- a/ai/playerbot/PlayerbotAI.h
 +++ b/ai/playerbot/PlayerbotAI.h
-@@ -927,6 +927,7 @@ public:
+@@ -1031,6 +1031,7 @@ public:
      bool IsInPve();
      bool IsInPvp();
      bool IsInRaid();
@@ -28,10 +28,10 @@ index 6b0bd49..e22b2d2 100644
      void SetMoveToTransport(bool flag = true) { isMovingToTransport = flag; }
      bool GetMoveToTransport() { return isMovingToTransport; }
 diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index 31f9aad..419c409 100644
+index f591ba0..18ed952 100644
 --- a/ai/playerbot/aiplayerbot.conf.dist.in
 +++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -502,6 +502,16 @@ AiPlayerbot.DisableActivityPriorities = 1
+@@ -651,6 +651,16 @@ AiPlayerbot.DisableActivityPriorities = 1
  # Limit combat activity for slight performance boost.
  #AiPlayerbot.LimitCombatActivity = 0
  
@@ -49,10 +49,10 @@ index 31f9aad..419c409 100644
  # DisableActivityPriorities = 0; the active set rotates ~1% per minute.
  # Default is 10, higher numbers may affect performance
 diff --git a/ai/playerbot/strategy/Engine.cpp b/ai/playerbot/strategy/Engine.cpp
-index d2581d2..95865ae 100644
+index 0798613..dd5a307 100644
 --- a/ai/playerbot/strategy/Engine.cpp
 +++ b/ai/playerbot/strategy/Engine.cpp
-@@ -211,6 +211,8 @@ void Engine::Init()
+@@ -232,6 +232,8 @@ void Engine::Init()
      for (std::map<std::string, Strategy*>::iterator i = strategies.begin(); i != strategies.end(); i++)
      {
          Strategy* strategy = i->second;
@@ -199,7 +199,7 @@ index a2bf5f1..26fd5bc 100644
      std::string getName() override { return "cc"; }
  };
 diff --git a/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h b/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h
-index 86eaaf0..0fe1803 100644
+index f679190..bf85217 100644
 --- a/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h
 +++ b/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h
 @@ -55,6 +55,8 @@ class WarlockCcStrategy : public Strategy

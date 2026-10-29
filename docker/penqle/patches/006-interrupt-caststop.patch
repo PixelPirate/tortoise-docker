@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/PlayerbotAI.cpp b/ai/playerbot/PlayerbotAI.cpp
-index ce6b3be..c57cb29 100644
+index ae7ac3d..2414584 100644
 --- a/ai/playerbot/PlayerbotAI.cpp
 +++ b/ai/playerbot/PlayerbotAI.cpp
-@@ -1058,7 +1058,10 @@ bool PlayerbotAI::UpdateAIReaction(uint32 elapsed, bool minimal, bool isStunned)
+@@ -863,7 +863,10 @@ bool PlayerbotAI::UpdateAIReaction(uint32 elapsed, bool minimal, bool isStunned)
          {
              if(reaction->ShouldInterruptCast())
              {
@@ -14,7 +14,7 @@ index ce6b3be..c57cb29 100644
              }
  
              if (reaction->ShouldInterruptMovement())
-@@ -2358,7 +2361,7 @@ void PlayerbotAI::Reset(bool full)
+@@ -2284,7 +2287,7 @@ void PlayerbotAI::Reset(bool full)
          RESET_AI_VALUE2(std::string, "manual string", "future travel purpose");
          RESET_AI_VALUE2(int, "manual int", "future travel relevance");
  
@@ -23,7 +23,19 @@ index ce6b3be..c57cb29 100644
  
          StopMoving();
  
-@@ -3104,7 +3107,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
+@@ -3135,7 +3138,6 @@ void PlayerbotAI::DoNextAction(bool min, bool forceActivity)
+ 
+ void PlayerbotAI::ReInitCurrentEngine()
+ {
+-    InterruptSpell();
+     currentEngine->Init();
+ }
+ 
+diff --git a/ai/playerbot/PlayerbotAIPackets.cpp b/ai/playerbot/PlayerbotAIPackets.cpp
+index 56824d9..5761f88 100644
+--- a/ai/playerbot/PlayerbotAIPackets.cpp
++++ b/ai/playerbot/PlayerbotAIPackets.cpp
+@@ -488,7 +488,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
          verticalSpeed = -verticalSpeed;
  
          // stop casting
@@ -32,19 +44,11 @@ index ce6b3be..c57cb29 100644
  
          // stop movement
          StopMoving();
-@@ -3584,7 +3587,6 @@ void PlayerbotAI::DoNextAction(bool min, bool forceActivity)
- 
- void PlayerbotAI::ReInitCurrentEngine()
- {
--    InterruptSpell();
-     currentEngine->Init();
- }
- 
 diff --git a/ai/playerbot/strategy/actions/MovementActions.cpp b/ai/playerbot/strategy/actions/MovementActions.cpp
-index 5a16a98..ee085f2 100644
+index e56bf91..d4400e2 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.cpp
 +++ b/ai/playerbot/strategy/actions/MovementActions.cpp
-@@ -1115,8 +1115,9 @@ bool MovementAction::MoveTo2(const WorldPosition& endPos, bool idle, bool react,
+@@ -1675,8 +1675,9 @@ MovementAction::SwimHandoffResult MovementAction::SwimHandoff(const WorldPositio
          if (bot->GetStandState() != UNIT_STAND_STATE_STAND)
              bot->SetStandState(UNIT_STAND_STATE_STAND);
  
@@ -56,7 +60,7 @@ index 5a16a98..ee085f2 100644
      }
  
      if (totalDistance > sPlayerbotAIConfig.reactDistance && !detailedMove)
-@@ -1518,11 +1519,10 @@ bool MovementAction::Follow(Unit* target, float distance, float angle)
+@@ -2080,11 +2081,10 @@ bool MovementAction::Follow(Unit* target, float distance, float angle)
      if (bot->GetStandState() != UNIT_STAND_STATE_STAND)
          bot->SetStandState(UNIT_STAND_STATE_STAND);
  
@@ -72,7 +76,7 @@ index 5a16a98..ee085f2 100644
  
      AI_VALUE(LastMovement&, "last movement").Set(target);
      ClearIdleState();
-@@ -3990,7 +3990,7 @@ bool JumpAction::DoJump(const WorldPosition &dest, const WorldPosition& highestP
+@@ -4814,7 +4814,7 @@ bool JumpAction::DoJump(const WorldPosition &dest, const WorldPosition& highestP
      if (!goodLanding)
          ai->SetFallAfterJump();
  
@@ -82,10 +86,10 @@ index 5a16a98..ee085f2 100644
      ai->SetJumpDestination(landing);
      bot->SetFallInformation(maxHeight);
 diff --git a/ai/playerbot/strategy/actions/UseItemAction.h b/ai/playerbot/strategy/actions/UseItemAction.h
-index e30bc91..117744e 100644
+index 525cc19..99b1188 100644
 --- a/ai/playerbot/strategy/actions/UseItemAction.h
 +++ b/ai/playerbot/strategy/actions/UseItemAction.h
-@@ -669,7 +669,7 @@ namespace ai
+@@ -699,7 +699,7 @@ namespace ai
                  }
  
                  bot->AddUnitState(UNIT_STAND_STATE_SIT);
@@ -94,7 +98,7 @@ index e30bc91..117744e 100644
  
                  float drinkDuration = AI_VALUE(float, "drink duration");
  
-@@ -746,7 +746,7 @@ namespace ai
+@@ -776,7 +776,7 @@ namespace ai
                  }
  
                  bot->AddUnitState(UNIT_STAND_STATE_SIT);
