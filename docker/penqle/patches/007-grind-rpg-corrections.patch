@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/TravelMgr.cpp b/ai/playerbot/TravelMgr.cpp
-index 0c3ae75..2b89ab9 100644
+index efa0867..4c9379f 100644
 --- a/ai/playerbot/TravelMgr.cpp
 +++ b/ai/playerbot/TravelMgr.cpp
-@@ -610,6 +610,12 @@ bool RpgTravelDestination::IsActive(Player* bot, const PlayerTravelInfo& info) c
+@@ -642,6 +642,12 @@ bool RpgTravelDestination::IsActive(Player* bot, const PlayerTravelInfo& info) c
      if (!IsPossible(info))
          return false;
  
@@ -120,10 +120,10 @@ index 183dfa3..c88de4c 100644
          std::unordered_map <ObjectGuid, std::string> rgpActionReason;
      };
 diff --git a/ai/playerbot/strategy/actions/MoveToRpgTargetAction.cpp b/ai/playerbot/strategy/actions/MoveToRpgTargetAction.cpp
-index 95b1a16..e7cbc74 100644
+index f81e06c..0b1314d 100644
 --- a/ai/playerbot/strategy/actions/MoveToRpgTargetAction.cpp
 +++ b/ai/playerbot/strategy/actions/MoveToRpgTargetAction.cpp
-@@ -26,7 +26,12 @@ bool MoveToRpgTargetAction::Execute(Event& event)
+@@ -27,7 +27,12 @@ bool MoveToRpgTargetAction::Execute(Event& event)
      else if(go)
          wo = go;
      else
@@ -136,7 +136,7 @@ index 95b1a16..e7cbc74 100644
  
      if (guidP.IsPlayer())
      {
-@@ -183,6 +188,12 @@ bool MoveToRpgTargetAction::Execute(Event& event)
+@@ -184,6 +189,12 @@ bool MoveToRpgTargetAction::Execute(Event& event)
          {
              ai->TellDebug(GetMaster(), "Can not path to desired location around " + chat->formatWorldobject(guidP.GetWorldObject(bot->GetInstanceId())) + " trying again later.", "debug move");
  
@@ -149,7 +149,7 @@ index 95b1a16..e7cbc74 100644
              return false;
          }
      }
-@@ -250,6 +261,10 @@ bool MoveToRpgTargetAction::isUseful()
+@@ -257,6 +268,10 @@ bool MoveToRpgTargetAction::isUseful()
          {
              ai->TellPlayerNoFacing(GetMaster(), "Target could not be found. Drop rpg target");
          }
@@ -161,10 +161,10 @@ index 95b1a16..e7cbc74 100644
  
      if(MEM_AI_VALUE(WorldPosition, "current position")->LastChangeDelay() < 60)
 diff --git a/ai/playerbot/strategy/actions/MovementActions.cpp b/ai/playerbot/strategy/actions/MovementActions.cpp
-index d4400e2..588ecb7 100644
+index 7e08fce..43605c6 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.cpp
 +++ b/ai/playerbot/strategy/actions/MovementActions.cpp
-@@ -238,7 +238,7 @@ bool MovementAction::FlyDirect(const WorldPosition &startPosition, const WorldPo
+@@ -550,7 +550,7 @@ bool MovementAction::FlyDirect(const WorldPosition &startPosition, const WorldPo
      return false;
  }
  
@@ -173,7 +173,7 @@ index d4400e2..588ecb7 100644
  {
      AiObjectContext* context = ai->GetAiObjectContext();
      Player* bot = ai->GetBot();
-@@ -248,24 +248,44 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
+@@ -560,24 +560,44 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
      if (!tEntry)
          return false;
  
@@ -228,7 +228,7 @@ index d4400e2..588ecb7 100644
          {
              bot->GetSession()->SendLearnNewTaxiNode(unit);
  
-@@ -273,6 +293,9 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
+@@ -585,6 +605,9 @@ bool MovementAction::UseTaxi(PlayerbotAI* ai, uint32 entry, bool needNpc)
          }
      }
  
@@ -239,11 +239,11 @@ index d4400e2..588ecb7 100644
      if (ai->HasCheat(BotCheatMask::gold) || ai->HasCheat(BotCheatMask::taxi))
      {
 diff --git a/ai/playerbot/strategy/actions/MovementActions.h b/ai/playerbot/strategy/actions/MovementActions.h
-index 968de58..cc85f85 100644
+index 59660c6..032cd24 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.h
 +++ b/ai/playerbot/strategy/actions/MovementActions.h
-@@ -49,7 +49,7 @@ namespace ai
-            return MoveTo(location.mapId, location.x, location.y, location.z, idle, react, noPath, ignoreEnemyTargets);
+@@ -62,7 +62,7 @@ namespace ai
+            return MoveTo(location.mapId, location.x, location.y, location.z, idle, react, noPath, ignoreEnemyTargets, castCancelSite);
          }
  
 -        static bool UseTaxi(PlayerbotAI* ai, uint32 entry = 0, bool needNpc = true);
@@ -270,7 +270,7 @@ index 46d2b00..4cb70e6 100644
      Action* action = actions.front();
  
 diff --git a/ai/playerbot/strategy/actions/RpgSubActions.cpp b/ai/playerbot/strategy/actions/RpgSubActions.cpp
-index 5d70558..a3f2e01 100644
+index 74da8f1..34deacc 100644
 --- a/ai/playerbot/strategy/actions/RpgSubActions.cpp
 +++ b/ai/playerbot/strategy/actions/RpgSubActions.cpp
 @@ -14,6 +14,7 @@
@@ -278,10 +278,10 @@ index 5d70558..a3f2e01 100644
  #include "playerbot/RandomBotFacade.h"
  #include "playerbot/strategy/values/MaintenanceValues.h"
 +#include "MovementActions.h"
- #include "SayAction.h"
- #include "playerbot/PlayerbotLLMInterface.h"
  
-@@ -218,7 +219,6 @@ bool RpgTaxiAction::Execute(Event& event)
+ 
+ using namespace ai;
+@@ -214,7 +215,6 @@ bool RpgTaxiAction::Execute(Event& event)
  
      uint32 path = nodes[urand(0, nodes.size() - 1)];
      uint32 money = bot->GetMoney();
@@ -289,7 +289,7 @@ index 5d70558..a3f2e01 100644
  
      TaxiPathEntry const* entry = sTaxiPathStore.LookupEntry(path);
      if (!entry)
-@@ -242,16 +242,23 @@ bool RpgTaxiAction::Execute(Event& event)
+@@ -238,16 +238,24 @@ bool RpgTaxiAction::Execute(Event& event)
          bot->SetMoney(money);
          return false;
      }
@@ -310,8 +310,8 @@ index 5d70558..a3f2e01 100644
 -        bot->SetMoney(money);
          return false;
      }
+     ai::BotInstantFlightFinish(bot, { entry->from, entry->to });
  
--
      sLog.outDetail("Bot #%d <%s> is flying from %s to %s (%zu location available)", bot->GetGUIDLow(), bot->GetName(), nodeFrom->name[LOCALE_enUS], nodeTo->name[LOCALE_enUS], nodes.size());
 -    bot->SetMoney(money);
  

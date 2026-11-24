@@ -144,10 +144,8 @@ you created.
 | `AI_SUMMON_WHEN_GROUP` | `1` | Bot teleports to you when it accepts a group invite |
 | `AI_FORCE_REBUFF_ON_READY_CHECK` | `0` | On a ready check, bots top up missing/expiring buffs before reporting ready (out-of-reagent bots report not-ready) |
 | `AI_RANDOM_BOT_LOGIN_WITH_PLAYER` | `1` | Random bots only online while humans are (login on first human, logout when last leaves) |
-| `AI_DISABLE_RANDOM_LEVELS` | `0` | `1` = all bots start at `AI_RANDOM_BOT_STARTING_LEVEL` |
-| `AI_RANDOM_BOT_STARTING_LEVEL` | `1` | Starting level when `AI_DISABLE_RANDOM_LEVELS=1` |
 | `AI_RANDOM_BOT_MAX_LEVEL` | `60` | Upper level bound for random-bot gear/tuning |
-| `AI_RANDOM_BOT_START_LEVEL_MIN` / `AI_RANDOM_BOT_START_LEVEL_MAX` | `1` / `60` | Fresh pool bots are seeded with a random level in this range once, on their first login, then level normally. Upstream default `1`/`60` spreads fresh bots over every level; `1`/`1` restores the historic level-1 start. Existing characters are never re-leveled |
+| `AI_RANDOM_BOT_START_LEVEL_MIN` / `AI_RANDOM_BOT_START_LEVEL_MAX` | `1` / `60` | Fresh pool bots are seeded with a random level in this range once, on their first login, then level normally. Upstream ships `5`/`60` (gear seeding starts at level 5); the image spreads fresh bots over every level, and `1`/`1` restores the historic level-1 start. Existing characters are never re-leveled |
 | `AI_LEVEL_LADDER` | `1` | `1` = pick the next bot to log in by level band so every band keeps a share of the online target; `0` = round-robin over the whole pool |
 | `AI_LEVEL_LADDER_MAX_LEVEL_SHARE` | `10` | Percent of the online target held for level 60 (a hard cap; the rest stay offline) |
 | `AI_XPRATE` | `3` | Bot XP multiplier (server XP rate * this) |
@@ -249,10 +247,13 @@ controlled in one of three ways:
    (played time 0); it levels normally from there. `1`/`1` keeps the historic
    level-1 start. Existing characters are never re-leveled, so changing this
    only affects bots that have not logged in yet.
-3. **Fixed starting level for everyone**. Set `AI_DISABLE_RANDOM_LEVELS=1`;
-   every bot is raised to `AI_RANDOM_BOT_STARTING_LEVEL` on first login and
-   levels up through normal gameplay while the realm runs. Keep the starting
-   level at 5+ (bots below level 5 are gated out of some travel behaviors).
+3. **Fixed starting level for everyone**. Set
+   `AI_RANDOM_BOT_START_LEVEL_MIN` and `AI_RANDOM_BOT_START_LEVEL_MAX` to the
+   same value; every fresh bot is seeded at that level on first login and levels
+   up through normal gameplay while the realm runs. Keep it at 5+ (bots below
+   level 5 are gated out of some travel behaviors). Upstream removed the old
+   `AiPlayerbot.DisableRandomLevels`/`randombotStartingLevel` pair this used to
+   map to; the image no longer sets them.
 
 `AI_LEVEL_LADDER` (default `1`) decides *which* bots log in: levels are cut
 into bands and every band keeps a share of the online target (highest level
@@ -376,7 +377,8 @@ documented by TortoiseBots. `AiPlayerbot.NonGmFreeSummon` in
 | Empty world / no NPCs | First database import failed; check `docker compose -f docker-compose.penqle.yml logs db-init` |
 | Realm list is empty or offline | Check `docker compose -f docker-compose.penqle.yml ps`; world port is `8090` |
 | LAN client can't reach the realm | Set `GAME_BIND_IP=0.0.0.0` in `.env`, then `docker compose -f docker-compose.penqle.yml up -d` |
-| No bots online | Create `RNDBOT` accounts/characters first (§5 above); check `AI_PLAYERBOT_ENABLED=1` |
+| No bots online | Create `RNDBOT` accounts/characters first (§5 above); check `AI_PLAYERBOT_ENABLED=1`. With `AI_RANDOM_BOT_LOGIN_WITH_PLAYER=1` the pool also stays offline until a human logs in, and it refuses to log in at all while a restart countdown is pending (`startup 0` in the `native random-bot pool loaded` line of `logs mangosd` is normal before that login) |
+| Server restarts every ~15 minutes after downtime | Core honor maintenance catching up: `saved_variables.lastHonorMaintenanceDay` is behind the current game day, so each boot performs one weekly honor calculation and schedules another restart 15 minutes in; it stops once the stored day reaches today. To stop it immediately, set `AutoHonorRestart = 0` in `config/mangosd.conf`, or advance `lastHonorMaintenanceDay`/`nextHonorMaintenanceDay` in `tw_char.saved_variables` to the current week and restart (`docs/SPEC.md` §3.9) |
 | Bot SQL errors on startup | Check `logs mangosd` for AutoUpdater output; module SQL is applied by `db-init`, core updates by AutoUpdater |
 | Client crash: interface corrupt | Use an unmodified Turtle WoW 1.18.1 client; do not strip Turtle addons |
 

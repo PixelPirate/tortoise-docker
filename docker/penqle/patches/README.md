@@ -5,16 +5,16 @@ Pins these patches are written against (see `Dockerfile.penqle`):
 ```text
 CORE_REPO   https://github.com/tortoise-wow/tortoise-wow.git
 CORE_REF    1181dev
-CORE_COMMIT 025752d246c0e83229aff6a07a496a80de6bb61e
-BOTS_COMMIT 573c791928341c79f1086ce6cf7dab795b54978d
+CORE_COMMIT a4972d9a8e4e6a6233cf7292becb6997e3335aa5
+BOTS_COMMIT dfa8de7c62f2040d04dfcfbc805121f268581a4a
 ```
 
 The series is generated from the local `TortoiseBots` `enhancements` branch as
 the difference against `BOTS_COMMIT`, so applying all patches in numeric order
 reproduces that branch's source tree. Several features the series used to carry
 were merged upstream in the meantime and are now upstream's own code rather
-than a patch (see the notes under 008). Patch 011 was dropped for that reason;
-numbering continues at 012.
+than a patch (see "Merged upstream since the last pin"). Patches 004, 006, 009
+and 011 were dropped for that reason; numbering continues past the gaps.
 
 ### Regenerating after a pin bump
 
@@ -97,38 +97,17 @@ Touches: `strategy/actions/AvoidCreatureListAction.{h,cpp}`,
 ## 005-trade-cancel-hygiene.patch
 
 Ports the portable half of AzerothCore mod-playerbots PR #2651 ("fix selfbot
-trading and trade cancellations"): a session null guard before touching trade
-packets, and the refusal path factored into a `TradeStatusAction::CancelTrade()`
-helper that sends the cancel packet so the bot never sits in a phantom
-open-trade state (Tortoise's refusal branch already sent it; the helper keeps
-that guarantee in one place). The donor's selfbot-refusal half is not ported:
-selfbots are blocked upstream in TortoiseBots (ledger F18) and bot traders are
-handled by the module's `PlayerbotAIStorage` gate. No config key.
+trading and trade cancellations"): a session null guard before the action
+touches any trade packet, so a bot whose session is gone cannot dereference it
+through the cancel/accept/begin paths. The donor's cancel-on-refusal half is
+upstream's own code now (every refusal branch sends the cancel packet inline),
+and the `TradeStatusAction::CancelTrade()` helper this patch used to add was
+dropped at the 2026-11-23 re-pin rather than kept as dead factoring. The
+donor's selfbot-refusal half is not ported: selfbots are blocked upstream in
+TortoiseBots (ledger F18) and bot traders are handled by the module's
+`PlayerbotAIStorage` gate. No config key.
 
-Touches: `strategy/actions/TradeStatusAction.{h,cpp}`.
-
-## 006-interrupt-caststop.patch
-
-Ports AzerothCore mod-playerbots PR #2680 ("rework spell interrupt calls"):
-every force-interrupt call site that stopped "whatever the bot is doing"
-now uses the core's `Unit::CastStop()`, which only ends casts a player could
-stop — no cancelling of in-flight projectiles or queued melee swings, no
-synthetic spell-failure packets. Site-by-site: the reaction interrupt,
-`Reset(full)` and the fall handler in `PlayerbotAI.cpp` use `CastStop()`;
-`ReInitCurrentEngine()` no longer interrupts at all (donor end-state);
-`MovementAction::MoveTo2` no longer force-interrupts when starting to move
-(the core's natural move-interrupt flags break the cast like they do for a
-player); `MovementAction::Follow` uses a plain `CastStop()`;
-`JumpAction::DoJump` and the drink/eat actions use `CastStop()`. The
-`PlayerbotAI::InterruptSpell()` wrapper is kept for the "stop attacking"
-target-drop (no donor counterpart; already flag-gated and packet-clean).
-The donor's WotLK-only raid/dungeon call sites (ICC/Gruul/UK/Seth/Kara) have
-no Tortoise files, and Tortoise has no always-false interrupt guards of the
-donor's BattlegroundTactics shape. No config key.
-
-Touches: `PlayerbotAI.cpp`, `strategy/actions/MovementActions.cpp`,
-`strategy/actions/UseItemAction.h`, `strategy/generic/FleeStrategy.cpp`
-(comment only).
+Touches: `strategy/actions/TradeStatusAction.cpp`.
 
 ## 007-grind-rpg-corrections.patch
 
@@ -260,7 +239,9 @@ harness. Still **gameplay-untested**. The `TestRun` provisioning call was
 ported from the donor's `PlayerbotFactory::Randomize` to the upstream
 replacement `MakeComplete` when upstream removed the full-reset factory path
 (at the current pin), so a test bot is still stripped and re-geared from
-scratch. The pinned module's `<boost/...>`
+scratch; the 2026-11-23 re-pin passes `false` to upstream's new
+`MakeComplete(bool freshPoolSeed)`, since a test bot is an existing character
+and must not get the fresh-pool starter handout. The pinned module's `<boost/...>`
 includes (algorithm/string, bimap, stacktrace) are satisfied by
 `libboost-dev` + `libboost-stacktrace-dev` in the Dockerfile builder and
 `libboost-stacktrace1.74.0` on the runtime image (the stacktrace link
@@ -351,6 +332,22 @@ vendored loot-roll hook had to follow upstream's grown signature
 settles its own answers through `Answer()` so the caller still gets the vote,
 the reason (`RollWithEtiquette` builds its step-down text from it) and the
 `bot_events.csv` line.
+
+At the 2026-11-23 re-pin (module `dfa8de7c`, 2,918 commits since the last pin),
+upstream `main` absorbed `006-interrupt-caststop` outright: `InterruptSpell` now
+takes `(bool withMeleeAndAuto, const char* site, float movedYd)` and interrupts
+only casts whose `SPELL_INTERRUPT_FLAG_INTERRUPT` is set, through
+`bot->InterruptSpell(type)` rather than a blanket stop, with a `CastCancel`
+diagnostic row per call site. That is the donor rework the patch ported, so the
+patch was retired and every call site keeps upstream's version (the skill's
+`CastStop` replacement was dropped along with it). `InterruptSpell` remains in
+the tree for callers that want the flag-gated stop plus the diagnostic row.
+
+The same re-pin dropped a now-unused half of patch 005 (the
+`CancelTrade()` helper) because upstream sends the cancel packet inline on
+every refusal branch; the patch keeps only its session null guard. Upstream
+also removed `diffWithPlayer`/`diffEmpty` from `PlayerbotAIConfig`, so patches
+012 and 013 no longer carry them.
 
 ## 012-bot-ai-tick-divisor.patch
 

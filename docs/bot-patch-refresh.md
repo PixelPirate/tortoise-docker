@@ -180,16 +180,17 @@ patch.
 | 002 | `Don't do generic crowd control inside non-raid dungeons.` |
 | 003 | `Add manual creature avoidance.` |
 | 005 | `Harden trade packet handling on refusal.` |
-| 006 | `Rework spell interrupt calls to CastStop.` |
 | 007 | `Grind RPG corrections.` |
 | 008 | `Engine robustness.` + squash `Drop solo-idle claim registry superseded by the lease manager` |
-| 010 | `Dungeon Clear port.` + squash `Make the vendored tree compile against the Penqle core.` + squash `Fix wrong character in config.` + squash `Provision dungeon-clear test bots with MakeComplete after factory refactor.` + squash `Fix the vendored loot-roll hook after upstream grew its out-parameters.` |
+| 010 | `Dungeon Clear port.` + squash `Make the vendored tree compile against the Penqle core.` + squash `Fix wrong character in config.` + squash `Provision dungeon-clear test bots with MakeComplete after factory refactor.` + squash `Fix the vendored loot-roll hook after upstream grew its out-parameters.` + squash `Fix dungeon-clear test provisioning after upstream grew MakeComplete(bool).` |
 | 012 | `Improve bot performance.` + squash `Batch the real-player scan used by the bot AI stagger gate.` |
 | 013 | `Cost-adaptive bot AI scheduling and heavy-bot diagnostics.` |
 
 Patches 004 and 009 were retired on the 2026-10-12 refresh (upstream `main`
 absorbed the force-rebuff ready-check rework and the raid boss tactics port);
-patch 011 was dropped earlier. Numbering continues with the gaps left in place.
+patch 011 was dropped earlier, and patch 006 (interrupt calls) was retired on
+the 2026-11-23 refresh when `InterruptSpell` itself became the flag-gated
+donor rework. Numbering continues with the gaps left in place.
 
 Patch 013 was originally authored as a hand-maintained patch file with no
 matching module commit; the 2026-10-07 refresh mirrored it onto `enhancements`
@@ -229,8 +230,7 @@ cd /tmp/bots-clean
 P=/Users/pho/Turtle/New/tortoise-docker/docker/penqle/patches
 BOUNDS=( "$NEWPIN" $(git rev-list --reverse "$NEWPIN"..clean) )   # boundaries, oldest first
 NAMES=( 001-summon-when-group 002-dungeon-cc-suppression 003-avoid-creature \
-        005-trade-cancel-hygiene 006-interrupt-caststop \
-        007-grind-rpg-corrections 008-engine-robustness \
+        005-trade-cancel-hygiene 007-grind-rpg-corrections 008-engine-robustness \
         010-dungeon-clear 012-bot-ai-tick-divisor 013-cost-adaptive-bot-scheduling ) \
                                                         # drop names of retired patches
 for i in "${!NAMES[@]}"; do

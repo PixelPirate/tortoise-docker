@@ -99,6 +99,24 @@ Repo: this spec lives in the new repo (`tortoise-docker`).
 > module's host-contract gate were re-verified against the new core tip. New
 > bot settings mapped: `AI_DUNGEON_SELF_CLEAR` (upstream's run leader) and
 > `AI_BOT_LFG_GROUPS` (bots form their own dungeon groups), both on.
+>
+> **Re-pin 2026-11-23 (core + module).** The core moves to `1181dev` tip
+> `a4972d9`, the module to upstream `main` `dfa8de7c`, 2,918 commits past
+> `573c7919` (guild order enchants/crafting, reaction cast guard, policy-header
+> work, more bot LFG/raid fixes). `enhancements` was rebased with prefer-main
+> conflict resolution and the series regenerated and verified. **One patch was
+> retired**: 006 (interrupt rework) is upstream's own code now, `InterruptSpell`
+> being flag-gated and site-labelled, so every call site keeps upstream's
+> version. Patch 005 keeps only its session null guard (upstream sends the
+> cancel packet inline on every refusal branch), and upstream's removal of
+> `diffWithPlayer`/`diffEmpty` dropped those members from patches 012 and 013.
+> Core patch 001 and the module's host-contract gate were re-verified against
+> the new core tip. Upstream also removed `AiPlayerbot.DisableRandomLevels` and
+> `AiPlayerbot.randombotStartingLevel` (the level-ladder rework supersedes
+> them), so `AI_DISABLE_RANDOM_LEVELS` and `AI_RANDOM_BOT_STARTING_LEVEL` were
+> dropped from `render-config.sh`, the compose file, `.env.example.penqle` and
+> the README settings table; a fixed starting level is now expressed as
+> `AI_RANDOM_BOT_START_LEVEL_MIN` = `AI_RANDOM_BOT_START_LEVEL_MAX`.
 
 ## 0. Local context (paths on this machine)
 
@@ -109,8 +127,8 @@ An agent working here has these existing checkouts/projects:
 | `/Users/pho/Turtle/New/tortoise-docker` | **This repo.** All deliverables in §1 are built here. |
 | `/Users/pho/Turtle/tortoise-docker` | The **old image this project supersedes**: the working Shyalya-based setup ([Nescabir/tortoise-docker](https://github.com/Nescabir/tortoise-docker)). **Reference implementation AND parity target** — its `Dockerfile`, `docker-compose.yml`, and `docker/*.sh` scripts are the templates to adapt (see §4). Do not modify it. |
 | `/Users/pho/Turtle/TortoiseCompiledNew` | A Windows-native build/play setup of the current Shyalya stack (compile scripts `compile-tortoise-wow.{ps1,bat}`, compiled server binaries, live config files incl. `aiplayerbot.conf`). Useful as a config example and as proof of the user's client-side setup; not part of the Docker pipeline. |
-| `/Users/pho/Turtle/New/tortoise-wow` | Local clone of the canonical core (`tortoise-wow/tortoise-wow`); the image pins it at `1181dev` `025752d`. |
-| `/Users/pho/Turtle/New/TortoiseBots` | Local clone of the bot module; local `main` tracks upstream, the custom work lives on branch `enhancements`, and the image pins upstream `main` `573c7919` plus the patches in `docker/penqle/patches/`. |
+| `/Users/pho/Turtle/New/tortoise-wow` | Local clone of the canonical core (`tortoise-wow/tortoise-wow`); the image pins it at `1181dev` `a4972d9`. |
+| `/Users/pho/Turtle/New/TortoiseBots` | Local clone of the bot module; local `main` tracks upstream, the custom work lives on branch `enhancements`, and the image pins upstream `main` `dfa8de7c` plus the patches in `docker/penqle/patches/`. |
 
 Both upstream projects are cloned locally (see §0); the clones above are the
 reference for reading code and re-running the host-contract verify script.
@@ -133,7 +151,7 @@ A Docker image, packaged like the old one, that runs:
 
 - **Core**: [tortoise-wow/tortoise-wow](https://github.com/tortoise-wow/tortoise-wow)
   (the renamed `Penqle/tortoise-wow`), branch **`1181dev`**, pinned to a commit
-  SHA (`025752d`, the branch tip whose seams the module's host-contract gate
+  SHA (`a4972d9`, the branch tip whose seams the module's host-contract gate
   accepts).
 - **Bot module**: [Sagiroth/TortoiseBots](https://github.com/Sagiroth/TortoiseBots),
   cloned into the core checkout as `modules/TortoiseBots`, pinned to a commit SHA.
@@ -172,7 +190,7 @@ Deliverables in **this repo**:
 
 ### 3.1 Core branch compatibility
 
-- The image pins core `1181dev` at `025752d` (2026-10-29). The module records
+- The image pins core `1181dev` at `a4972d9` (2026-11-23). The module records
   `1181dev` as its canonical target in `CHANGELOG.md` (#162); its
   `docs/HOST_API.md` still names the older `main` `5fafe43b` ("Merging headless
   session and module API expansion") baseline.
@@ -184,7 +202,7 @@ Deliverables in **this repo**:
   (`PlayerScript::OnChatYell`) alongside. The earlier `bot-helpers` pin is no
   longer needed.
 - The module's `tools/verify_penqle_host_contract.sh --core <checkout>`
-  **PASSES** against `025752d` (re-verified 2026-10-29) and runs as a build gate
+  **PASSES** against `a4972d9` (re-verified 2026-11-23) and runs as a build gate
   in `Dockerfile.penqle`
   (checks `SessionTransport::Headless`, `HeadlessSessionMgr`,
   `WorldSession::InitHeadlessSession/IsHeadless`, `World::Start/Stop/
@@ -374,6 +392,32 @@ un-instrumented in `World::Update`. Full analysis, hypothesis ranking,
 mitigations and the phased improvement plan:
 `docs/perf-analysis-2026-10-01.md`.
 
+### 3.9 Honor-maintenance restart loop after downtime (observed 2026-11-12)
+
+A migrated database carried a stale honor-maintenance clock: `tw_char.saved_variables`
+held `lastHonorMaintenanceDay = 20740` while the live game day was 20769
+(`(m_gameTime + TimeZoneOffset) / 86400`). Core behavior
+(`src/game/HonorMgr.cpp:388`, `World.cpp:2851`):
+
+- At boot, if `honorMaintenanceMarker` is set, `DoMaintenance()` runs and then
+  stores `last = next` and `next = last + 7`, clearing the marker.
+- Every minute `CheckMaintenanceDay()` schedules a 15-minute restart
+  (`ShutdownServ(900, SHUTDOWN_MASK_RESTART)`) whenever the game day has
+  reached `nextHonorMaintenanceDay`, then sets the marker.
+
+So a clock that is weeks behind produces **one 15-minute restart per offline
+week**, each boot advancing the stored day by 7 until it catches up (observed
+progression 20740 -> 20747 -> 20754 -> 20761 -> 20768 over five boots). It ends
+on its own once `nextHonorMaintenanceDay` is past today (20775 for the
+2026-11-12 boot, `MaintenanceDay = 3`, i.e. Wednesday) and does not recur
+unless the saved day is stale again.
+
+Consequence for bots: `RandomBotService::MaintainOnlinePool()` returns early
+while `sWorld.IsShutdowning()` is true, so an always-pending restart keeps the
+1000-candidate pool at `poolBots=0` for the whole boot even when
+`RandomBotLoginWithPlayer=1` already got its human login. `poolBots` recovers
+once a boot runs without a countdown and a human is online.
+
 ## 4. Implementation plan
 
 ### 4.1 `Dockerfile.penqle`
@@ -382,9 +426,9 @@ Model on the reference `Dockerfile` at
 `/Users/pho/Turtle/tortoise-docker/Dockerfile`. Key changes:
 
 - Build args: `CORE_REPO` (default `https://github.com/tortoise-wow/tortoise-wow.git`),
-  `CORE_REF` (default `1181dev`), `CORE_COMMIT` (pin, currently `025752d`),
+  `CORE_REF` (default `1181dev`), `CORE_COMMIT` (pin, currently `a4972d9`),
   `BOTS_REPO` (default `https://github.com/Sagiroth/TortoiseBots.git`),
-  `BOTS_COMMIT` (pin, currently `573c7919`), `CPU_TARGET=x86-64-v2`,
+  `BOTS_COMMIT` (pin, currently `dfa8de7c`), `CPU_TARGET=x86-64-v2`,
   `BUILD_JOBS`.
 - Clone core at pinned SHA (cache-bust pattern from the existing Dockerfile:
   declare the SHA right before the clone `RUN`), then clone TortoiseBots into

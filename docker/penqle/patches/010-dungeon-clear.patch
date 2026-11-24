@@ -1,5 +1,5 @@
 diff --git a/TortoiseBots.cmake b/TortoiseBots.cmake
-index 44c1f58..f9c9594 100644
+index ecec8d8..7255221 100644
 --- a/TortoiseBots.cmake
 +++ b/TortoiseBots.cmake
 @@ -40,6 +40,16 @@ endfunction()
@@ -29,7 +29,7 @@ index 44c1f58..f9c9594 100644
      string(REPLACE "|" ";" TORTOISEBOTS_LIVE_CONFIG "${TORTOISEBOTS_LIVE_CONFIG}")
      list(GET TORTOISEBOTS_LIVE_CONFIG 0 TORTOISEBOTS_LIVE_CONFIG_DEST)
      list(GET TORTOISEBOTS_LIVE_CONFIG 1 TORTOISEBOTS_LIVE_CONFIG_SRC)
-@@ -277,6 +288,28 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
+@@ -366,6 +377,28 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
    file(GLOB TORTOISEBOTS_ACTION_SRC CONFIGURE_DEPENDS
      "${TORTOISEBOTS_ROOT}/ai/playerbot/strategy/actions/*.cpp")
  
@@ -58,7 +58,7 @@ index 44c1f58..f9c9594 100644
    set(TORTOISEBOTS_SOURCES
      ${TORTOISEBOTS_HOST_SRC}
      ${TORTOISEBOTS_AI_SRC}
-@@ -287,6 +320,8 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
+@@ -376,6 +409,8 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
      ${TORTOISEBOTS_TRIGGER_SRC}
      ${TORTOISEBOTS_ACTION_SRC})
    list(REMOVE_DUPLICATES TORTOISEBOTS_SOURCES)
@@ -67,7 +67,7 @@ index 44c1f58..f9c9594 100644
  
    foreach(TORTOISEBOTS_SOURCE IN LISTS TORTOISEBOTS_SOURCES)
      if(NOT EXISTS "${TORTOISEBOTS_SOURCE}")
-@@ -407,5 +442,91 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "POST_TARGETS")
+@@ -507,5 +542,91 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "POST_TARGETS")
            "-include" "${TORTOISEBOTS_PCH_HEADER}")
        endif()
      endif()
@@ -160,7 +160,7 @@ index 44c1f58..f9c9594 100644
    endif()
  endif()
 diff --git a/ai/cmangos-compat-shim.h b/ai/cmangos-compat-shim.h
-index 86391e5..61664d4 100644
+index 53997d9..db4cfc9 100644
 --- a/ai/cmangos-compat-shim.h
 +++ b/ai/cmangos-compat-shim.h
 @@ -26,6 +26,7 @@
@@ -88770,10 +88770,10 @@ index 0000000..2c51227
 +#endif  // _PLAYERBOT_DCTESTROSTER_H
 diff --git a/ai/dungeonclear/TestRun/DcTestRunJob.cpp b/ai/dungeonclear/TestRun/DcTestRunJob.cpp
 new file mode 100644
-index 0000000..7f0f451
+index 0000000..86287ec
 --- /dev/null
 +++ b/ai/dungeonclear/TestRun/DcTestRunJob.cpp
-@@ -0,0 +1,2866 @@
+@@ -0,0 +1,2869 @@
 +/*
 + * Copyright (C) 2016+ AzerothCore <www.azerothcore.org>, released under GNU AGPL v3 license, you may redistribute it
 + * and/or modify it under version 3 of the License, or (at your option), any later version.
@@ -89782,7 +89782,10 @@ index 0000000..7f0f451
 +    // starts bare and is geared from scratch, which is the
 +    // `autogear`-on-a-stripped-bot behaviour a run needs to be reproducible.
 +    StripEquipment(bot);
-+    factory.MakeComplete();
++    // Not the one-time fresh pool seed: a test bot is an existing character, so
++    // the starter-gear/profession handout MakeComplete(true) carries for fresh
++    // pool bots stays off.
++    factory.MakeComplete(false);
 +    if (specNo >= 0)
 +    {
 +        // The factory pipeline's own premade path: pin the spec value, then
@@ -126046,13 +126049,14 @@ index 0000000..76f71a1
 +if __name__ == "__main__":
 +    main()
 diff --git a/ai/playerbot/PlayerbotAI.h b/ai/playerbot/PlayerbotAI.h
-index 9fabca6..1242fbc 100644
+index 5501ff8..0a5342e 100644
 --- a/ai/playerbot/PlayerbotAI.h
 +++ b/ai/playerbot/PlayerbotAI.h
-@@ -354,6 +354,13 @@ public:
-     void HandleCommands();
+@@ -370,6 +370,14 @@ public:
      // Chat commands waiting for the next reaction pass (HandleCommands drains them).
      size_t QueuedChatCommandCount() const { return chatCommands.size(); }
+     void QueueChatCommand(std::string const& command, Player* owner, time_t at) { chatCommands.push(ChatCommandHolder(command, owner, CHAT_MSG_WHISPER, at)); }
++
 +    // Dungeon-clear port (donor host parity): while a dungeon-clear run drives
 +    // the bot, the chat-keyword areatrigger relay must not port it out mid-run
 +    // (the donor's live "leader tank vanished" bug). The strategy gate sets
@@ -126063,7 +126067,7 @@ index 9fabca6..1242fbc 100644
  private:
      void UpdateAIInternal(uint32 elapsed, bool minimal = false) override;
  public:
-@@ -1197,9 +1204,14 @@ public:
+@@ -1323,9 +1331,14 @@ public:
      std::vector<std::string> GetRecordedMessages() { m_recordMessages = false; m_recordIncommingMessages= false; auto msgs = m_recordedMessages; m_recordedMessages.clear(); return msgs; }
      void ClearRecordedMessages() { m_recordedMessages.clear(); m_recordMessages = false; m_recordIncommingMessages = false;}
  
@@ -126098,11 +126102,11 @@ index 79ebea8..63cdb7b 100644
      void IncreaseAIInternalUpdateDelay(uint32 delay);
      void YieldAIInternalThread(bool minimal = false);
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index 09c0845..88e6520 100644
+index 5c4f7a4..7f1dac2 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
-@@ -106,6 +106,14 @@ public:
- 	bool IsInPvpProhibitedZone(uint32 id);
+@@ -105,9 +105,17 @@ public:
+ 	bool IsExtraTownGuard(uint32 entry) const;
  
      bool enabled;
 +    // The donor host caps how many bots one account may .add; the
@@ -126113,14 +126117,18 @@ index 09c0845..88e6520 100644
 +    // means unlimited. The dungeon-clear test sidecar reads them.
 +    uint32 autoGearScoreLimit = 0;
 +    uint32 autoGearQualityLimit = 0;
-     bool allowGuildBots;
-     bool allowMultiAccountAltBots;
-     uint32 globalCoolDown, reactDelay, maxWaitForMove, expireActionTime, dispelAuraDuration, passiveDelay, repeatDelay,
+     uint32 globalCoolDown, reactDelay, maxWaitForMove, expireActionTime, dispelAuraDuration, passiveDelay, repeatDelay, errorRepeatDelay,
+         rpgDelay, sitDelay, returnDelay, lootDelay;
+-    float sightDistance, spellDistance, reactDistance, grindDistance, lootDistance, groupMemberLootDistance,
++    float sightDistance, spellDistance, reactDistance, grindDistance, lootDistance, groupMemberLootDistance, groupMemberLootDistanceWithActiveMaster,
+         gatheringDistance, groupMemberGatheringDistance, groupMemberGatheringDistanceWithActiveMaster, shootDistance,
+         fleeDistance, tooCloseDistance, meleeDistance, followDistance, raidFollowDistance, wanderMinDistance, wanderMaxDistance, whisperDistance, contactDistance,
+         aoeRadius, rpgDistance, targetPosRecalcDistance, farDistance, healDistance, healDistanceBg, aggroDistance, proximityDistance, walkDistance;
 diff --git a/ai/playerbot/TravelMgr.h b/ai/playerbot/TravelMgr.h
-index 117918b..909af4f 100644
+index 0c78ecb..f4d72ac 100644
 --- a/ai/playerbot/TravelMgr.h
 +++ b/ai/playerbot/TravelMgr.h
-@@ -196,7 +196,7 @@ namespace ai
+@@ -224,7 +224,7 @@ namespace ai
  		virtual GameObjectInfo const* GetGoInfo() const { return goInfo; }
  		virtual CreatureInfo const* GetCreatureInfo() const { return creatureInfo; }
  		virtual TravelDestinationPurpose GetPurpose() const override { return purpose; }
@@ -126168,10 +126176,10 @@ index 4bcf523..d3b1386 100644
  {
      class AcceptInvitationAction : public Action
 diff --git a/ai/playerbot/strategy/actions/AreaTriggerAction.cpp b/ai/playerbot/strategy/actions/AreaTriggerAction.cpp
-index 06286de..62bbfa9 100644
+index 357b275..bd3e01e 100644
 --- a/ai/playerbot/strategy/actions/AreaTriggerAction.cpp
 +++ b/ai/playerbot/strategy/actions/AreaTriggerAction.cpp
-@@ -55,6 +55,12 @@ bool ReachAreaTriggerAction::Execute(Event& event)
+@@ -57,6 +57,12 @@ bool ReachAreaTriggerAction::Execute(Event& event)
  
  bool AreaTriggerAction::Execute(Event& event)
  {
@@ -126185,10 +126193,10 @@ index 06286de..62bbfa9 100644
  
      uint32 triggerId = movement.lastAreaTrigger;
 diff --git a/ai/playerbot/strategy/actions/MovementActions.cpp b/ai/playerbot/strategy/actions/MovementActions.cpp
-index 588ecb7..e2a6da1 100644
+index 43605c6..2dd68ab 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.cpp
 +++ b/ai/playerbot/strategy/actions/MovementActions.cpp
-@@ -1929,6 +1929,26 @@ float MovementAction::GetFollowAngle()
+@@ -2594,6 +2594,26 @@ float MovementAction::GetFollowAngle()
      return 0;
  }
  
@@ -126216,11 +126224,11 @@ index 588ecb7..e2a6da1 100644
  {
      if (!target)
 diff --git a/ai/playerbot/strategy/actions/MovementActions.h b/ai/playerbot/strategy/actions/MovementActions.h
-index cc85f85..f7ee8cc 100644
+index 032cd24..99c9f54 100644
 --- a/ai/playerbot/strategy/actions/MovementActions.h
 +++ b/ai/playerbot/strategy/actions/MovementActions.h
-@@ -13,6 +13,19 @@
- #include "playerbot/policy/combat/SetBehindPolicy.h"
+@@ -14,6 +14,19 @@
+ #include "playerbot/MagmaHazardPolicy.h"
  #include <atomic>
  
 +// Move priorities, for code ported from mod-playerbots, which arbitrates
@@ -126238,9 +126246,9 @@ index cc85f85..f7ee8cc 100644
 +
  namespace ai
  {
-     class MovementAction : public Action
-@@ -49,8 +62,13 @@ namespace ai
-            return MoveTo(location.mapId, location.x, location.y, location.z, idle, react, noPath, ignoreEnemyTargets);
+     class MovementAction;
+@@ -62,8 +75,13 @@ namespace ai
+            return MoveTo(location.mapId, location.x, location.y, location.z, idle, react, noPath, ignoreEnemyTargets, castCancelSite);
          }
  
 +    public:
@@ -126253,7 +126261,7 @@ index cc85f85..f7ee8cc 100644
  
          bool WaitForTransport();
  
-@@ -147,6 +165,49 @@ namespace ai
+@@ -197,6 +215,49 @@ namespace ai
          bool ShouldReactionInterruptCast() const override { return true; }
          bool ShouldReactionInterruptMovement() const override { return true; }
  
@@ -126412,10 +126420,10 @@ index 26fd5bc..97ff3d3 100644
  #include "MeleeCombatStrategy.h"
  
 diff --git a/ai/playerbot/strategy/triggers/DungeonTriggers.cpp b/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
-index 7393d2c..07e86d3 100644
+index 196b7e3..a60262b 100644
 --- a/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
 +++ b/ai/playerbot/strategy/triggers/DungeonTriggers.cpp
-@@ -65,7 +65,8 @@ bool StartBossFightTrigger::IsActive()
+@@ -66,7 +66,8 @@ bool StartBossFightTrigger::IsActive()
          if (bot->IsInWorld() && !bot->IsBeingTeleported())
          {
              AiObjectContext* context = ai->GetAiObjectContext();
@@ -126426,7 +126434,7 @@ index 7393d2c..07e86d3 100644
              {
                  Unit* attacker = ai->GetUnit(attackerGuid);
 diff --git a/ai/playerbot/strategy/values/AttackersValue.h b/ai/playerbot/strategy/values/AttackersValue.h
-index 22b3a69..f25e315 100644
+index 319fda7..89c4e7e 100644
 --- a/ai/playerbot/strategy/values/AttackersValue.h
 +++ b/ai/playerbot/strategy/values/AttackersValue.h
 @@ -25,6 +25,11 @@ namespace ai
@@ -126439,8 +126447,8 @@ index 22b3a69..f25e315 100644
 +        static bool IsPossibleTarget(Unit* target, Player* player, float /*range*/ = 0.0f, bool checkInCombat = true)
 +        { return IsValid(target, player, nullptr, checkInCombat); }
          static bool IgnoreTarget(Unit* target, Player* playerToCheckAgainst);
-         // True while `bot`'s own "keepout set aside" book refuses `target`
-         // (a melee chase held outside a creature aura keep-out set it aside,
+         // AiPlayerbot.DungeonRunCharmYield: true while `target` is a member of `player`'s group/raid that a creature
+         // currently charms (Hakkar's Cause Insanity 24327). Every pick and attack path asks this before it takes the
 diff --git a/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h b/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h
 index bf85217..9584acb 100644
 --- a/ai/playerbot/strategy/warlock/GenericWarlockStrategy.h

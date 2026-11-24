@@ -1,54 +1,16 @@
 diff --git a/ai/playerbot/strategy/actions/TradeStatusAction.cpp b/ai/playerbot/strategy/actions/TradeStatusAction.cpp
-index e35067d..1425332 100644
+index 2fa3f8c..4f62ba3 100644
 --- a/ai/playerbot/strategy/actions/TradeStatusAction.cpp
 +++ b/ai/playerbot/strategy/actions/TradeStatusAction.cpp
-@@ -18,6 +18,12 @@ using namespace ai;
+@@ -34,6 +34,11 @@ using namespace ai;
  
  bool TradeStatusAction::Execute(Event& event)
  {
 +    // Packet hygiene (mod-playerbots PR #2651): never touch trade packets
-+    // without a session, and always send the cancel packet on a refused
-+    // outcome so the bot does not sit in a phantom open-trade state.
++    // without a session.
 +    if (!bot->GetSession())
 +        return false;
 +
      Player* trader = bot->GetTrader();
      Player* master = GetMaster();
      if (!trader)
-@@ -80,10 +86,7 @@ bool TradeStatusAction::Execute(Event& event)
- 
-     if (!shouldTrade)
-     {
--        WorldPacket p;
--        uint32 status = 0;
--        p << status;
--        bot->GetSession()->HandleCancelTradeOpcode(p);
-+        CancelTrade();
-         return false;
-     }
- 
-@@ -253,6 +256,12 @@ void TradeStatusAction::AutoShareConjured(Player* trader)
-     (void)placed;
- }
- 
-+void TradeStatusAction::CancelTrade()
-+{
-+    WorldPacket p;
-+    bot->GetSession()->HandleCancelTradeOpcode(p);
-+}
-+
- bool TradeStatusAction::CheckTrade()
- {
-     Player* trader = bot->GetTrader();
-diff --git a/ai/playerbot/strategy/actions/TradeStatusAction.h b/ai/playerbot/strategy/actions/TradeStatusAction.h
-index 017d4d2..e168a3c 100644
---- a/ai/playerbot/strategy/actions/TradeStatusAction.h
-+++ b/ai/playerbot/strategy/actions/TradeStatusAction.h
-@@ -17,6 +17,7 @@ namespace ai
-         bool PoolBotMayTradeWith(Player* trader);
-         void BeginTrade();
-         void AutoShareConjured(Player* trader);
-+        void CancelTrade();
-         bool CheckTrade();
-         int32 CalculateCost(Player *player, bool sell);
-     };

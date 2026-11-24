@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/PlayerbotAIConfig.cpp b/ai/playerbot/PlayerbotAIConfig.cpp
-index 862e117..462e367 100644
+index 9d490ce..22dcd76 100644
 --- a/ai/playerbot/PlayerbotAIConfig.cpp
 +++ b/ai/playerbot/PlayerbotAIConfig.cpp
-@@ -936,6 +936,16 @@ bool PlayerbotAIConfig::Initialize()
+@@ -1409,6 +1409,16 @@ bool PlayerbotAIConfig::Initialize()
          botAiTickDivisor = 1;
      if (botAiTickDivisor > 60)
          botAiTickDivisor = 60;
@@ -16,14 +16,14 @@ index 862e117..462e367 100644
 +        botAdaptiveBackoffMax = 1;
 +    if (botAdaptiveBackoffMax > 60)
 +        botAdaptiveBackoffMax = 60;
-     diffWithPlayer = config.GetIntDefault("AiPlayerbot.DiffWithPlayer", 100);
-     diffEmpty = config.GetIntDefault("AiPlayerbot.DiffEmpty", 200);
      RandombotsWalkingRPG = config.GetBoolDefault("AiPlayerbot.RandombotsWalkingRPG", false);
+     minEnchantingBotLevel = config.GetIntDefault("AiPlayerbot.minEnchantingBotLevel", 10);
+     pullDpsJoinDelay = static_cast<uint32>(config.GetIntDefault("AiPlayerbot.PullDpsJoinDelay", 10));
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index 401da13..be8e11b 100644
+index a2e95b4..b6e2a89 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
-@@ -668,6 +668,12 @@ public:
+@@ -1327,6 +1327,12 @@ public:
      // the donor behavior (a full AI tick per bot per tick); >1 staggers bots
      // that no real player is grouped/fighting/seeing with. See BotManager.
      uint32 botAiTickDivisor;
@@ -33,14 +33,14 @@ index 401da13..be8e11b 100644
 +    // eligible for the activity stagger.
 +    uint32 botUpdateWarnUs;
 +    uint32 botAdaptiveBackoffMax;
-     uint32 diffWithPlayer;
-     uint32 diffEmpty;
      uint32 minEnchantingBotLevel;
+     // Ordered pull: DPS hold after the tank's pull lands (pull) or after the
+     // tank is back at the anchor (pullback). Per-command [seconds] overrides
 diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index cb217d3..7f6b8c9 100644
+index 35b47c1..5c95bcc 100644
 --- a/ai/playerbot/aiplayerbot.conf.dist.in
 +++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -679,6 +679,20 @@ AiPlayerbot.DisableActivityPriorities = 1
+@@ -1268,6 +1268,20 @@ AiPlayerbot.GuildOrderSubOrderDepth = 3
  # hundred bots, 5-10 for a thousand.
  AiPlayerbot.BotAiTickDivisor = 1
  
@@ -62,13 +62,13 @@ index cb217d3..7f6b8c9 100644
  # When enabled, bot alts will level up one level at a time to match their master's level
  # AiPlayerbot.SyncAltLevelToMaster = 0
 diff --git a/runtime/BotManager.cpp b/runtime/BotManager.cpp
-index 74a61d6..1e17b84 100644
+index cab991d..6000f61 100644
 --- a/runtime/BotManager.cpp
 +++ b/runtime/BotManager.cpp
-@@ -2075,7 +2075,36 @@ void BotManager::UpdateBots(uint32_t diff)
-                 : diff;
-             entry.lastAiUpdateMs = nowMs ? nowMs : 1;
+@@ -2437,7 +2437,36 @@ void BotManager::UpdateBots(uint32_t diff)
              ++entry.aiVisits;
+             TravelTurnSpot const travelBefore = entry.aiAdapter->GetAI()
+                 ? TravelTurnStatus(entry.aiAdapter->GetAI()) : TravelTurnSpot{};
 +
 +            // Cost-adaptive scheduling: measure this bot's own AI update so the
 +            // stagger gate can back off the expensive ones and so a pathological
@@ -102,7 +102,7 @@ index 74a61d6..1e17b84 100644
              // Issue #1043: a pet the AI turn just brought back (the resummon
              // after a teleport ack) is checked before the maps update, so its
              // own first update cannot unsummon it for being out of range. An
-@@ -2288,7 +2317,7 @@ void BotManager::UpdateBots(uint32_t diff)
+@@ -2712,7 +2741,7 @@ void BotManager::UpdateBots(uint32_t diff)
  // could see keeps a full update rate.
  bool BotManager::ShouldStaggerAiThisTick(BotEntry const& entry, Player* player) const
  {
@@ -111,7 +111,7 @@ index 74a61d6..1e17b84 100644
      if (divisor <= 1 || !entry.record.random)
          return false;
  
-@@ -2302,6 +2331,19 @@ bool BotManager::ShouldStaggerAiThisTick(BotEntry const& entry, Player* player)
+@@ -2726,6 +2755,19 @@ bool BotManager::ShouldStaggerAiThisTick(BotEntry const& entry, Player* player)
      if (HasRealPlayerWithin(player, range))
          return false;
  
@@ -132,10 +132,10 @@ index 74a61d6..1e17b84 100644
  }
  
 diff --git a/runtime/BotManager.h b/runtime/BotManager.h
-index 91577f9..5c81ed8 100644
+index da7e0c1..bb74f8d 100644
 --- a/runtime/BotManager.h
 +++ b/runtime/BotManager.h
-@@ -56,6 +56,11 @@ struct BotRecord
+@@ -57,6 +57,11 @@ struct BotRecord
      // retains the historical accountId fallback for diagnostics.
      uint32_t ownerAccountId = 0;
      uint32_t ticksInWorld = 0;

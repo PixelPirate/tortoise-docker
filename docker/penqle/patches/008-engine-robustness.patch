@@ -1,8 +1,8 @@
 diff --git a/runtime/BattlegroundQueueService.cpp b/runtime/BattlegroundQueueService.cpp
-index 5dd674b..8cae322 100644
+index 8278c1a..548d821 100644
 --- a/runtime/BattlegroundQueueService.cpp
 +++ b/runtime/BattlegroundQueueService.cpp
-@@ -152,6 +152,29 @@ BattlegroundQueueService& BattlegroundQueueService::Instance()
+@@ -180,6 +180,29 @@ BattlegroundQueueService& BattlegroundQueueService::Instance()
      return instance;
  }
  
@@ -32,7 +32,7 @@ index 5dd674b..8cae322 100644
  void BattlegroundQueueService::Initialize()
  {
      if (m_initialized)
-@@ -160,6 +183,8 @@ void BattlegroundQueueService::Initialize()
+@@ -188,6 +211,8 @@ void BattlegroundQueueService::Initialize()
      m_elapsedMs = 0;
      m_demandElapsedMs = 0;
  
@@ -54,23 +54,11 @@ index 371cb4b..9e84d62 100644
      bool m_initialized = false;
      uint32_t m_elapsedMs = 0;
      uint32_t m_demandElapsedMs = 0;
-diff --git a/runtime/BotManager.cpp b/runtime/BotManager.cpp
-index b55b1f8..a3ba9dd 100644
---- a/runtime/BotManager.cpp
-+++ b/runtime/BotManager.cpp
-@@ -2267,6 +2267,7 @@ void BotManager::UpdateBots(uint32_t diff)
- void BotManager::OnWorldUpdate(uint32_t diff)
- {
-     AltBotService::Instance().Update();
-+
-     // Core owns Headless session lifecycle (queue, LoginPlayer dispatch, reclaim).
-     // Module only tracks BotRecord and polls adapter state. No pending promotion.
-     for (auto it = m_bots.begin(); it != m_bots.end(); )
 diff --git a/runtime/BotManager.h b/runtime/BotManager.h
-index b5bc91d..82868e9 100644
+index 722e4fb..cc0475a 100644
 --- a/runtime/BotManager.h
 +++ b/runtime/BotManager.h
-@@ -284,6 +284,7 @@ private:
+@@ -298,6 +298,7 @@ private:
      // Action-count snapshot cadence: cumulative per-(class, action) CSV dump
      // every 5 minutes of tick time (AiPlayerbot.ActionCountsLog only).
      uint32_t m_actionCountsElapsedMs = 0;
@@ -79,10 +67,10 @@ index b5bc91d..82868e9 100644
      uint32_t m_autoTestAccount = 0;
  // pi-lens-ignore: clang:unknown_typename
 diff --git a/runtime/LftBotFillService.cpp b/runtime/LftBotFillService.cpp
-index 89cb7b2..6222055 100644
+index c692a4e..498b2aa 100644
 --- a/runtime/LftBotFillService.cpp
 +++ b/runtime/LftBotFillService.cpp
-@@ -103,6 +103,28 @@ LftBotFillService& LftBotFillService::Instance()
+@@ -104,6 +104,28 @@ LftBotFillService& LftBotFillService::Instance()
      return instance;
  }
  
@@ -111,7 +99,7 @@ index 89cb7b2..6222055 100644
  void LftBotFillService::Initialize()
  {
      if (m_initialized)
-@@ -111,6 +133,8 @@ void LftBotFillService::Initialize()
+@@ -112,6 +134,8 @@ void LftBotFillService::Initialize()
      m_elapsedMs = 0;
      m_pending.clear();
  

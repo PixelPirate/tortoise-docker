@@ -1,39 +1,39 @@
 diff --git a/ai/playerbot/PlayerbotAIConfig.cpp b/ai/playerbot/PlayerbotAIConfig.cpp
-index cfcd6a9..862e117 100644
+index ed80b6c..9d490ce 100644
 --- a/ai/playerbot/PlayerbotAIConfig.cpp
 +++ b/ai/playerbot/PlayerbotAIConfig.cpp
-@@ -931,6 +931,11 @@ bool PlayerbotAIConfig::Initialize()
-     limitCombatActivity = config.GetBoolDefault("AiPlayerbot.LimitCombatActivity", false);
-     guildOrderAlwaysActive = config.GetBoolDefault("AiPlayerbot.GuildOrderAlwaysActive", true);
+@@ -1404,6 +1404,11 @@ bool PlayerbotAIConfig::Initialize()
+     guildOrderSubOrderDepth = (depth < 1 || depth > 16) ? 3 : depth;
+     guildOrderBotRank = config.GetBoolDefault("AiPlayerbot.GuildOrderBotRank", true);
      botActiveAlone = config.GetIntDefault("AiPlayerbot.botActiveAlone", 10);
 +    botAiTickDivisor = config.GetIntDefault("AiPlayerbot.BotAiTickDivisor", 1);
 +    if (botAiTickDivisor < 1)
 +        botAiTickDivisor = 1;
 +    if (botAiTickDivisor > 60)
 +        botAiTickDivisor = 60;
-     diffWithPlayer = config.GetIntDefault("AiPlayerbot.DiffWithPlayer", 100);
-     diffEmpty = config.GetIntDefault("AiPlayerbot.DiffEmpty", 200);
      RandombotsWalkingRPG = config.GetBoolDefault("AiPlayerbot.RandombotsWalkingRPG", false);
+     minEnchantingBotLevel = config.GetIntDefault("AiPlayerbot.minEnchantingBotLevel", 10);
+     pullDpsJoinDelay = static_cast<uint32>(config.GetIntDefault("AiPlayerbot.PullDpsJoinDelay", 10));
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index 88e6520..401da13 100644
+index 7f1dac2..a2e95b4 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
-@@ -664,6 +664,10 @@ public:
-     bool limitCombatActivity;
-     bool guildOrderAlwaysActive;
+@@ -1323,6 +1323,10 @@ public:
+     // defaulting to the guild's lowest rank).
+     bool guildOrderBotRank;
      uint32 botActiveAlone;
 +    // Update every eligible bot's AI once every this many world ticks. 1 keeps
 +    // the donor behavior (a full AI tick per bot per tick); >1 staggers bots
 +    // that no real player is grouped/fighting/seeing with. See BotManager.
 +    uint32 botAiTickDivisor;
-     uint32 diffWithPlayer;
-     uint32 diffEmpty;
      uint32 minEnchantingBotLevel;
+     // Ordered pull: DPS hold after the tank's pull lands (pull) or after the
+     // tank is back at the anchor (pullback). Per-command [seconds] overrides
 diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index 18ed952..cb217d3 100644
+index 50a9893..35b47c1 100644
 --- a/ai/playerbot/aiplayerbot.conf.dist.in
 +++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -666,6 +666,19 @@ AiPlayerbot.DisableActivityPriorities = 1
+@@ -1255,6 +1255,19 @@ AiPlayerbot.GuildOrderSubOrderDepth = 3
  # Default is 10, higher numbers may affect performance
  # AiPlayerbot.botActiveAlone = 10
  
@@ -54,10 +54,10 @@ index 18ed952..cb217d3 100644
  # When enabled, bot alts will level up one level at a time to match their master's level
  # AiPlayerbot.SyncAltLevelToMaster = 0
 diff --git a/runtime/BotManager.cpp b/runtime/BotManager.cpp
-index a3ba9dd..74a61d6 100644
+index 5f6db95..cab991d 100644
 --- a/runtime/BotManager.cpp
 +++ b/runtime/BotManager.cpp
-@@ -2056,10 +2056,19 @@ void BotManager::UpdateBots(uint32_t diff)
+@@ -2416,10 +2416,19 @@ void BotManager::UpdateBots(uint32_t diff)
  
          if (entry.aiAdapter && entry.aiAdapter->IsUsable())
          {
@@ -80,7 +80,7 @@ index a3ba9dd..74a61d6 100644
              uint32_t const nowMs = WorldTimer::getMSTime();
              uint32_t const elapsed = entry.lastAiUpdateMs
                  ? std::min(WorldTimer::getMSTimeDiff(entry.lastAiUpdateMs, nowMs), kMaxAiElapsedMs)
-@@ -2115,6 +2124,10 @@ void BotManager::UpdateBots(uint32_t diff)
+@@ -2484,6 +2493,10 @@ void BotManager::UpdateBots(uint32_t diff)
          }
      };
  
@@ -91,7 +91,7 @@ index a3ba9dd..74a61d6 100644
      // Pass 1: bots under a real player, always, first, with no budget.
      for (uint32_t guidLow : playerGuids)
          updateOneBot(guidLow);
-@@ -2191,6 +2204,8 @@ void BotManager::UpdateBots(uint32_t diff)
+@@ -2615,6 +2628,8 @@ void BotManager::UpdateBots(uint32_t diff)
      // The cuttable share of this tick, fed to the controller next pass.
      m_lastPoolTurnsMs = static_cast<uint32_t>((nowUs() - turnsStartUs) / 1000);
  
@@ -100,7 +100,7 @@ index a3ba9dd..74a61d6 100644
      m_inBotUpdate = false;
  
      if (!m_pendingBotRemovals.empty())
-@@ -2264,6 +2279,72 @@ void BotManager::UpdateBots(uint32_t diff)
+@@ -2688,6 +2703,72 @@ void BotManager::UpdateBots(uint32_t diff)
      }
  }
  
@@ -174,10 +174,10 @@ index a3ba9dd..74a61d6 100644
  {
      AltBotService::Instance().Update();
 diff --git a/runtime/BotManager.h b/runtime/BotManager.h
-index 82868e9..91577f9 100644
+index cc0475a..da7e0c1 100644
 --- a/runtime/BotManager.h
 +++ b/runtime/BotManager.h
-@@ -312,6 +312,17 @@ private:
+@@ -326,6 +326,17 @@ private:
      // out of teleport drops out. Feeds the "stuck teleport" diagnostic line.
      std::unordered_map<uint32_t, time_t> m_teleportSince;
      void SweepStrandedBots(uint32_t diff);
@@ -194,4 +194,4 @@ index 82868e9..91577f9 100644
 +    uint32_t m_aiTickCounter = 0;
      uint32_t m_strandedSweepElapsedMs = 0;
      std::unordered_map<uint32_t, time_t> m_strandedSince; // key = guid counter
-     uint8_t m_packetTestStage = 0;
+     void SweepAbandonedInstanceBots(uint32_t diff);

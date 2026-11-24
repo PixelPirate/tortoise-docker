@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/PlayerbotAI.cpp b/ai/playerbot/PlayerbotAI.cpp
-index 5a7806b..ae7ac3d 100644
+index 747955c..9b9b87a 100644
 --- a/ai/playerbot/PlayerbotAI.cpp
 +++ b/ai/playerbot/PlayerbotAI.cpp
-@@ -981,6 +981,12 @@ bool PlayerbotAI::IsInPve()
+@@ -1293,6 +1293,12 @@ bool PlayerbotAI::IsInPve()
      return !IsInPvp() && !IsInRaid();
  }
  
@@ -16,10 +16,10 @@ index 5a7806b..ae7ac3d 100644
  {
      if (IsSafe(bot))
 diff --git a/ai/playerbot/PlayerbotAI.h b/ai/playerbot/PlayerbotAI.h
-index 5a0ee3a..9fabca6 100644
+index ac2befb..5501ff8 100644
 --- a/ai/playerbot/PlayerbotAI.h
 +++ b/ai/playerbot/PlayerbotAI.h
-@@ -1031,6 +1031,7 @@ public:
+@@ -1067,6 +1067,7 @@ public:
      bool IsInPve();
      bool IsInPvp();
      bool IsInRaid();
@@ -28,10 +28,10 @@ index 5a0ee3a..9fabca6 100644
      void SetMoveToTransport(bool flag = true) { isMovingToTransport = flag; }
      bool GetMoveToTransport() { return isMovingToTransport; }
 diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index f591ba0..18ed952 100644
+index 028375d..50a9893 100644
 --- a/ai/playerbot/aiplayerbot.conf.dist.in
 +++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -651,6 +651,16 @@ AiPlayerbot.DisableActivityPriorities = 1
+@@ -1240,6 +1240,16 @@ AiPlayerbot.GuildOrderSubOrderDepth = 3
  # Limit combat activity for slight performance boost.
  #AiPlayerbot.LimitCombatActivity = 0
  
@@ -49,10 +49,10 @@ index f591ba0..18ed952 100644
  # DisableActivityPriorities = 0; the active set rotates ~1% per minute.
  # Default is 10, higher numbers may affect performance
 diff --git a/ai/playerbot/strategy/Engine.cpp b/ai/playerbot/strategy/Engine.cpp
-index 0798613..dd5a307 100644
+index 53d468e..c5dae70 100644
 --- a/ai/playerbot/strategy/Engine.cpp
 +++ b/ai/playerbot/strategy/Engine.cpp
-@@ -232,6 +232,8 @@ void Engine::Init()
+@@ -234,6 +234,8 @@ void Engine::Init()
      for (std::map<std::string, Strategy*>::iterator i = strategies.begin(); i != strategies.end(); i++)
      {
          Strategy* strategy = i->second;

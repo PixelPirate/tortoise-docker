@@ -31,8 +31,6 @@ AI_MIN_RANDOM_BOTS="${AI_MIN_RANDOM_BOTS:-10}"
 AI_MAX_RANDOM_BOTS="${AI_MAX_RANDOM_BOTS:-10}"
 AI_RANDOM_BOT_LOGIN_WITH_PLAYER="${AI_RANDOM_BOT_LOGIN_WITH_PLAYER:-1}"
 AI_SUMMON_WHEN_GROUP="${AI_SUMMON_WHEN_GROUP:-1}"
-AI_DISABLE_RANDOM_LEVELS="${AI_DISABLE_RANDOM_LEVELS:-0}"
-AI_RANDOM_BOT_STARTING_LEVEL="${AI_RANDOM_BOT_STARTING_LEVEL:-1}"
 AI_RANDOM_BOT_MAX_LEVEL="${AI_RANDOM_BOT_MAX_LEVEL:-60}"
 # Fresh pool bots get a random level in [MIN, MAX] once, on their first login
 # (played time == 0), then level normally. Upstream default is 1 / 60 (fresh
@@ -200,7 +198,6 @@ set_conf "${AI_CONF}" "AiPlayerbot.ForceRebuffOnReadyCheck" "${AI_FORCE_REBUFF_O
 set_conf "${AI_CONF}" "AiPlayerbot.FailedActionRetryBase" "${AI_FAILED_ACTION_RETRY_BASE}"
 set_conf "${AI_CONF}" "AiPlayerbot.FailedActionRetryMax" "${AI_FAILED_ACTION_RETRY_MAX}"
 set_conf "${AI_CONF}" "AiPlayerbot.SummonWhenGroup" "${AI_SUMMON_WHEN_GROUP}"
-set_conf "${AI_CONF}" "AiPlayerbot.DisableRandomLevels" "${AI_DISABLE_RANDOM_LEVELS}"
 
 # mod-dungeon-clear (vendored): only keys that exist in the module's .dist.
 # Master toggle, default OFF (house rule: autonomous background services are
@@ -209,7 +206,6 @@ set_conf "${AI_CONF}" "AiPlayerbot.DisableRandomLevels" "${AI_DISABLE_RANDOM_LEV
 DC_CONF="${ETC}/modules/mod_dungeon_clear.conf"
 DUNGEON_CLEAR_ENABLED="${DUNGEON_CLEAR_ENABLED:-0}"
 set_conf "${DC_CONF}" "DungeonClear.Enabled" "${DUNGEON_CLEAR_ENABLED}"
-set_conf "${AI_CONF}" "AiPlayerbot.randombotStartingLevel" "${AI_RANDOM_BOT_STARTING_LEVEL}"
 set_conf "${AI_CONF}" "AiPlayerbot.RandomBotMaxLevel" "${AI_RANDOM_BOT_MAX_LEVEL}"
 set_conf "${AI_CONF}" "AiPlayerbot.RandomBotStartLevelMin" "${AI_RANDOM_BOT_START_LEVEL_MIN}"
 set_conf "${AI_CONF}" "AiPlayerbot.RandomBotStartLevelMax" "${AI_RANDOM_BOT_START_LEVEL_MAX}"

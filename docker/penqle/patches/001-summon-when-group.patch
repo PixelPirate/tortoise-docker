@@ -1,8 +1,8 @@
 diff --git a/ai/playerbot/PlayerbotAIConfig.cpp b/ai/playerbot/PlayerbotAIConfig.cpp
-index 95c3ef8..cfcd6a9 100644
+index d766069..ed80b6c 100644
 --- a/ai/playerbot/PlayerbotAIConfig.cpp
 +++ b/ai/playerbot/PlayerbotAIConfig.cpp
-@@ -1076,6 +1076,7 @@ bool PlayerbotAIConfig::Initialize()
+@@ -1487,6 +1487,7 @@ bool PlayerbotAIConfig::Initialize()
      shareTargets = config.GetBoolDefault("AiPlayerbot.ShareTargets", true);
      globalSoundEffects = config.GetBoolDefault("AiPlayerbot.GlobalSoundEffects", false);
      nonGmFreeSummon = config.GetBoolDefault("AiPlayerbot.NonGmFreeSummon", false);
@@ -11,22 +11,22 @@ index 95c3ef8..cfcd6a9 100644
      //SPP automation
      autoPickReward = config.GetStringDefault("AiPlayerbot.AutoPickReward", "yes");
 diff --git a/ai/playerbot/PlayerbotAIConfig.h b/ai/playerbot/PlayerbotAIConfig.h
-index a7afd9e..09c0845 100644
+index 71edc20..5c4f7a4 100644
 --- a/ai/playerbot/PlayerbotAIConfig.h
 +++ b/ai/playerbot/PlayerbotAIConfig.h
-@@ -779,6 +779,7 @@ public:
- 
-     bool talentsInPublicNote;
+@@ -1376,6 +1376,7 @@ public:
+     // trainer/skill gating), so both known together is safe.
+     int botProfessionSpecializations = 2;
      bool nonGmFreeSummon;
 +    bool summonWhenGroup;
  
      BotSelfBotLevel selfBotLevel;
      uint32 iterationsPerTick;
 diff --git a/ai/playerbot/aiplayerbot.conf.dist.in b/ai/playerbot/aiplayerbot.conf.dist.in
-index ff8b95b..f591ba0 100644
+index b6db963..028375d 100644
 --- a/ai/playerbot/aiplayerbot.conf.dist.in
 +++ b/ai/playerbot/aiplayerbot.conf.dist.in
-@@ -1306,6 +1306,11 @@ AiPlayerbot.BotLogFile =
+@@ -2967,6 +2967,11 @@ AiPlayerbot.BotLogFile =
  # Bots may also use the innkeeper "summon me" path when resolving a summon order
  #AiPlayerbot.SummonAtInnkeepersEnabled = 1
  
@@ -35,9 +35,9 @@ index ff8b95b..f591ba0 100644
 +# mod-playerbots.
 +# AiPlayerbot.SummonWhenGroup = 0
 +
- # Bots will put their talentspec in guild notes when they change/tell their talents if they have the rights.
- # AiPlayerbot.TalentsInPublicNote = 0
- 
+ # Bots write their spec, talents and both primary professions with skill into
+ # their guild public note (e.g. "Arms 31/20/0 Mi245 BS230"), refreshed on
+ # talent changes and every few minutes on skill changes. No guild rank right
 diff --git a/ai/playerbot/strategy/actions/AcceptInvitationAction.h b/ai/playerbot/strategy/actions/AcceptInvitationAction.h
 index 16d781a..4bcf523 100644
 --- a/ai/playerbot/strategy/actions/AcceptInvitationAction.h
@@ -89,12 +89,12 @@ index 16d781a..4bcf523 100644
              if (TortoiseBots::BotManager::Instance().IsBot(bot->GetObjectGuid()))
              {
 diff --git a/ai/playerbot/strategy/actions/UseMeetingStoneAction.h b/ai/playerbot/strategy/actions/UseMeetingStoneAction.h
-index 9e45181..585db15 100644
+index 6278832..9162ce3 100644
 --- a/ai/playerbot/strategy/actions/UseMeetingStoneAction.h
 +++ b/ai/playerbot/strategy/actions/UseMeetingStoneAction.h
-@@ -13,8 +13,11 @@ namespace ai
-         bool isUsefulWhenStunned() override { return true; }
-         virtual bool Execute(Event& event) override;
+@@ -18,8 +18,11 @@ namespace ai
+         static bool FindSpotBeside(Player* summoner, Player* player, float followRange, float followAngle,
+             float& outX, float& outY, float& outZ);
  
 -    protected:
 +        // Summon-on-group-join (see AcceptInvitationAction) reuses the safe
